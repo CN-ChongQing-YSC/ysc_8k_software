@@ -123,7 +123,7 @@ const netRunning = ref(false);
 const netPort = ref(5251);
 const netIp = ref('');
 const netMac = ref('');
-const version = ref('1.10.0');
+const version = ref('1.11.0');
 const ports = ref([]);
 
 const firmwareFilePath = ref('');
