@@ -1,0 +1,25 @@
+appId: com.ysc.8k-driver
+productName: "YSC 8K 驱动"
+copyright: "Copyright (C) 2026 YSC"
+directories:
+  output: release
+  buildResources: resources
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: resources/icon.ico
+nsis:
+  oneClick: false
+  license: resources/license.txt
+  allowToChangeInstallationDirectory: true
+  installerLanguages: ["zh-CN"]
+  language: 2052
+  shortcutName: "YSC 8K 驱动"
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+extraResources:
+  - from: "../ysc_8k_driver/work/Release/ysc_8k_driver.exe"
+    to: "ysc_8k_driver.exe"
+  - from: "resources/icon.ico"
+    to: "icon.ico"

@@ -1,0 +1,14 @@
+# ysc_8k_driver (C++ / Visual Studio)
+/ysc_8k_driver/x64
+/ysc_8k_driver/Debug
+/ysc_8k_driver/.vs
+/ysc_8k_driver/work
+
+# ysc_8k_electron (Node / Electron)
+/ysc_8k_electron/node_modules
+/ysc_8k_electron/dist
+/ysc_8k_electron/release
+
+# misc
+/.codegraph
+/ysc_8k_driver/ysc_8k_driver/x64
