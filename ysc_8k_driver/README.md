@@ -29,6 +29,25 @@ msbuild ysc_8k_driver.vcxproj /p:Configuration=Release /p:Platform=x64
 Output: `work\Release\ysc_8k_driver.exe` (the `OutDir` override at vcxproj:84).
 `setupapi.lib` and `cfgmgr32.lib` are already in `AdditionalDependencies`.
 
+## ysc_sdk.dll — 给其它语言调用的驱动 SDK
+
+不想在 易语言 / Python / C# / Delphi 里重复实现串口驱动？用 `ysc_sdk.dll`。
+它把连接串口、列出串口、切换波特率、全部 YSC 协议命令封装成 27 个 C 导出函数，
+其它语言直接加载 DLL 即可。
+
+- 源码：`ysc_sdk.h` / `ysc_sdk.cpp`（串口逻辑严格对照 `serial_port.cpp`，
+  枚举复用 `towmcu_cdc.cpp`）。工程：`ysc_sdk.sln` / `ysc_sdk.vcxproj`
+  （工具集 v142/v143/v145 任选，`DynamicLibrary`，静态 CRT `/MT` 无运行库依赖）。
+
+```
+msbuild ysc_sdk.sln /p:Configuration=Release /p:Platform=x64   # -> bin\x64\Release\ysc_sdk.dll
+msbuild ysc_sdk.sln /p:Configuration=Release /p:Platform=x86   # -> bin\Win32\Release\ysc_sdk.dll（32 位易语言）
+```
+
+完整 API、调用约定、各语言示例见 `../Example/`（Python 已含覆盖全部 27 个接口、
+真机验证的自动化测试 `test_dll.py`）。
+
+
 ## v2 (towmcu dual-MCU) firmware update — IPC protocol
 
 The Electron app sends newline-delimited JSON `{"type":"<cmd>", ...}\n` over

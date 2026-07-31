@@ -1,0 +1,2 @@
+# ysc_sdk Python 绑定仅依赖标准库 ctypes，无需第三方包。
+# 本文件为空占位；如需用 pyserial 做对比验证，可自行 pip install pyserial。

@@ -1,0 +1,31 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.37301.9
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ysc_sdk", "ysc_sdk.vcxproj", "{9f2a7b33-4c1d-4e7a-9b55-1a8c2d6e0f11}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{9f2a7b33-4c1d-4e7a-9b55-1a8c2d6e0f11}.Debug|x64.ActiveCfg = Debug|x64
+		{9f2a7b33-4c1d-4e7a-9b55-1a8c2d6e0f11}.Debug|x64.Build.0 = Debug|x64
+		{9f2a7b33-4c1d-4e7a-9b55-1a8c2d6e0f11}.Debug|x86.ActiveCfg = Debug|Win32
+		{9f2a7b33-4c1d-4e7a-9b55-1a8c2d6e0f11}.Debug|x86.Build.0 = Debug|Win32
+		{9f2a7b33-4c1d-4e7a-9b55-1a8c2d6e0f11}.Release|x64.ActiveCfg = Release|x64
+		{9f2a7b33-4c1d-4e7a-9b55-1a8c2d6e0f11}.Release|x64.Build.0 = Release|x64
+		{9f2a7b33-4c1d-4e7a-9b55-1a8c2d6e0f11}.Release|x86.ActiveCfg = Release|Win32
+		{9f2a7b33-4c1d-4e7a-9b55-1a8c2d6e0f11}.Release|x86.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {b1c4d7e2-5a93-4f80-9e21-7c6b3a0d2f44}
+	EndGlobalSection
+EndGlobal

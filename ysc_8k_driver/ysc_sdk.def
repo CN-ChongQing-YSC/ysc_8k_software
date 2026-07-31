@@ -1,0 +1,39 @@
+; ysc_sdk.def — 32 位(x86) 导出名还原
+; ============================================================================
+; DLL 用 stdcall 编译，32 位下符号会被修饰成 _Ysc_Xxx@N。本 .def 把导出名
+; 还原成干净的 Ysc_Xxx，供 易语言 / VB6 / Delphi / C# 按名称直接调用。
+; （仅 Win32 配置引用本文件；x64 天然是干净名，不需要 .def。）
+;
+; @N = 该函数参数总字节数（x86 stdcall 约定）。若与编译器实际修饰不符，
+;      链接器会报 "unresolved external _Ysc_Xxx@N"，按报错修正即可。
+; ============================================================================
+
+LIBRARY ysc_sdk
+EXPORTS
+    Ysc_SdkVersion          = _Ysc_SdkVersion@0
+    Ysc_LastError           = _Ysc_LastError@0
+    Ysc_SupportedBaudrates  = _Ysc_SupportedBaudrates@4
+    Ysc_ListPorts           = _Ysc_ListPorts@8
+    Ysc_ListAllComPorts     = _Ysc_ListAllComPorts@8
+    Ysc_Connect             = _Ysc_Connect@16
+    Ysc_Disconnect          = _Ysc_Disconnect@4
+    Ysc_DetectBaudrate      = _Ysc_DetectBaudrate@4
+    Ysc_IsConnected         = _Ysc_IsConnected@4
+    Ysc_GetBaudrate         = _Ysc_GetBaudrate@4
+    Ysc_GetPortName         = _Ysc_GetPortName@12
+    Ysc_SwitchBaudrate      = _Ysc_SwitchBaudrate@8
+    Ysc_SendCommand         = _Ysc_SendCommand@20
+    Ysc_SendCommandNoWait   = _Ysc_SendCommandNoWait@8
+    Ysc_SendRaw             = _Ysc_SendRaw@12
+    Ysc_QueryVersion        = _Ysc_QueryVersion@16
+    Ysc_MouseMove           = _Ysc_MouseMove@16
+    Ysc_MouseMoveTow        = _Ysc_MouseMoveTow@16
+    Ysc_MouseButton         = _Ysc_MouseButton@12
+    Ysc_KeyboardKey         = _Ysc_KeyboardKey@12
+    Ysc_KeyboardReleaseAll  = _Ysc_KeyboardReleaseAll@4
+    Ysc_UploadStatus        = _Ysc_UploadStatus@8
+    Ysc_JumpIAP             = _Ysc_JumpIAP@4
+    Ysc_GamepadGetConfig    = _Ysc_GamepadGetConfig@16
+    Ysc_GamepadSetConfig    = _Ysc_GamepadSetConfig@8
+    Ysc_GamepadEnable       = _Ysc_GamepadEnable@8
+    Ysc_GamepadReset        = _Ysc_GamepadReset@4

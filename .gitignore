@@ -4,6 +4,10 @@
 /ysc_8k_driver/.vs
 /ysc_8k_driver/work
 
+# ysc_sdk (SDK DLL build output)
+/ysc_8k_driver/bin
+/ysc_8k_driver/obj
+
 # ysc_8k_electron (Node / Electron)
 /ysc_8k_electron/node_modules
 /ysc_8k_electron/dist
@@ -12,3 +16,7 @@
 # misc
 /.codegraph
 /ysc_8k_driver/ysc_8k_driver/x64
+
+# Python
+__pycache__/
+*.pyc
