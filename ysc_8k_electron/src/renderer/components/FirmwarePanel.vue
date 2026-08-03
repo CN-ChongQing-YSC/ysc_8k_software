@@ -98,6 +98,23 @@
         <div class="firmware-progress-text">{{ progressStatus }}</div>
       </div>
 
+      <!-- 校验失败（固件不匹配）恢复提示：断电再上电后重新更新 -->
+      <div class="firmware-section" v-if="mismatchShown">
+        <div class="fw-mismatch-card">
+          <div class="fw-mismatch-title">⚠ {{ t('firmware.mismatchTitle') }}</div>
+          <div class="fw-mismatch-tip">{{ t('firmware.mismatchTip') }}</div>
+          <ol class="fw-mismatch-steps">
+            <li>{{ t('firmware.mismatchStep1') }}</li>
+            <li>{{ t('firmware.mismatchStep2') }}</li>
+            <li>{{ t('firmware.mismatchStep3') }}</li>
+          </ol>
+          <div class="fw-mismatch-actions">
+            <button class="btn btn-accent" @click="retryAfterMismatch">{{ t('firmware.mismatchRetry') }}</button>
+            <button class="btn" @click="mismatchShown = false">{{ t('firmware.mismatchClose') }}</button>
+          </div>
+        </div>
+      </div>
+
       <div class="firmware-section firmware-log-section">
         <div class="firmware-label">{{ t('firmware.logTitle') }}</div>
         <div class="firmware-log" ref="logContainer">
@@ -131,6 +148,10 @@ const progressPct = ref(0);
 const progressStatus = ref('');
 const logs = ref([]);
 const logContainer = ref(null);
+
+// 校验失败（固件不匹配）恢复提示：true 时显示「断电再上电」卡片
+const mismatchShown = ref(false);
+let lastStartWasMem = false; // 重新更新时复用同一条入口（本地文件 / 在线内存）
 
 // Version-list state. listState idle = list hidden.
 const listState = ref('idle');   // idle | checking | ready | error
@@ -231,6 +252,8 @@ function enterIAP() {
 function startUpgrade(overridePath) {
   const path = overridePath || props.filePath;
   if (!path) return;
+  mismatchShown.value = false;
+  lastStartWasMem = false;
   state.value = 'upgrading';
   progressPct.value = 0;
   progressStatus.value = t('firmware.logStart');
@@ -241,11 +264,20 @@ function startUpgrade(overridePath) {
 // 在线下载路径：固件已暂存在主进程内存中（pendingFirmware），通过
 // iap_start_mem 把 deviceType 传过去，main 进程会 Base64 编码后发给 C++。
 function startUpgradeMem(deviceType) {
+  mismatchShown.value = false;
+  lastStartWasMem = true;
   state.value = 'upgrading';
   progressPct.value = 0;
   progressStatus.value = t('firmware.logStart');
   addLog(t('firmware.logStart'), 'info');
   api.send('iap_start_mem', { deviceType, baud: selectedBaud.value });
+}
+
+// 校验失败（固件不匹配）后：用户已按提示「断电再上电」，点此重新更新。
+function retryAfterMismatch() {
+  mismatchShown.value = false;
+  if (lastStartWasMem) startUpgradeMem(DEVICE_TYPE);
+  else startUpgrade();
 }
 
 function cancelUpgrade() {
@@ -266,6 +298,7 @@ onMounted(function() {
   });
   listen('iap_done', function(data) {
     if (data.success) {
+      mismatchShown.value = false;
       state.value = 'done';
       progressPct.value = 100;
       progressStatus.value = t('firmware.done');
@@ -281,6 +314,8 @@ onMounted(function() {
     } else {
       state.value = 'idle';
       addLog(t('firmware.logFailed', { error: data.error || '' }), 'err');
+      // 校验失败（固件不匹配）：弹出「断电再上电」恢复提示卡
+      if (data.code === 'FIRMWARE_MISMATCH') mismatchShown.value = true;
     }
   });
 

@@ -113,6 +113,14 @@ function getIconPath(): string {
   return path.resolve(__dirname, '../resources/icon.ico');
 }
 
+// --- 随包 CH343 驱动安装器路径（CH343SER.EXE）---
+function getCh343InstallerPath(): string {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'ch343-driver', 'CH343SER.EXE');
+  }
+  return path.resolve(__dirname, '../resources/ch343-driver/CH343SER.EXE');
+}
+
 // --- Create main window ---
 function createMainWindow(): void {
   const saved = loadWindowState();
@@ -203,6 +211,7 @@ function setupDriverEvents(): void {
     'iap_log', 'iap_progress', 'iap_done',
     'towmcu_ports', 'towmcu_version',
     'iap2_log', 'iap2_progress', 'iap2_done',
+    'ch343_driver_status',
     'debug_cmd_result', 'debug_response',
   ];
 
@@ -398,6 +407,29 @@ function setupIpc(): void {
       if (win) win.destroy();
       if (tmpPath) { try { fs.unlinkSync(tmpPath); } catch {} }
     }
+  });
+
+  // ── 一键安装 CH343 驱动：以管理员权限启动随包 CH343SER.EXE ──
+  // 用 PowerShell Start-Process -Verb RunAs 触发 UAC；用户在 WCH 官方 GUI 里点「安装」。
+  // 不等待 GUI 结束（Start-Process -Verb RunAs 立即返回）——前端稍后自行重新检测。
+  ipcMain.handle('driver:installCh343Driver', async () => {
+    const exe = getCh343InstallerPath();
+    if (!fs.existsSync(exe)) {
+      return { ok: false, error: 'CH343SER.EXE not found: ' + exe };
+    }
+    // 路径里可能有空格/CJK，用单引号传给 PowerShell，内部单引号翻倍转义。
+    const psPath = "'" + exe.replace(/'/g, "''") + "'";
+    return new Promise((resolve) => {
+      const ps = spawn('powershell.exe', [
+        '-NoProfile', '-WindowStyle', 'Hidden', '-Command',
+        `Start-Process -FilePath ${psPath} -Verb RunAs`,
+      ]);
+      ps.on('error', (err) => resolve({ ok: false, error: err.message }));
+      ps.on('close', (code) => {
+        // code 0 = 已以管理员权限拉起（用户取消 UAC 时 Start-Process 抛错→非 0）。
+        resolve(code === 0 ? { ok: true } : { ok: false, error: 'launch failed (code ' + code + ')' });
+      });
+    });
   });
 }
 

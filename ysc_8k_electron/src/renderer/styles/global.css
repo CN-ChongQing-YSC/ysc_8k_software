@@ -363,6 +363,70 @@ html, body {
   font-size: 11px;
 }
 
+/* 校验失败（固件不匹配）恢复提示卡 —— 断电再上电后重新更新 */
+.fw-mismatch-card {
+  margin-top: 8px;
+  padding: 12px 14px;
+  border-radius: 6px;
+  background: rgba(251, 191, 36, 0.10);
+  border: 1px solid rgba(251, 191, 36, 0.45);
+}
+.fw-mismatch-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-yellow);
+  margin-bottom: 6px;
+}
+.fw-mismatch-tip {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+.fw-mismatch-steps {
+  margin: 0 0 10px 0;
+  padding-left: 20px;
+  font-size: 12px;
+  color: var(--text-primary);
+  line-height: 1.7;
+}
+.fw-mismatch-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* CH343/WCH 设备驱动异常（黄叹号）全局警告条 */
+.ch343-warn-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  background: rgba(251, 191, 36, 0.12);
+  border-bottom: 1px solid rgba(251, 191, 36, 0.40);
+  color: var(--text-primary);
+  font-size: 12px;
+}
+.ch343-warn-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ch343-warn-title {
+  font-weight: 600;
+  color: var(--accent-yellow);
+}
+.ch343-warn-tip {
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+.ch343-warn-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .kmnet-selfcheck {
   margin-top: 8px;
   padding: 8px 10px;

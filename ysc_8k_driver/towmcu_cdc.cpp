@@ -158,3 +158,92 @@ std::vector<TowmcuPort> EnumTowmcuPorts() {
         });
     return out;
 }
+
+/* ── CH343 / WCH 驱动健康检测 ── */
+
+// 硬件 ID 是否属于 WCH（VID 1A86）。比 HwIdMatchesVidPid 更宽 —— 只看 VID，
+// 覆盖本 8K 设备的 PID FE0C（inbox usbser）和其他 CH343 产品的 PID。
+static bool HwIdIsWch(const wchar_t *hwId) {
+    if (!hwId) return false;
+    return wcsstr(hwId, L"VID_1A86") != nullptr;
+}
+
+// 从硬件 ID 里抠出 PID_XXXX 段（大写十六进制 4 位）。
+static std::string ExtractPidHex(const wchar_t *hwId) {
+    if (!hwId) return "";
+    const wchar_t *p = wcsstr(hwId, L"PID_");
+    if (!p) return "";
+    p += 4; // 跳过 "PID_"
+    char buf[8] = {};
+    int i = 0;
+    while (i < 7 && p[i]) {
+        wchar_t c = p[i];
+        bool hex = (c >= L'0' && c <= L'9') || (c >= L'A' && c <= L'F') || (c >= L'a' && c <= L'f');
+        if (!hex) break;
+        buf[i] = (char)c;
+        i++;
+    }
+    buf[i] = 0;
+    return buf;
+}
+
+Ch343DriverStatus DetectCh343DriverStatus() {
+    Ch343DriverStatus st;
+    st.anyPresent = false;
+    st.anyProblem = false;
+
+    // 枚举所有 present 设备节点（不只 COM 接口：无驱动的设备不会暴露 COM 接口，
+    // 必须走 ALLCLASSES 才能抓到「黄叹号」设备）。
+    HDEVINFO hDev = SetupDiGetClassDevsW(NULL, NULL, NULL,
+                                         DIGCF_PRESENT | DIGCF_ALLCLASSES);
+    if (hDev == INVALID_HANDLE_VALUE) return st;
+
+    SP_DEVINFO_DATA did = { sizeof(did) };
+    for (DWORD i = 0; SetupDiEnumDeviceInfo(hDev, i, &did); i++) {
+        // SPDRP_HARDWAREID 是 REG_MULTI_SZ（多个硬件 ID，空分隔，双空结尾）。
+        wchar_t hwBuf[512] = {};
+        if (!SetupDiGetDeviceRegistryPropertyW(hDev, &did, SPDRP_HARDWAREID,
+                NULL, (PBYTE)hwBuf, sizeof(hwBuf), NULL) || !hwBuf[0]) {
+            continue;
+        }
+        // 逐条检查多硬件 ID，命中 VID_1A86 即视为 WCH 设备。
+        bool isWch = false;
+        for (const wchar_t *p = hwBuf; *p; p += wcslen(p) + 1) {
+            if (HwIdIsWch(p)) { isWch = true; break; }
+        }
+        if (!isWch) continue;
+
+        st.anyPresent = true;
+
+        // 取 problem 码：0 = 正常；非 0 = 异常（28=驱动未安装 等）。
+        ULONG status = 0, problem = 0;
+        CONFIGRET cr = CM_Get_DevNode_Status(&status, &problem, did.DevInst, 0);
+        if (cr != CR_SUCCESS) problem = 0xFFFFFFFF; // 取不到，保守按异常处理
+
+        if (problem != 0) {
+            st.anyProblem = true;
+            WchDeviceProblem wp;
+            wp.problemCode = (unsigned long)problem;
+
+            // PID：从命中的那条硬件 ID 取。
+            for (const wchar_t *p = hwBuf; *p; p += wcslen(p) + 1) {
+                if (HwIdIsWch(p)) { wp.pidHex = ExtractPidHex(p); break; }
+            }
+
+            wchar_t friendly[256] = {};
+            if (SetupDiGetDeviceRegistryPropertyW(hDev, &did, SPDRP_FRIENDLYNAME,
+                    NULL, (PBYTE)friendly, sizeof(friendly), NULL) && friendly[0]) {
+                wp.friendlyName = Narrow(friendly);
+            } else {
+                wchar_t devdesc[256] = {};
+                if (SetupDiGetDeviceRegistryPropertyW(hDev, &did, SPDRP_DEVICEDESC,
+                        NULL, (PBYTE)devdesc, sizeof(devdesc), NULL) && devdesc[0]) {
+                    wp.friendlyName = Narrow(devdesc);
+                }
+            }
+            st.problems.push_back(std::move(wp));
+        }
+    }
+    SetupDiDestroyDeviceInfoList(hDev);
+    return st;
+}

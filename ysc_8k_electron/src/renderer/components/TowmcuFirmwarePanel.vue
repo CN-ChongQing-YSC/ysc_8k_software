@@ -116,6 +116,23 @@
         <div class="firmware-progress-text">{{ progressStatus }}</div>
       </div>
 
+      <!-- 校验失败（固件不匹配）恢复提示：断电再上电后重新更新 -->
+      <div class="firmware-section" v-if="mismatchShown">
+        <div class="fw-mismatch-card">
+          <div class="fw-mismatch-title">⚠ {{ t('firmware.mismatchTitle') }}</div>
+          <div class="fw-mismatch-tip">{{ t('firmware.mismatchTip') }}</div>
+          <ol class="fw-mismatch-steps">
+            <li>{{ t('firmware.mismatchStep1') }}</li>
+            <li>{{ t('firmware.mismatchStep2') }}</li>
+            <li>{{ t('firmware.mismatchStep3') }}</li>
+          </ol>
+          <div class="fw-mismatch-actions">
+            <button class="btn btn-accent" @click="retryAfterMismatch">{{ t('firmware.mismatchRetry') }}</button>
+            <button class="btn" @click="mismatchShown = false">{{ t('firmware.mismatchClose') }}</button>
+          </div>
+        </div>
+      </div>
+
       <div class="firmware-section firmware-log-section">
         <div class="firmware-label">{{ t('towmcu.logTitle') }}</div>
         <div class="firmware-log" ref="logContainer">
@@ -156,6 +173,11 @@ const progressStatus = ref('');
 const logs = ref([]);
 const logContainer = ref(null);
 const checking = ref(false);
+
+// 校验失败（固件不匹配）恢复提示 + 重新更新时复用的入口信息
+const mismatchShown = ref(false);
+let lastUpgradeSide = '';
+let lastUpgradeMem = false;
 
 const DEV_TYPE = { left: 'ysc_towmcu_left', right: 'ysc_towmcu_right' };
 
@@ -226,6 +248,9 @@ function enterIAP() {
 function startUpgrade(side) {
   const path = side === 'left' ? leftPath.value : rightPath.value;
   if (!path || !selectedPort.value) return;
+  mismatchShown.value = false;
+  lastUpgradeSide = side;
+  lastUpgradeMem = false;
   state.value = 'upgrading';
   upgradingSide.value = side;
   progressPct.value = 0;
@@ -242,6 +267,9 @@ function startUpgrade(side) {
 // towmcu_start_mem 把 deviceType 传过去，main 进程会 Base64 编码后发给 C++。
 function startUpgradeMem(side) {
   if (!selectedPort.value) return;
+  mismatchShown.value = false;
+  lastUpgradeSide = side;
+  lastUpgradeMem = true;
   state.value = 'upgrading';
   upgradingSide.value = side;
   progressPct.value = 0;
@@ -249,6 +277,13 @@ function startUpgradeMem(side) {
   addLog(t('towmcu.logStart'), 'info');
   stopPortPolling();
   api.send('towmcu_start_mem', { port: selectedPort.value, deviceType: DEV_TYPE[side] });
+}
+// 校验失败（固件不匹配）后：用户已按提示「断电再上电」，点此重新更新同一侧。
+function retryAfterMismatch() {
+  mismatchShown.value = false;
+  if (!lastUpgradeSide) return;
+  if (lastUpgradeMem) startUpgradeMem(lastUpgradeSide);
+  else startUpgrade(lastUpgradeSide);
 }
 function cancelUpgrade() {
   addLog(t('towmcu.logCancel'), 'warn');
@@ -373,6 +408,7 @@ onMounted(function () {
   listen('iap2_done', function (data) {
     const side = upgradingSide.value;
     if (data && data.success) {
+      mismatchShown.value = false;
       state.value = 'done';
       progressPct.value = 100;
       progressStatus.value = t('towmcu.logDoneShort');
@@ -387,6 +423,8 @@ onMounted(function () {
     } else {
       state.value = 'idle';
       addLog(t('towmcu.logFailed', { error: (data && data.error) || '' }), 'err');
+      // 校验失败（固件不匹配）：弹出「断电再上电」恢复提示卡
+      if (data && data.code === 'FIRMWARE_MISMATCH') mismatchShown.value = true;
     }
     upgradingSide.value = '';
     // 升级结束，恢复端口轮询（startUpgrade/startUpgradeMem 时停了）

@@ -12,6 +12,19 @@
         :net-ip="netIp"
         :version="version"
       />
+      <!-- CH343/WCH 设备驱动异常（黄叹号）全局警告条 -->
+      <div v-if="ch343Status.problem && !ch343Dismissed" class="ch343-warn-bar">
+        <div class="ch343-warn-text">
+          <span class="ch343-warn-title">⚠ {{ t('driver.missingTitle') }}</span>
+          <span class="ch343-warn-tip">{{ t('driver.missingTip') }}</span>
+        </div>
+        <div class="ch343-warn-actions">
+          <button class="btn btn-accent" :disabled="ch343Installing" @click="onInstallCh343Driver">
+            {{ ch343Installing ? t('driver.installing') : t('driver.installBtn') }}
+          </button>
+          <button class="btn" @click="dismissCh343Warn">{{ t('driver.dismiss') }}</button>
+        </div>
+      </div>
       <div v-if="currentView === 'home'" class="main-content">
         <div class="left-col">
           <SerialPanel
@@ -98,8 +111,10 @@ import DocsPanel from './components/DocsPanel.vue';
 import FirmwarePanel from './components/FirmwarePanel.vue';
 import TowmcuFirmwarePanel from './components/TowmcuFirmwarePanel.vue';
 import DebugPanel from './components/DebugPanel.vue';
+import { useI18n } from './i18n/index.js';
 
 const api = window.driverApi;
+const { t } = useI18n();
 
 const VALID_VIEWS = ['home', 'docs', 'macro', 'jitter', 'mouse-curve', 'gamepad', 'firmware', 'towmcu-firmware', 'debug'];
 const VIEW_STORAGE_KEY = 'ysc_ui_current_view';
@@ -128,6 +143,12 @@ const ports = ref([]);
 
 const firmwareFilePath = ref('');
 const firmwareFileInfo = ref('');
+
+// CH343/WCH 驱动健康度：present=有 VID 1A86 设备；problem=有异常(黄叹号)。
+// problem 为真时在顶部全局显示「缺驱动」警告条 + 一键安装按钮。
+const ch343Status = ref({ present: false, problem: false, problems: [] });
+const ch343Installing = ref(false);
+const ch343Dismissed = ref(false); // 用户手动关闭后本次不再弹（点安装或重启会重置）
 
 function onFirmwareFileUpdate(payload) {
   firmwareFilePath.value = payload.path;
@@ -249,6 +270,29 @@ function onSwitchBaud(baud) {
   api.send('switch_baudrate', { baud: baud });
 }
 
+// 触发 C++ 端检测 WCH/CH34x 设备驱动状态（结果经 ch343_driver_status 事件回推）
+function checkCh343DriverNow() {
+  if (api && api.checkCh343Driver) api.checkCh343Driver();
+}
+
+// 一键安装：以管理员权限启动随包 CH343SER.EXE，用户在 GUI 里点「安装」
+function onInstallCh343Driver() {
+  if (!api || !api.installCh343Driver || ch343Installing.value) return;
+  ch343Installing.value = true;
+  ch343Dismissed.value = false;
+  api.installCh343Driver().then(function(res) {
+    ch343Installing.value = false;
+    // 安装器 GUI 已弹出（不等待其结束）；稍后重新检测刷新警告条
+    setTimeout(checkCh343DriverNow, 1500);
+  }).catch(function() {
+    ch343Installing.value = false;
+  });
+}
+
+function dismissCh343Warn() {
+  ch343Dismissed.value = true;
+}
+
 function onKmnetStart(port) {
   if (!serialConnected.value) {
     selfCheckFail('请先连接串口后再启动 KmNet 服务');
@@ -358,6 +402,7 @@ function refreshPortsThrottled() {
 
 function onWindowFocus() {
   refreshPortsThrottled();
+  checkCh343DriverNow(); // 用户可能刚拔插/换口，重新检测驱动状态
 }
 
 onMounted(function() {
@@ -503,9 +548,21 @@ onMounted(function() {
     netPort.value = data.netPort;
   });
 
+  listen('ch343_driver_status', function(data) {
+    if (!data) return;
+    ch343Status.value = {
+      present: !!data.present,
+      problem: !!data.problem,
+      problems: data.problems || [],
+    };
+    // 状态恢复正常则自动取消「已关闭」标记
+    if (!data.problem) ch343Dismissed.value = false;
+  });
+
   api.send('get_state');
   portsRefreshAt = Date.now();
   api.send('enum_ports');
+  checkCh343DriverNow(); // 启动时检测一次驱动状态
 
   window.addEventListener('focus', onWindowFocus);
 

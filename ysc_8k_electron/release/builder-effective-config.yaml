@@ -20,10 +20,13 @@ nsis:
   shortcutName: YSC 8K 驱动
   createDesktopShortcut: true
   createStartMenuShortcut: true
+  include: resources/installer.nsh
 extraResources:
   - from: ../ysc_8k_driver/work/Release/ysc_8k_driver.exe
     to: ysc_8k_driver.exe
   - from: resources/icon.ico
     to: icon.ico
+  - from: resources/ch343-driver
+    to: ch343-driver
 files: []
 electronVersion: 33.4.11

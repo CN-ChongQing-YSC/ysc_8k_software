@@ -75,4 +75,11 @@ contextBridge.exposeInMainWorld('driverApi', {
   debugGetReport: (idx: number)        => driverSend('debug_get_report', { idx }),
   debugClearReports: ()                => driverSend('debug_clear_reports'),
   debugGetDeviceInfo: ()               => driverSend('debug_get_device_info'),
+
+  // ── CH343 / WCH 驱动检测 + 一键安装 ──
+  // 检测结果经 ch343_driver_status 事件回推（on/off 监听）。
+  checkCh343Driver: ()                 => driverSend('check_ch343_driver'),
+  // 以管理员权限启动随包 CH343SER.EXE 安装器（用户在 GUI 里点「安装」）。
+  installCh343Driver: (): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('driver:installCh343Driver'),
 });

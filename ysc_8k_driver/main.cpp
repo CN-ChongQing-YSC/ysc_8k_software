@@ -504,6 +504,27 @@ static void OnPipeCommand(const char *json, void *userData) {
         body += "]";
         g_pipeServer.SendEvent("towmcu_ports", body.c_str());
     }
+    else if (type == "check_ch343_driver") {
+        // 检测 WCH/CH34x (VID 1A86) 设备驱动健康度，供前端弹「缺驱动」提示。
+        Ch343DriverStatus st = DetectCh343DriverStatus();
+        std::string body = "\"present\":";
+        body += (st.anyPresent ? "true" : "false");
+        body += ",\"problem\":";
+        body += (st.anyProblem ? "true" : "false");
+        body += ",\"problems\":[";
+        for (size_t i = 0; i < st.problems.size(); i++) {
+            if (i > 0) body += ",";
+            char entry[384];
+            snprintf(entry, sizeof(entry),
+                "{\"pid\":\"%s\",\"name\":\"%s\",\"code\":%lu}",
+                st.problems[i].pidHex.c_str(),
+                st.problems[i].friendlyName.c_str(),
+                st.problems[i].problemCode);
+            body += entry;
+        }
+        body += "]";
+        g_pipeServer.SendEvent("ch343_driver_status", body.c_str());
+    }
     else if (type == "towmcu_query_version") {
         std::string port = ExtractJsonString(json, "port");
         if (port.empty()) {

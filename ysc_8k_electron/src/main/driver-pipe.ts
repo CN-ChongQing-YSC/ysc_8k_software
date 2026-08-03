@@ -48,7 +48,13 @@ export interface DriverEvents {
   iap_entered: { port: string };  // port === '' 表示进入 IAP 失败
   iap2_log: { message: string; cls?: string };
   iap2_progress: { current: number; total: number; status: string };
-  iap2_done: { success: boolean; error?: string };
+  iap2_done: { success: boolean; error?: string; code?: string };
+  // ── CH343 / WCH 驱动健康度（VID 1A86 设备是否缺驱动）──
+  ch343_driver_status: {
+    present: boolean;   // 是否存在任何 VID 1A86 设备
+    problem: boolean;   // 是否存在异常（problem 码 != 0）设备
+    problems: { pid: string; name: string; code: number }[];
+  };
 }
 
 type EventHandler<K extends keyof DriverEvents> = DriverEvents[K] extends void
@@ -178,4 +184,7 @@ export class DriverPipe extends EventEmitter {
     this.send('towmcu_start_mem', { port, data: buf.toString('base64'), size: buf.length, sha256 });
   }
   towmcuCancel()                   { this.send('towmcu_cancel'); }
+
+  // ── CH343 / WCH 驱动健康度检测（结果经 ch343_driver_status 事件回推）──
+  checkCh343Driver()               { this.send('check_ch343_driver'); }
 }

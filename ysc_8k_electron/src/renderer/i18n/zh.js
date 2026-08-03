@@ -204,6 +204,14 @@ export default {
     logReady: '固件更新工具就绪',
     baudLabel: '下载波特率',
     baudKeep: '保持当前 (不切换)',
+    // 校验失败（固件不匹配）恢复提示：断电再上电后重新更新
+    mismatchTitle: '固件不匹配，请断电再上电后重新更新',
+    mismatchTip: '升级校验失败。请对设备执行「断电再上电」（即让指示灯先熄灭、再重新亮起），待设备回到正常状态后再重新更新。',
+    mismatchStep1: '断开设备电源，确认指示灯已熄灭',
+    mismatchStep2: '重新上电，等待指示灯重新亮起',
+    mismatchStep3: '设备回到正常状态后，点击下方按钮重新更新',
+    mismatchRetry: '重新更新',
+    mismatchClose: '关闭',
   },
   towmcu: {
     title: '8K V2 固件更新',
@@ -307,5 +315,12 @@ export default {
     kbdTitle: '键盘模拟（点击按键注入）',
     kbdReleaseAll: '全部释放',
     kbdHint: '鼠标按下=发送按下，抬起=发送松开；可多键同按（如按住 Shift 再点字母）。命令会出现在上方日志。',
+  },
+  driver: {
+    missingTitle: '检测到设备缺少驱动或识别异常',
+    missingTip: '有 WCH/CH343 设备未正确识别（可能是驱动未安装）。可点击安装 CH343 驱动；若仍无效请拔插设备或更换 USB 端口。',
+    installBtn: '安装 CH343 驱动',
+    installing: '正在启动安装器...',
+    dismiss: '稍后再说',
   },
 };

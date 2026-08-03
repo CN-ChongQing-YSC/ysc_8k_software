@@ -55,10 +55,17 @@ static void SendProgress(PipeServer *pipe, int cur, int total, const char *statu
     pipe->SendEvent("iap_progress", body);
 }
 
-static void SendDone(PipeServer *pipe, bool ok, const char *err = "") {
+static void SendDone(PipeServer *pipe, bool ok, const char *err = "", const char *code = "") {
     if (!pipe) return;
-    char body[256];
-    snprintf(body, sizeof(body), "\"success\":%s,\"error\":\"%s\"", ok ? "true" : "false", err);
+    // body 留大到 384，容纳超时现场 hex dump（最长 err）+ 可选 code 字段
+    char body[384];
+    if (code && code[0]) {
+        snprintf(body, sizeof(body), "\"success\":%s,\"error\":\"%s\",\"code\":\"%s\"",
+                 ok ? "true" : "false", err, code);
+    } else {
+        snprintf(body, sizeof(body), "\"success\":%s,\"error\":\"%s\"",
+                 ok ? "true" : "false", err);
+    }
     pipe->SendEvent("iap_done", body);
 }
 
@@ -375,6 +382,12 @@ void IAPUpgrader::Worker(std::vector<uint8_t> firmware, PipeServer *pipe, uint32
         SendDone(pipe, false, msg);
         s_running = false;
     };
+    // 带 code 的失败（如 FIRMWARE_MISMATCH），让前端按 code 弹专属恢复提示
+    auto failCode = [&](const char *msg, const char *code) {
+        SendLog(pipe, msg, "err");
+        SendDone(pipe, false, msg, code);
+        s_running = false;
+    };
 
     long fsize = (long)firmware.size();
 
@@ -585,7 +598,7 @@ void IAPUpgrader::Worker(std::vector<uint8_t> firmware, PipeServer *pipe, uint32
             }
             if (r.status != 0) {
                 snprintf(tmp, sizeof(tmp), "校验块 %d/%d 失败 — 固件不匹配", i + 1, totalChunks);
-                CloseHandle(hSerial); fail(tmp); return;
+                CloseHandle(hSerial); failCode(tmp, "FIRMWARE_MISMATCH"); return;
             }
             if (r.lastMs > maxChunkMs) maxChunkMs = r.lastMs;
             sumChunkMs += r.lastMs;

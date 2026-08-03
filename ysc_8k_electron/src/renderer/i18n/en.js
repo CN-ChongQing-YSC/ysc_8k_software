@@ -204,6 +204,14 @@ export default {
     logReady: 'Firmware update tool ready',
     baudLabel: 'Download baudrate',
     baudKeep: 'Keep current (no switch)',
+    // Verify failure (firmware mismatch) recovery: power-cycle then re-update
+    mismatchTitle: 'Firmware mismatch — power-cycle and re-update',
+    mismatchTip: 'Verification failed. Please power-cycle the device (let the indicator LED turn off, then light up again), wait until it returns to normal, then re-update.',
+    mismatchStep1: 'Disconnect power and confirm the LED is off',
+    mismatchStep2: 'Re-apply power and wait for the LED to light up again',
+    mismatchStep3: 'Once the device is back to normal, click the button below to re-update',
+    mismatchRetry: 'Re-update',
+    mismatchClose: 'Close',
   },
   towmcu: {
     title: '8K V2 Firmware Update',
@@ -307,5 +315,12 @@ export default {
     kbdTitle: 'Keyboard Simulator (click to inject)',
     kbdReleaseAll: 'Release All',
     kbdHint: 'Mouse down sends press, mouse up sends release; hold multiple keys at once (e.g. hold Shift then click a letter). Commands appear in the log above.',
+  },
+  driver: {
+    missingTitle: 'Device driver missing or not recognized',
+    missingTip: 'A WCH/CH343 device is not recognized correctly (the driver may be missing). Click to install the CH343 driver; if it still fails, try replugging or a different USB port.',
+    installBtn: 'Install CH343 driver',
+    installing: 'Launching installer...',
+    dismiss: 'Later',
   },
 };

@@ -76,11 +76,17 @@ static void SendProgress(PipeServer *pipe, int cur, int total, const char *statu
     pipe->SendEvent("iap2_progress", body);
 }
 
-static void SendDone(PipeServer *pipe, bool ok, const char *err = "") {
+static void SendDone(PipeServer *pipe, bool ok, const char *err = "", const char *code = "") {
     if (!pipe) return;
-    char body[256];
-    snprintf(body, sizeof(body), "\"success\":%s,\"error\":\"%s\"",
-             ok ? "true" : "false", err);
+    // body 留大到 384，容纳超时现场 hex dump（最长 err）+ 可选 code 字段
+    char body[384];
+    if (code && code[0]) {
+        snprintf(body, sizeof(body), "\"success\":%s,\"error\":\"%s\",\"code\":\"%s\"",
+                 ok ? "true" : "false", err, code);
+    } else {
+        snprintf(body, sizeof(body), "\"success\":%s,\"error\":\"%s\"",
+                 ok ? "true" : "false", err);
+    }
     pipe->SendEvent("iap2_done", body);
 }
 
@@ -502,6 +508,12 @@ static bool RunIapSequence(const wchar_t *iapPort,
         SendDone(pipe, false, msg);
         return false;
     };
+    // 带 code 的失败（如 FIRMWARE_MISMATCH），让前端按 code 弹专属恢复提示
+    auto failCode = [&](const char *msg, const char *code) {
+        SendLog(pipe, msg, "err");
+        SendDone(pipe, false, msg, code);
+        return false;
+    };
 
     HANDLE h = OpenCdcSerial(iapPort);
     if (!h) return fail("无法打开 IAP 端口");
@@ -667,7 +679,7 @@ static bool RunIapSequence(const wchar_t *iapPort,
             }
             if (r.status != 0) {
                 snprintf(tmp, sizeof(tmp), "校验块 %d/%d 失败 — 固件不匹配", i + 1, totalChunks);
-                reader.Stop(); CloseHandle(h); return fail(tmp);
+                reader.Stop(); CloseHandle(h); return failCode(tmp, "FIRMWARE_MISMATCH");
             }
             rxBefore = reader.TotalRxBytes();
             if (r.lastAttemptMs > (long)maxChunkMs) maxChunkMs = r.lastAttemptMs;
@@ -716,6 +728,11 @@ void TowmcuIAPUpgrader::Worker(std::wstring port, std::vector<uint8_t> firmware,
     auto fail = [&](const char *msg) {
         SendLog(pipe, msg, "err");
         SendDone(pipe, false, msg);
+    };
+    // 带 code 的失败（如 FIRMWARE_MISMATCH），让前端按 code 弹专属恢复提示
+    auto failCode = [&](const char *msg, const char *code) {
+        SendLog(pipe, msg, "err");
+        SendDone(pipe, false, msg, code);
     };
 
     long fsize = (long)firmware.size();
