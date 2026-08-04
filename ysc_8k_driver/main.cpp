@@ -342,7 +342,7 @@ static void OnPipeCommand(const char *json, void *userData) {
         g_pipeServer.SendEvent("local_ip", body);
     }
     else if (type == "get_version") {
-        g_pipeServer.SendEvent("version", "\"version\":\"1.4.1\"");
+        g_pipeServer.SendEvent("version", "\"version\":\"1.12.0\"");
     }
     else if (type == "get_monitor") {
         auto m = MonitorPush::GetLatest();
@@ -705,6 +705,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR, int) {
         return 1;
     }
 
+    // 读线程异常退出（串口物理断开/IO 错误）时，通过此窗口 PostMessage 通知主线程清理。
+    g_serial.SetNotifyWindow(g_app.hwndMain);
+
     g_app.hStopEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
     InitializeCriticalSection(&g_app.csSerialWrite);
 
@@ -773,6 +776,21 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         SetEvent(g_app.hStopEvent);
         PostQuitMessage(0);
         break;
+
+    case WM_SERIAL_LOST: {
+        // 读线程异常退出（串口物理断开/IO 错误）上报。guard：仅当仍是当前 reader
+        // （wParam 代际 == 当前 m_readerGen，即期间没重连换新 reader）且确实还"已连接"
+        // 时才清理 —— 防止重连后的过期消息误断新连接，也挡住重复上报。
+        // 全程主线程，与其它命令处理串行，无并发；Disconnect 此刻读线程已退出，立即返回。
+        if (g_app.serialConnected && (LONG)wParam == g_serial.ReaderGen()) {
+            DebugLogger::Log("SERIAL unexpected disconnect (physical/IO), cleaning up");
+            g_serial.Disconnect();
+            g_app.serialConnected = false;
+            UpdateTrayTip();
+            g_pipeServer.SendEvent("serial_disconnected", nullptr);
+        }
+        break;
+    }
 
     default:
         return DefWindowProc(hwnd, msg, wParam, lParam);

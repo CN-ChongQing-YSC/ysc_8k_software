@@ -138,7 +138,7 @@ const netRunning = ref(false);
 const netPort = ref(5251);
 const netIp = ref('');
 const netMac = ref('');
-const version = ref('1.11.0');
+const version = ref('1.12.0');
 const ports = ref([]);
 
 const firmwareFilePath = ref('');
@@ -427,7 +427,10 @@ onMounted(function() {
     serialConnected.value = false;
     if (kmnetSelfCheck.value.active && kmnetSelfCheck.value.step === 'disconnecting') {
       selfCheckBeginReconnect();
+      return;
     }
+    // 主动/意外断开后刷新端口列表，让下拉框立即反映"端口已消失"
+    api.send('enum_ports');
   });
 
   listen('serial_error', function(data) {
@@ -438,6 +441,10 @@ onMounted(function() {
     }
     if (kmnetSelfCheck.value.active) {
       selfCheckFail('串口错误:' + (data && data.message ? data.message : '未知错误'));
+    } else {
+      // 非自检场景的串口错误：复位连接态并刷新端口（防御性兜底，覆盖物理断开等情形）
+      serialConnected.value = false;
+      api.send('enum_ports');
     }
   });
 

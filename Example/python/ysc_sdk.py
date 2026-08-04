@@ -141,6 +141,17 @@ class YscDevice:
     def keyboard_release_all(self) -> None:
         self.send_command_no_wait('{"cmd":46}')
 
+    def keyboard_type_string(self, s: str) -> None:
+        """逐字打出一段混合大小写 ASCII 字符串 (cmd:47)。固件读取 PC 下发的
+        CapsLock 状态(HID LED 报告)，对每个字母按 目标大小写 XOR CapsLock 决定
+        是否自动按 Shift，符号/数字不受 CapsLock 影响。s 需为 1..128 字节。"""
+        if not s:
+            raise YscError("empty string")
+        if len(s.encode("utf-8", errors="ignore")) > 128:
+            raise YscError("string too long (max 128 bytes)")
+        # json.dumps 产出已转义的带引号 JSON 字符串，直接拼到 "s": 字段
+        self.send_command_no_wait('{"cmd":47,"s":' + json.dumps(s) + '}')
+
     def upload_status(self, enable: bool) -> None:
         self.send_command_no_wait(f'{{"cmd":34,"status":{1 if enable else 0}}}')
 

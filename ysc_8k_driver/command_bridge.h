@@ -19,6 +19,11 @@ public:
      * No-op at the device end if it has no keyboard interface (replies 404). */
     static bool SendKeyboardKey(uint8_t kc, bool down);   // {"cmd":45,"kc":..,"down":..}
     static bool SendKeyboardReleaseAll();                  // {"cmd":46}
+    /* Type a mixed-case ASCII string char-by-char (firmware cmd 47). Firmware
+     * owns case: it reads the PC's CapsLock state (HID LED report) and auto-
+     * presses Shift per char. s must be non-empty and <= 128 bytes. Returns
+     * false if not connected or s is empty/over-length. */
+    static bool SendKeyboardTypeString(const char *s);    // {"cmd":47,"s":"<escaped>"}
     static bool SendUploadStatus(bool enable);
     static bool SendJumpIAP();
 

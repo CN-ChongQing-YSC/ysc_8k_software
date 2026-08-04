@@ -3,6 +3,8 @@
 #include "main.h"
 #include "debug_logger.h"
 #include <cstdio>
+#include <cstring>
+#include <string>
 
 SerialPort *CommandBridge::s_serial = nullptr;
 
@@ -71,6 +73,35 @@ bool CommandBridge::SendKeyboardReleaseAll() {
     DebugLog("TX serial: {\"cmd\":46}");
     DebugLogger::Log("TX serial: {\"cmd\":46}");
     return s_serial->SendJsonCommand("{\"cmd\":46}");
+}
+
+bool CommandBridge::SendKeyboardTypeString(const char *s) {
+    /* Firmware cmd 47: type a mixed-case ASCII string char-by-char. The firmware
+     * owns case (CapsLock-aware via the HID LED Output report) and auto-presses
+     * LeftShift per char. s must be non-empty and <= 128 bytes (KBD_TYPE_MAX on
+     * the device). The string is JSON-escaped before framing. */
+    if (!s_serial || !s) return false;
+    size_t n = strlen(s);
+    if (n == 0 || n > 128) return false;
+    std::string esc;
+    esc.reserve(n + 8);
+    for (const char *p = s; *p; ++p) {
+        unsigned char c = (unsigned char)*p;
+        switch (c) {
+            case '"':  esc += "\\\""; break;
+            case '\\': esc += "\\\\"; break;
+            case '\n': esc += "\\n"; break;
+            case '\r': esc += "\\r"; break;
+            case '\t': esc += "\\t"; break;
+            default:
+                if (c < 0x20) { char b[8]; snprintf(b, sizeof(b), "\\u%04x", (unsigned)c); esc += b; }
+                else esc += (char)c;
+        }
+    }
+    std::string json = "{\"cmd\":47,\"s\":\"" + esc + "\"}";
+    DebugLog("TX serial: %s", json.c_str());
+    DebugLogger::Log("TX serial: %s", json.c_str());
+    return s_serial->SendJsonCommand(json.c_str());
 }
 
 bool CommandBridge::SendUploadStatus(bool enable) {

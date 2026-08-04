@@ -10,6 +10,7 @@
 // Tray icon message
 #define WM_TRAYICON             (WM_USER + 1)
 #define WM_DEBUG_LOG            (WM_USER + 2)
+// 注：WM_SERIAL_LOST 定义在 serial_port.h（读线程→主窗口通知），此处不重复
 
 // Menu command IDs
 #define IDM_DISCONNECT_SERIAL   2001

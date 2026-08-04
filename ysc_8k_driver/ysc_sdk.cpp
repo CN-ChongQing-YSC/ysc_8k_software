@@ -650,6 +650,17 @@ YSC_API int YSC_CALL Ysc_KeyboardKey(YscDevice *dev, uint8_t keycode, int down) 
 YSC_API int YSC_CALL Ysc_KeyboardReleaseAll(YscDevice *dev) {
     return Ysc_SendCommandNoWait(dev, "{\"cmd\":46}");
 }
+YSC_API int YSC_CALL Ysc_KeyboardTypeString(YscDevice *dev, const char *s) {
+    // Firmware cmd 47: type a mixed-case ASCII string char-by-char. The firmware
+    // owns case (CapsLock-aware via the HID LED Output report) and auto-presses
+    // Shift per character. s must be non-empty and <= 128 bytes (KBD_TYPE_MAX).
+    if (!s || !*s) { SetErr("empty string"); return 0; }
+    if (strlen(s) > 128) { SetErr("string too long (max 128)"); return 0; }
+    std::string json = "{\"cmd\":47,\"s\":\"";
+    JsonEscapeAppend(json, s);
+    json += "\"}";
+    return Ysc_SendCommandNoWait(dev, json.c_str());
+}
 YSC_API int YSC_CALL Ysc_UploadStatus(YscDevice *dev, int enable) {
     char j[64];
     snprintf(j, sizeof(j), "{\"cmd\":34,\"status\":%d}", enable ? 1 : 0);

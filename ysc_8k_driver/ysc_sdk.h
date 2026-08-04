@@ -168,9 +168,12 @@ YSC_API int YSC_CALL Ysc_MouseMove(YscDevice *dev, int x, int y, int steps);
 YSC_API int YSC_CALL Ysc_MouseMoveTow(YscDevice *dev, int x, int y, int steps);
 YSC_API int YSC_CALL Ysc_MouseButton(YscDevice *dev, uint8_t buttonMask, int pressed);
 
-// 键盘：cmd 45 单键注入（kc 为 HID 键码 0x04-0xE7，修饰键 0xE0-0xE7）/ 46 释放全部
+// 键盘：cmd 45 单键注入（kc 为 HID 键码 0x04-0xE7，修饰键 0xE0-0xE7）/ 46 释放全部 /
+//       47 打印一段混合大小写 ASCII 字符串（固件按 CapsLock 状态自动决定大小写）
 YSC_API int YSC_CALL Ysc_KeyboardKey(YscDevice *dev, uint8_t keycode, int down);
 YSC_API int YSC_CALL Ysc_KeyboardReleaseAll(YscDevice *dev);
+// s 必须非空且 <= 128 字节；空或超长返回 0（见 Ysc_LastError）。NoWait 即发即弃。
+YSC_API int YSC_CALL Ysc_KeyboardTypeString(YscDevice *dev, const char *s);
 
 // 上报状态开关：cmd 34
 YSC_API int YSC_CALL Ysc_UploadStatus(YscDevice *dev, int enable);

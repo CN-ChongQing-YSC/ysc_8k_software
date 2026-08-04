@@ -59,7 +59,11 @@ SerialPort::SerialPort()
     , m_hWriteThread(NULL)
     , m_writeRunning(false)
     , m_hReadOL(NULL)
-    , m_hWriteOL(NULL) {
+    , m_hWriteOL(NULL)
+    , m_hNotifyWnd(NULL)
+    , m_readerGen(0)
+    , m_startedGen(0)
+    , m_disconnecting(0) {
     InitializeCriticalSection(&m_csWrite);
     InitializeCriticalSection(&m_csQueue);
     InitializeConditionVariable(&m_cvNotEmpty);
@@ -113,6 +117,9 @@ bool SerialPort::Connect(const wchar_t *portName, uint32_t baudRate) {
 }
 
 void SerialPort::Disconnect() {
+    // 互斥：防止多线程并发 Disconnect（主线程 WM_SERIAL_LOST 处理 vs 管道线程主动断开）
+    // 造成重复 CloseHandle。已在断开则直接返回；StartReadThread 复位为 0。
+    if (InterlockedExchange(&m_disconnecting, 1)) return;
     StopReadThread();
     if (m_hPort) {
         CloseHandle(m_hPort);
@@ -318,6 +325,11 @@ bool SerialPort::StartReadThread(HANDLE hStopEvent) {
     m_rxState = RX_IDLE;
     m_rxLen   = 0;
 
+    // 新一代 reader：自增代际，并记下本次启动的代际供 ReadLoop 入口读取。
+    // 读线程异常退出上报时用它判断"我是否仍是当前 reader"（期间是否已重连）。
+    m_startedGen = InterlockedIncrement(&m_readerGen);
+    InterlockedExchange(&m_disconnecting, 0); // 新 reader 上线：清除"断开中"标记
+
     if (!StartWriteThread()) return false;
 
     m_hReadThread = CreateThread(NULL, 0, ReadThreadProc, this, 0, NULL);
@@ -454,6 +466,8 @@ void SerialPort::ReadLoop() {
     uint8_t readBuf[512];
     int startMatchPos = 0;
     int errorCheckCounter = 0;
+    // 入口捕获本次 reader 的代际；退出时若仍是当前 reader，则上报异常退出。
+    const LONG myGen = m_startedGen;
 
     while (m_hPort) {
         DWORD bytesRead = 0;
@@ -560,5 +574,13 @@ void SerialPort::ReadLoop() {
             }
             }
         }
+    }
+
+    // 读线程退出（无论原因）。仅当"我仍是当前 reader"（期间没发生重连换新 reader）
+    // 且不是"主动断开"（m_disconnecting=1 表示 Disconnect 正在/已经让我退出）才上报。
+    // wParam 带上 myGen，主线程再比对一次 m_readerGen，过期消息作废。
+    // 读线程不碰 m_hPort、不调 Disconnect：清理全交主线程，避免自等待死锁与重复关句柄。
+    if (m_hNotifyWnd && myGen == m_readerGen && !m_disconnecting) {
+        PostMessage(m_hNotifyWnd, WM_SERIAL_LOST, (WPARAM)myGen, 0);
     }
 }

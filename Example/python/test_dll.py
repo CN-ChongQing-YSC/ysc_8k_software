@@ -153,6 +153,8 @@ def test_online(sdk: YscSdk, rep: Reporter, port: str, baud: int,
                                                        time.sleep(0.05),
                                                        dev.keyboard_key(0x04, False))),
             ("keyboard_release_all()",   lambda: dev.keyboard_release_all()),
+            ("keyboard_type_string('Wasd123A123vciseC')",
+                lambda: dev.keyboard_type_string("Wasd123A123vciseC")),
             ("upload_status(False)",     lambda: dev.upload_status(False)),
         ]:
             try:

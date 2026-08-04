@@ -6,6 +6,10 @@
 #include <windows.h>
 #include "kmboxnet_proto.h"
 
+// 读线程异常退出（串口物理断开/IO 错误）时 PostMessage 给主窗口的通知消息。
+// wParam = 该 reader 启动时的代际（m_readerGen），主线程据此判断消息是否过期。
+#define WM_SERIAL_LOST          (WM_USER + 3)
+
 class SerialPort {
 public:
     SerialPort();
@@ -35,6 +39,11 @@ public:
     bool StartReadThread(HANDLE hStopEvent);
     void StopReadThread();
 
+    // 读线程异常退出（串口物理断开/IO 错误）时，若设置了通知窗口则 PostMessage(WM_SERIAL_LOST)。
+    // wParam = 该 reader 启动时的代际(m_readerGen)，主线程用它判断消息是否过期。
+    void SetNotifyWindow(HWND h) { m_hNotifyWnd = h; }
+    LONG ReaderGen() const { return m_readerGen; }   // 当前 reader 代际，供主线程比对
+
     // Callback for received framed data
     typedef void (*ResponseCallback)(const uint8_t *data, int len, void *userData);
     void SetResponseCallback(ResponseCallback cb, void *userData);
@@ -54,6 +63,12 @@ private:
     wchar_t m_portName[16];
     HANDLE  m_hReadThread;
     HANDLE  m_hStopEvent;
+
+    // 读线程异常退出上报：通知窗口 + reader 代际（每次 StartReadThread 自增）
+    HWND    m_hNotifyWnd;
+    volatile LONG m_readerGen;   // 当前 reader 代际（Interlocked 自增）
+    LONG    m_startedGen;        // 本次 reader 启动时的代际（供 ReadLoop 入口读取）
+    volatile LONG m_disconnecting; // 1=正在/已经断开：Disconnect 互斥 + 读线程仅在 0 时上报
 
     // RX framing state machine
     enum RxState { RX_IDLE, RX_HEADER, RX_PAYLOAD };

@@ -300,8 +300,8 @@ export const docs = {
           actions: [
             { label: '按下 a',      cmd: '{"cmd":45,"kc":4,"down":1}' },
             { label: '松开 a',      cmd: '{"cmd":45,"kc":4,"down":0}' },
-            { label: '按下左Shift', cmd: '{"cmd":45,"kc":224,"down":1}' },
-            { label: '松开左Shift', cmd: '{"cmd":45,"kc":224,"down":0}' },
+            { label: '按下左Shift', cmd: '{"cmd":45,"kc":225,"down":1}' },
+            { label: '松开左Shift', cmd: '{"cmd":45,"kc":225,"down":0}' },
           ],
         },
         {
@@ -310,6 +310,21 @@ export const docs = {
           note: '释放所有注入按下的键。无键盘接口时忽略。',
           actions: [
             { label: '释放全部', cmd: '{"cmd":46}' },
+          ],
+        },
+        {
+          id: 'ysc_kbd_type_string', name: '键盘打字 (cmd:47)',
+          format: '{"cmd":47,"s":"Wasd123A123vciseC"}',
+          note: '逐字打出一段混合大小写 ASCII 字符串。固件读取 PC 通过 HID LED Output 报告下发的 CapsLock 状态(bit1),对每个字符计算:是否按 Shift = (字符需要 Shift) XOR (CapsLock 开启 且 为字母);需要时自动按下左 Shift(0xE1),绝不切换 CapsLock 键本身。符号/数字/空格不受 CapsLock 影响。无键盘接口回 404 no_keyboard;超 128 字节回 400 too_long;空串回 400 empty_string;正在打字时再发回 409 busy。接受时回 200 typing_started,完成异步回 200 type_done(data 含 typed/skipped/total)。不可映射字符被跳过并计入 skipped。真实按键仍正常透传(与注入合并)。',
+          params: [
+            { name: 's', type: 'string', desc: '要打字的 ASCII 字符串,1..128 字节,JSON 转义' },
+          ],
+          actions: [
+            { label: 'Wasd123A123vciseC',     cmd: '{"cmd":47,"s":"Wasd123A123vciseC"}' },
+            { label: 'Hello World!',          cmd: '{"cmd":47,"s":"Hello World!"}' },
+            { label: 'test@123',              cmd: '{"cmd":47,"s":"test@123"}' },
+            { label: 'Shift符号 !@#$%^&*()',  cmd: '{"cmd":47,"s":"!@#$%^&*()"}' },
+            { label: '空串(应 400)',          cmd: '{"cmd":47,"s":""}' },
           ],
         },
         {

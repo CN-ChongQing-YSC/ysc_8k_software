@@ -298,8 +298,8 @@ export const docs = {
           actions: [
             { label: 'Press a',          cmd: '{"cmd":45,"kc":4,"down":1}' },
             { label: 'Release a',        cmd: '{"cmd":45,"kc":4,"down":0}' },
-            { label: 'Press Left Shift', cmd: '{"cmd":45,"kc":224,"down":1}' },
-            { label: 'Release Left Shift', cmd: '{"cmd":45,"kc":224,"down":0}' },
+            { label: 'Press Left Shift', cmd: '{"cmd":45,"kc":225,"down":1}' },
+            { label: 'Release Left Shift', cmd: '{"cmd":45,"kc":225,"down":0}' },
           ],
         },
         {
@@ -308,6 +308,21 @@ export const docs = {
           note: 'Release every injected key. Ignored when there is no keyboard interface.',
           actions: [
             { label: 'Release all', cmd: '{"cmd":46}' },
+          ],
+        },
+        {
+          id: 'ysc_kbd_type_string', name: 'Keyboard Type String (cmd:47)',
+          format: '{"cmd":47,"s":"Wasd123A123vciseC"}',
+          note: 'Type a mixed-case ASCII string char-by-char. The firmware reads the CapsLock state the PC sends via the HID LED Output report (bit1) and, for each character, computes press-Shift = (char needs shift) XOR (CapsLock on AND char is a letter); when Shift is needed it auto-presses Left Shift (0xE1) and never toggles the CapsLock key itself. Symbols/digits/spaces are unaffected by CapsLock. Replies 404 no_keyboard, 400 too_long (>128 bytes)/empty_string, or 409 busy (already typing). On accept replies 200 typing_started, and sends an async 200 type_done on completion (data has typed/skipped/total). Unmappable characters (control chars, etc.) are skipped and counted. Real key presses still pass through (merged).',
+          params: [
+            { name: 's', type: 'string', desc: 'ASCII string to type, 1..128 bytes, JSON-escaped' },
+          ],
+          actions: [
+            { label: 'Wasd123A123vciseC',        cmd: '{"cmd":47,"s":"Wasd123A123vciseC"}' },
+            { label: 'Hello World!',             cmd: '{"cmd":47,"s":"Hello World!"}' },
+            { label: 'test@123',                 cmd: '{"cmd":47,"s":"test@123"}' },
+            { label: 'Shift symbols !@#$%^&*()', cmd: '{"cmd":47,"s":"!@#$%^&*()"}' },
+            { label: 'Empty string (expect 400)', cmd: '{"cmd":47,"s":""}' },
           ],
         },
         {
