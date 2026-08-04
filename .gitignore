@@ -3,6 +3,8 @@
 /ysc_8k_driver/Debug
 /ysc_8k_driver/.vs
 /ysc_8k_driver/work
+# VS 本地用户调试配置（.vcxproj.user），不入库
+*.user
 
 # ysc_sdk (SDK DLL build output)
 /ysc_8k_driver/bin
@@ -17,6 +19,12 @@
 /.codegraph
 /ysc_8k_driver/ysc_8k_driver/x64
 
+# Claude Code 本地指导文件（不入库）
+CLAUDE.md
+
 # Python
 __pycache__/
 *.pyc
+
+# 备份文件（易语言 *.bak 等）
+*.bak
