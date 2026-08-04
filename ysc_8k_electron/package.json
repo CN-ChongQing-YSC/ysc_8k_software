@@ -1,6 +1,6 @@
 {
   "name": "ysc-8k-driver",
-  "version": "1.12.0",
+  "version": "1.13.0",
   "description": "YSC 8K 驱动界面",
   "main": "dist-electron/main.js",
   "scripts": {

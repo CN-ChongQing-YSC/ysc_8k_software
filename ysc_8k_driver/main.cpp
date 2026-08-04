@@ -342,7 +342,7 @@ static void OnPipeCommand(const char *json, void *userData) {
         g_pipeServer.SendEvent("local_ip", body);
     }
     else if (type == "get_version") {
-        g_pipeServer.SendEvent("version", "\"version\":\"1.12.0\"");
+        g_pipeServer.SendEvent("version", "\"version\":\"1.13.0\"");
     }
     else if (type == "get_monitor") {
         auto m = MonitorPush::GetLatest();
