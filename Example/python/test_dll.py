@@ -155,6 +155,10 @@ def test_online(sdk: YscSdk, rep: Reporter, port: str, baud: int,
             ("keyboard_release_all()",   lambda: dev.keyboard_release_all()),
             ("keyboard_type_string('Wasd123A123vciseC')",
                 lambda: dev.keyboard_type_string("Wasd123A123vciseC")),
+            ("keyboard_type_status()",
+                lambda: dev.keyboard_type_status()),
+            ("keyboard_type_string_long(>128 chars, chunked)",
+                lambda: dev.keyboard_type_string_long("0123456789" * 13)),
             ("upload_status(False)",     lambda: dev.upload_status(False)),
         ]:
             try:

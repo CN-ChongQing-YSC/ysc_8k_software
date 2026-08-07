@@ -174,6 +174,12 @@ YSC_API int YSC_CALL Ysc_KeyboardKey(YscDevice *dev, uint8_t keycode, int down);
 YSC_API int YSC_CALL Ysc_KeyboardReleaseAll(YscDevice *dev);
 // s 必须非空且 <= 128 字节；空或超长返回 0（见 Ysc_LastError）。NoWait 即发即弃。
 YSC_API int YSC_CALL Ysc_KeyboardTypeString(YscDevice *dev, const char *s);
+// 查询打字进度（cmd:48，同步等待返回）。outBuf 写入响应负载，形如
+// {"code":200,"message":"type_status","data":"{\"busy\":0,\"remaining\":0,...}"}。
+// 返回值见顶部约定（>0 字节数 / =0 超时 / <0 错误）。busy=0 表示空闲或已打完，
+// 据此可把长文本切片循环打出（见 keyboard_type_string_long）。
+YSC_API int YSC_CALL Ysc_KeyboardTypeStatus(YscDevice *dev, int timeoutMs,
+                                             char *outBuf, int bufSize);
 
 // 上报状态开关：cmd 34
 YSC_API int YSC_CALL Ysc_UploadStatus(YscDevice *dev, int enable);

@@ -661,6 +661,14 @@ YSC_API int YSC_CALL Ysc_KeyboardTypeString(YscDevice *dev, const char *s) {
     json += "\"}";
     return Ysc_SendCommandNoWait(dev, json.c_str());
 }
+YSC_API int YSC_CALL Ysc_KeyboardTypeStatus(YscDevice *dev, int timeoutMs,
+                                             char *outBuf, int bufSize) {
+    // Firmware cmd 48: snapshot of the typing engine — busy/remaining/total/typed/
+    // skipped. Lets a host chunk strings > 128 bytes: type a piece, poll until
+    // busy=0, repeat. (SendAndWait purges RX first, so async type_done / mouse
+    // upload frames never desync the request/response pairing.)
+    return Ysc_SendCommand(dev, "{\"cmd\":48}", timeoutMs, outBuf, bufSize);
+}
 YSC_API int YSC_CALL Ysc_UploadStatus(YscDevice *dev, int enable) {
     char j[64];
     snprintf(j, sizeof(j), "{\"cmd\":34,\"status\":%d}", enable ? 1 : 0);

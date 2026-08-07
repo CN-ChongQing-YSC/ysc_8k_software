@@ -328,6 +328,15 @@ export const docs = {
           ],
         },
         {
+          id: 'ysc_kbd_type_status', name: '键盘打字状态 (cmd:48)',
+          format: '{"cmd":48}',
+          note: '查询打字引擎当前进度。响应 data: busy(0/1) / remaining(未打完字数) / total / typed(已打完) / skipped(不可映射已跳过)。busy=0 表示空闲或已打完。用于把超过单次 128 字节上限的长文本切片循环打印：打一片 cmd:47 → 轮询 cmd:48 直到 busy=0 → 再打下一片。同步查询：发送即等返回（宿主端每次发送前会清空接收缓冲，异步的 type_done/鼠标上报帧不会错位）。',
+          params: [],
+          actions: [
+            { label: '查询状态', cmd: '{"cmd":48}' },
+          ],
+        },
+        {
           id: 'ysc_jump_iap', name: '进入 Bootloader (cmd:50)',
           format: '{"cmd":50}',
           note: '擦除校准字并复位进入 IAP Bootloader 模式。设备先回复 entering_iap,然后断开 USB 等待固件升级。8K V2 路径:设备清 anti-brick flag、写 BKP_DR1=0xA5A5、复位后以序列号 TOWMCUIAP 重新枚举,COM 号可能改变,需重扫端口。',

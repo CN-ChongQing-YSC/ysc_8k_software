@@ -32,6 +32,7 @@ EXPORTS
     Ysc_KeyboardKey         = _Ysc_KeyboardKey@12
     Ysc_KeyboardReleaseAll  = _Ysc_KeyboardReleaseAll@4
     Ysc_KeyboardTypeString  = _Ysc_KeyboardTypeString@8
+    Ysc_KeyboardTypeStatus  = _Ysc_KeyboardTypeStatus@16
     Ysc_UploadStatus        = _Ysc_UploadStatus@8
     Ysc_JumpIAP             = _Ysc_JumpIAP@4
     Ysc_GamepadGetConfig    = _Ysc_GamepadGetConfig@16

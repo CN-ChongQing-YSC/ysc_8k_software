@@ -30,6 +30,7 @@ import os
 import platform
 import struct
 import sys
+import time
 from ctypes import (
     CDLL, WinDLL, c_char_p, c_int, c_uint8, c_uint32, c_void_p, POINTER, byref, create_string_buffer,
 )
@@ -151,6 +152,58 @@ class YscDevice:
             raise YscError("string too long (max 128 bytes)")
         # json.dumps 产出已转义的带引号 JSON 字符串，直接拼到 "s": 字段
         self.send_command_no_wait('{"cmd":47,"s":' + json.dumps(s) + '}')
+
+    def keyboard_type_status(self, timeout_ms: int = 500) -> Dict[str, Any]:
+        """查询键盘打字进度 (cmd:48)。返回 dict: busy / remaining / total / typed /
+        skipped。busy=0 表示空闲或已打完。用于在长文本切片打印时轮询单片是否打完。"""
+        resp = self.send_command('{"cmd":48}', timeout_ms)
+        try:
+            outer = json.loads(resp)
+        except Exception:
+            raise YscError(f"bad status response: {resp}")
+        # 偶尔会把异步 type_done 完成通知读进来——视为已空闲
+        if outer.get("message") == "type_done":
+            return {"busy": 0, "remaining": 0, "total": 0, "typed": 0, "skipped": 0}
+        data_str = outer.get("data") or ""
+        return json.loads(data_str) if data_str else {"busy": 0}
+
+    def keyboard_type_string_long(self, s: str, chunk_size: int = 100,
+                                  poll_interval_ms: int = 20,
+                                  status_timeout_ms: int = 500,
+                                  overall_timeout_s: float = 120.0) -> None:
+        """打印**任意长度**的字符串（突破单次 128 字节上限）。
+
+        做法：按 chunk_size(<=128) 字节切片，每片用 cmd:47 打出，再用 cmd:48 轮询
+        硬件状态，等该片 busy=0 后再发下一片，循环到全部打完。大小写仍由固件按
+        CapsLock 自动处理。chunk_size 默认 100 留点余量；overall_timeout_s 是整句
+        总超时保护。前提：Right 侧接了真实键盘，否则单片会被设备拒绝。
+        """
+        if not s:
+            raise YscError("empty string")
+        if chunk_size < 1 or chunk_size > 128:
+            raise YscError("chunk_size must be 1..128")
+        data = s.encode("utf-8", errors="ignore")   # 固件只认 ASCII，非 ASCII 被丢弃
+        deadline = time.monotonic() + overall_timeout_s
+        for i in range(0, len(data), chunk_size):
+            chunk = data[i:i + chunk_size].decode("ascii", errors="ignore")
+            if not chunk:
+                continue
+            # 同步发送本片：消费 typing_started，并立刻发现 404/409/400
+            resp = self.send_command('{"cmd":47,"s":' + json.dumps(chunk) + '}', 1000)
+            try:
+                outer = json.loads(resp)
+            except Exception:
+                raise YscError(f"bad chunk response: {resp}")
+            if outer.get("code") != 200:
+                raise YscError(f"chunk rejected: {resp}")
+            # 轮询硬件，等本片打完（busy=0）
+            while True:
+                if time.monotonic() > deadline:
+                    raise YscError("keyboard_type_string_long timed out")
+                st = self.keyboard_type_status(status_timeout_ms)
+                if not st.get("busy"):
+                    break
+                time.sleep(poll_interval_ms / 1000.0)
 
     def upload_status(self, enable: bool) -> None:
         self.send_command_no_wait(f'{{"cmd":34,"status":{1 if enable else 0}}}')

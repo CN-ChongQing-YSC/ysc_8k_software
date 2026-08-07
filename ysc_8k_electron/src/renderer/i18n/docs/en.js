@@ -326,6 +326,15 @@ export const docs = {
           ],
         },
         {
+          id: 'ysc_kbd_type_status', name: 'Keyboard Type Status (cmd:48)',
+          format: '{"cmd":48}',
+          note: 'Query the typing engine progress. Response data: busy(0/1) / remaining(chars not yet typed) / total / typed(done) / skipped(unmappable). busy=0 means idle or finished. Used to type strings longer than the 128-byte single-call limit: send a cmd:47 chunk -> poll cmd:48 until busy=0 -> send the next chunk. Synchronous query (send + wait for reply); the host flushes RX before each send, so async type_done / mouse-upload frames never desync the pairing.',
+          params: [],
+          actions: [
+            { label: 'Query status', cmd: '{"cmd":48}' },
+          ],
+        },
+        {
           id: 'ysc_jump_iap', name: 'Enter Bootloader (cmd:50)',
           format: '{"cmd":50}',
           note: 'Erase calibration word and reboot into IAP bootloader. Device first replies entering_iap, then drops USB and waits for firmware upgrade. Dual-MCU v2 (towmcu) CDC path: the device clears its anti-brick flag, writes BKP_DR1=0xA5A5, resets, and re-enumerates with serial TOWMCUIAP — the COM number may change, so rescan ports.',
