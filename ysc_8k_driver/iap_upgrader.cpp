@@ -27,13 +27,11 @@ static const int      IAP_BAUD_COUNT = 9;
 // 容错参数（参考 towmcu_iap_upgrader.cpp 的 v2 模型）
 //   * 每帧最多 FRAME_RETRIES 次尝试；第一次超时后给设备 RETRY_BREATHE_MS 喘息
 //   * ERASE / PROM 单帧慢超时：Flash 擦写会让设备短暂无响应，3s 上限已覆盖最坏场景
-//   * VERIFY 单帧快超时：不写 Flash，500ms 足够；chunk 间节流 VERIFY_CHUNK_DELAY_MS
-//     避免 USB 端点过载
+//   * VERIFY 单帧快超时：不写 Flash，500ms 足够
 static const int      FRAME_RETRIES         = 3;
 static const int      FRAME_TIMEOUT_FAST_MS = 500;
 static const int      FRAME_TIMEOUT_SLOW_MS = 3000;
 static const int      RETRY_BREATHE_MS      = 100;
-static const int      VERIFY_CHUNK_DELAY_MS = 5;
 
 volatile bool IAPUpgrader::s_running = false;
 volatile bool IAPUpgrader::s_cancel  = false;
@@ -552,7 +550,7 @@ void IAPUpgrader::Worker(std::vector<uint8_t> firmware, PipeServer *pipe, uint32
         SendLog(pipe, tmp);
     }
 
-    // Step 3: VERIFY (5ms pacing between chunks)
+    // Step 3: VERIFY
     SendLog(pipe, "开始校验...");
     SendProgress(pipe, 0, totalChunks, "校验");
     {
@@ -606,7 +604,6 @@ void IAPUpgrader::Worker(std::vector<uint8_t> firmware, PipeServer *pipe, uint32
                 snprintf(tmp, sizeof(tmp), "校验 %d/%d", i + 1, totalChunks);
                 SendProgress(pipe, i + 1, totalChunks, tmp);
             }
-            Sleep(VERIFY_CHUNK_DELAY_MS);
         }
         DWORD verMs = GetTickCount() - t2;
         snprintf(tmp, sizeof(tmp),
