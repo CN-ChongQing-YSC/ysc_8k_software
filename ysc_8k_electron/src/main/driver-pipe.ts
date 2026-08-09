@@ -6,6 +6,7 @@ const PIPE_PATH = '\\\\.\\pipe\\ysc_8k_driver';
 export interface DriverEvents {
   ready: void;
   ports_list: { ports: string[] };
+  ports_changed: { ports: string[] };
   serial_connected: { port: string; baud: number };
   serial_error: { message: string };
   serial_disconnected: void;

@@ -12,6 +12,23 @@
     <div class="firmware-body">
       <FirmwareStatusLed />
 
+      <!-- 自动批量烧录：检测到新插入的 YSC 设备即用最新固件自动烧录，循环 -->
+      <div class="firmware-section firmware-auto-section" :class="{ 'is-active': autoMode }">
+        <div class="firmware-auto-head">
+          <label class="firmware-auto-toggle">
+            <input type="checkbox" v-model="autoMode" @change="onAutoToggle" />
+            <span class="firmware-auto-toggle-text">{{ t('firmware.autoTitle') }}</span>
+          </label>
+          <span class="firmware-auto-status" :class="'auto-st-' + autoState">{{ autoStatusText }}</span>
+        </div>
+        <div class="firmware-auto-meta">
+          <span class="firmware-auto-count">{{ t('firmware.autoCount', { n: autoCount }) }}</span>
+          <button class="btn btn-tiny" @click="autoCount = 0" :disabled="autoMode">{{ t('firmware.autoReset') }}</button>
+        </div>
+        <div class="firmware-auto-hint" v-if="!firmwareReady && !autoMode">{{ t('firmware.autoNeedFw') }}</div>
+        <div class="firmware-auto-warn" v-if="autoMode">{{ t('firmware.autoWarnManual') }}</div>
+      </div>
+
       <!-- Version list. Checking fetches the admin-listed catalog (metadata only);
            each row's CTA downloads that version + flashes it. -->
       <div class="firmware-section" v-if="listState === 'checking'">
@@ -50,9 +67,9 @@
                 </div>
                 <div class="fw-update-progress-text">{{ dlPercent }}%</div>
               </div>
-              <button v-else-if="v.isInstalled" class="fw-version-cta-quiet" @click="downloadAndUpgrade(v)" :disabled="state === 'upgrading'">{{ t('firmwareUpdate.reinstall') }}</button>
-              <button v-else-if="v.isLatest" class="fw-update-cta" @click="downloadAndUpgrade(v)" :disabled="state === 'upgrading'">{{ t('firmwareUpdate.cta') }}</button>
-              <button v-else class="fw-version-cta-quiet" @click="downloadAndUpgrade(v)" :disabled="state === 'upgrading'">{{ t('firmwareUpdate.cta') }}</button>
+              <button v-else-if="v.isInstalled" class="fw-version-cta-quiet" @click="downloadAndUpgrade(v)" :disabled="state === 'upgrading' || autoMode">{{ t('firmwareUpdate.reinstall') }}</button>
+              <button v-else-if="v.isLatest" class="fw-update-cta" @click="downloadAndUpgrade(v)" :disabled="state === 'upgrading' || autoMode">{{ t('firmwareUpdate.cta') }}</button>
+              <button v-else class="fw-version-cta-quiet" @click="downloadAndUpgrade(v)" :disabled="state === 'upgrading' || autoMode">{{ t('firmwareUpdate.cta') }}</button>
             </div>
           </div>
         </div>
@@ -170,14 +187,42 @@ const selectedBaud = ref(1500000);
 
 const showProgress = computed(() => state.value === 'upgrading' || progressPct.value > 0);
 
+// ============ 自动批量烧录状态机 ============
+// autoState: off → arming → armed → connecting → enteringIAP → flashing → cooldown → armed（循环）
+const autoMode = ref(false);
+const autoState = ref('off');
+const autoCount = ref(0);
+const firmwareReady = ref(false); // 最新固件已下载到主进程 pendingFirmware
+
+// 模块级（非响应式）状态
+let knownPorts = new Set();   // armed 时刻端口快照，用于 diff 出「新增口」
+let lastPortList = [];        // 最近一次端口列表（endCooldown 重置 knownPorts 用）
+let flashingPort = '';        // 当前正在连接/烧录的 COM 口
+let armingVersion = '';       // arming 下载的版本号（日志用）
+let cooldownTimer = null;
+let enterIAPDelayTimer = null;
+
+const autoStatusText = computed(function() {
+  switch (autoState.value) {
+    case 'arming':       return t('firmware.autoStArming');
+    case 'armed':        return t('firmware.autoStArmed');
+    case 'connecting':   return t('firmware.autoStConnecting');
+    case 'enteringIAP':  return t('firmware.autoStEntering');
+    case 'flashing':     return t('firmware.autoStFlashing');
+    case 'cooldown':     return t('firmware.autoStCooldown');
+    default:             return t('firmware.autoStOff');
+  }
+});
+
 const statusText = computed(() => {
   if (state.value === 'upgrading') return t('firmware.upgrading');
   if (state.value === 'done' && progressPct.value >= 100) return t('firmware.done');
   return t('firmware.ready');
 });
 
-const canStart = computed(() => state.value !== 'upgrading' && props.filePath.length > 0);
-const canEnterIAP = computed(() => state.value === 'idle');
+// 自动模式开启时禁用手动按钮，避免双路径冲突
+const canStart = computed(() => state.value !== 'upgrading' && props.filePath.length > 0 && !autoMode.value);
+const canEnterIAP = computed(() => state.value === 'idle' && !autoMode.value);
 
 const cleanups = [];
 function listen(event, handler) {
@@ -290,6 +335,101 @@ function refreshList() {
   if (listState.value === 'ready' || listState.value === 'error') checkUpdate();
 }
 
+// ============ 自动批量烧录：状态机实现 ============
+function clearTimer(h) { if (h) { clearTimeout(h); } return null; }
+function clearAutoTimers() {
+  cooldownTimer = clearTimer(cooldownTimer);
+  enterIAPDelayTimer = clearTimer(enterIAPDelayTimer);
+}
+
+function onAutoToggle() {
+  if (autoMode.value) enableAutoMode();
+  else disableAutoMode();
+}
+
+// 开启：固件未就绪则先 arming（拉最新版+下载），就绪则直接进 armed 并建端口基线
+function enableAutoMode() {
+  addLog(t('firmware.autoLogStarted'), 'info');
+  if (!firmwareReady.value) {
+    armFirmware();
+  } else {
+    autoState.value = 'armed';
+    api.send('enum_ports'); // 建立 knownPorts 基线
+  }
+}
+
+function disableAutoMode() {
+  autoState.value = 'off';
+  clearAutoTimers();
+  addLog(t('firmware.autoLogStopped'), 'warn');
+  // 不中断正在 flashing 的设备：iap_done 会检查 autoMode=false 走手动逻辑，不再循环
+}
+
+// 外部串口干扰（用户在首页手动连接/断开）→ 暂停自动
+function pauseAuto() {
+  autoMode.value = false;
+  autoState.value = 'off';
+  clearAutoTimers();
+  addLog(t('firmware.autoLogPaused'), 'err');
+}
+
+// arming：拉版本目录 → 下载最新版到主进程内存（pendingFirmware）
+function armFirmware() {
+  autoState.value = 'arming';
+  addLog(t('firmware.autoLogArming'), 'info');
+  api.listFirmwareVersions(DEVICE_TYPE).then(function(list) {
+    if (!list || !list.length) {
+      autoMode.value = false;
+      autoState.value = 'off';
+      addLog(t('firmwareUpdate.unavailable'), 'err');
+      return;
+    }
+    const latest = list[0];
+    armingVersion = latest.version;
+    addLog(t('firmware.autoLogDownloading', { ver: latest.version }), 'info');
+    api.downloadFirmware(toRaw(latest)); // 成功后 firmware:download_done 的 arming 分支接手
+  }).catch(function() {
+    autoMode.value = false;
+    autoState.value = 'off';
+    addLog(t('firmwareUpdate.unavailable'), 'err');
+  });
+}
+
+// 端口列表变化（ports_changed 事件驱动 + ports_list 兜底）→ diff 出新增口
+function onPortsForAuto(data) {
+  const list = (data && data.ports) ? data.ports : [];
+  lastPortList = list;
+  if (autoState.value !== 'armed') {
+    knownPorts = new Set(list); // 非 armed 态：只同步快照，不触发
+    return;
+  }
+  const added = list.filter(function(p) { return !knownPorts.has(p); });
+  knownPorts = new Set(list); // 立即吸收当前列表，防重复触发
+  if (added.length > 0) startAutoConnect(added[0]);
+}
+
+// 单台时序第 1 步：连接新口（baud=0 让 driver 自动探测 = 识别 YSC 设备）
+function startAutoConnect(port) {
+  autoState.value = 'connecting';
+  flashingPort = port;
+  addLog(t('firmware.autoLogDetect', { port: port }), 'info');
+  api.send('serial_connect', { port: port, baud: 0 });
+}
+
+// iap_done 后冷却 5s（覆盖设备重启回 APP 的 Sleep(2000)+重连），避免重启 blip 误判为新设备
+function enterCooldown() {
+  autoState.value = 'cooldown';
+  flashingPort = '';
+  cooldownTimer = setTimeout(endCooldown, 5000);
+}
+function endCooldown() {
+  cooldownTimer = null;
+  knownPorts = new Set(lastPortList); // 用最新列表重置，刚烧完的设备被吸收为「已知」
+  autoState.value = 'armed';
+  addLog(t('firmware.autoLogCooldownEnd'), 'info');
+  api.send('enum_ports'); // 主动刷新一次，确保 knownPorts 与实际同步
+}
+
 onMounted(function() {
   listen('iap_log', function(data) { addLog(data.message, data.cls || ''); });
   listen('iap_progress', function(data) {
@@ -297,6 +437,19 @@ onMounted(function() {
     progressStatus.value = data.status || '';
   });
   listen('iap_done', function(data) {
+    // 自动模式：成功计数+冷却，失败也冷却（避免立即重试同一台），都不弹恢复卡
+    if (autoMode.value) {
+      if (data.success) {
+        autoCount.value++;
+        addLog(t('firmware.autoLogDone', { n: autoCount.value }), 'ok');
+      } else {
+        addLog(t('firmware.autoLogFailed', { error: data.error || '' }), 'err');
+        if (data.code === 'FIRMWARE_MISMATCH') addLog(t('firmware.autoLogMismatch'), 'err');
+      }
+      enterCooldown();
+      return;
+    }
+    // 手动模式（现有逻辑）
     if (data.success) {
       mismatchShown.value = false;
       state.value = 'done';
@@ -319,12 +472,58 @@ onMounted(function() {
     }
   });
 
+  // 自动模式时序：serial_connect 成功 → iap_enter → 800ms 后 iap_start_mem
+  listen('serial_connected', function() {
+    if (autoState.value === 'connecting') {
+      autoState.value = 'enteringIAP';
+      addLog(t('firmware.autoLogConnected', { port: flashingPort }), 'info');
+      api.send('iap_enter');
+      enterIAPDelayTimer = setTimeout(function() {
+        enterIAPDelayTimer = null;
+        autoState.value = 'flashing';
+        addLog(t('firmware.autoLogFlash', { port: flashingPort }), 'info');
+        api.send('iap_start_mem', { deviceType: DEVICE_TYPE, baud: selectedBaud.value });
+      }, 800);
+    }
+    // cooldown 态收到的 serial_connected（IAP Worker 烧完自动重连）忽略，不重新触发
+  });
+  listen('serial_error', function() {
+    if (autoState.value === 'connecting') {
+      // 探测失败 = 非 YSC 设备，忽略，回待命
+      addLog(t('firmware.autoLogNotYsc', { port: flashingPort }), 'warn');
+      flashingPort = '';
+      autoState.value = 'armed';
+      return;
+    }
+    // 待命态收到 serial_error = 外部串口操作干扰
+    if (autoMode.value && autoState.value === 'armed') pauseAuto();
+  });
+  listen('serial_disconnected', function() {
+    if (autoMode.value && autoState.value === 'armed') pauseAuto();
+  });
+
   listen('firmware:download_progress', function(data) {
     dlPercent.value = data.percent || 0;
   });
   listen('firmware:download_done', function(data) {
     if (!data) return;
     downloadingVer.value = '';
+    // 自动模式前置下载（armFirmware 触发）
+    if (autoState.value === 'arming') {
+      if (data.success) {
+        firmwareReady.value = true;
+        autoState.value = 'armed';
+        emit('update-file', { info: data.info || '' });
+        addLog(t('firmware.autoLogArmed', { ver: armingVersion }), 'ok');
+        api.send('enum_ports'); // 建立端口基线
+      } else {
+        autoMode.value = false;
+        autoState.value = 'off';
+        addLog(t('firmware.autoLogArmFailed', { error: data.error || '' }), 'err');
+      }
+      return;
+    }
+    // 手动模式（downloadAndUpgrade 触发的，autoUpgradeOnDone=true）
     if (data.success) {
       addLog(t('firmwareUpdate.downloadDone'), 'ok');
       // 固件已暂存在主进程内存中（无 path），只更新显示信息
@@ -340,10 +539,88 @@ onMounted(function() {
     }
   });
 
+  // 端口热插拔：ports_changed（driver WM_DEVICECHANGE 推送）+ ports_list 兜底
+  listen('ports_changed', onPortsForAuto);
+  listen('ports_list', onPortsForAuto);
+
   addLog(t('firmware.logReady'));
 });
 
 onUnmounted(function() {
+  clearAutoTimers();
   for (var i = 0; i < cleanups.length; i++) cleanups[i]();
 });
 </script>
+
+<style scoped>
+.firmware-auto-section {
+  border: 1px solid var(--border-color, #2a2a2a);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--panel-bg-2, transparent);
+}
+.firmware-auto-section.is-active {
+  border-color: var(--accent, #3a7afe);
+}
+.firmware-auto-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.firmware-auto-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+.firmware-auto-toggle input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+.firmware-auto-toggle-text {
+  font-weight: 600;
+}
+.firmware-auto-status {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(128, 128, 128, 0.18);
+  color: var(--text-dim, #999);
+}
+.firmware-auto-status.auto-st-armed { color: #4caf50; background: rgba(76, 175, 80, 0.15); }
+.firmware-auto-status.auto-st-flashing,
+.firmware-auto-status.auto-st-enteringIAP,
+.firmware-auto-status.auto-st-connecting { color: #ffa726; background: rgba(255, 167, 38, 0.15); }
+.firmware-auto-status.auto-st-cooldown { color: #29b6f6; background: rgba(41, 182, 246, 0.15); }
+.firmware-auto-status.auto-st-arming { color: #29b6f6; background: rgba(41, 182, 246, 0.15); }
+.firmware-auto-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+.firmware-auto-count {
+  font-size: 13px;
+  color: var(--text-dim, #bbb);
+}
+.btn-tiny {
+  padding: 2px 10px;
+  font-size: 12px;
+}
+.firmware-auto-hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-dim, #999);
+}
+.firmware-auto-warn {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #ffa726;
+  background: rgba(255, 167, 38, 0.1);
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+</style>

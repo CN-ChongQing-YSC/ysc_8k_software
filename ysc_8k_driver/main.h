@@ -40,6 +40,9 @@ struct AppState {
     HANDLE          hStopEvent      = NULL;
     CRITICAL_SECTION csSerialWrite  = {};
 
+    // COM 口热插拔通知句柄（RegisterDeviceNotification），WM_DESTROY 时释放
+    HDEVNOTIFY      hDevNotify      = NULL;
+
     // Serial port
     bool            serialConnected = false;
     wchar_t         serialPortName[16] = {};

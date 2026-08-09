@@ -3,6 +3,7 @@
 #include <windows.h>
 #include <shellapi.h>
 #include <ws2tcpip.h>
+#include <dbt.h>
 
 #include "main.h"
 #include "serial_port.h"
@@ -23,6 +24,16 @@
 #include <cstdarg>
 #include <timeapi.h>
 #pragma comment(lib, "winmm.lib")
+
+// {86E0D1E0-8089-11D0-9CE4-08003E301F73} — GUID_DEVINTERFACE_COMPORT.
+// Defined inline to avoid the <initguid.h> ordering trap (同 towmcu_cdc.cpp)。
+static const GUID GUID_DEVINTERFACE_COMPORT_LOCAL = {
+    0x86e0d1e0, 0x8089, 0x11d0,
+    { 0x9c, 0xe4, 0x08, 0x00, 0x3e, 0x30, 0x1f, 0x73 }
+};
+// WM_DEVICECHANGE 防抖定时器：一次插拔连发多条，合并成一次 EnumComPorts 推送
+#define TIMER_PORT_CHANGE         1001
+#define PORT_CHANGE_DEBOUNCE_MS   400
 
 // ========== Pipe Server ==========
 PipeServer g_pipeServer;
@@ -708,6 +719,18 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR, int) {
     // 读线程异常退出（串口物理断开/IO 错误）时，通过此窗口 PostMessage 通知主线程清理。
     g_serial.SetNotifyWindow(g_app.hwndMain);
 
+    // 注册 COM 口设备接口变更通知 —— 让隐藏窗口收到 WM_DEVICECHANGE（插拔即时推送）。
+    // 仅限 GUID_DEVINTERFACE_COMPORT，避免 U 盘/HID 等无关设备刷屏。
+    // 失败不致命：窗口聚焦刷新 enum_ports 仍是兜底。
+    {
+        DEV_BROADCAST_DEVICEINTERFACE_W filter = {};
+        filter.dbcc_size = sizeof(filter);
+        filter.dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE;
+        filter.dbcc_classguid = GUID_DEVINTERFACE_COMPORT_LOCAL;
+        g_app.hDevNotify = RegisterDeviceNotificationW(
+            g_app.hwndMain, &filter, DEVICE_NOTIFY_WINDOW_HANDLE);
+    }
+
     g_app.hStopEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
     InitializeCriticalSection(&g_app.csSerialWrite);
 
@@ -773,6 +796,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         break;
 
     case WM_DESTROY:
+        if (g_app.hDevNotify) {
+            UnregisterDeviceNotification(g_app.hDevNotify);
+            g_app.hDevNotify = NULL;
+        }
         SetEvent(g_app.hStopEvent);
         PostQuitMessage(0);
         break;
@@ -790,6 +817,34 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             g_pipeServer.SendEvent("serial_disconnected", nullptr);
         }
         break;
+    }
+
+    case WM_DEVICECHANGE: {
+        // COM 口插拔：一次插拔连发多条 WM_DEVICECHANGE（设备接口 + 端口设备节点等），
+        // 用定时器防抖合并成一次 EnumComPorts 推送。
+        if (wParam == DBT_DEVICEARRIVAL || wParam == DBT_DEVICEREMOVECOMPLETE) {
+            KillTimer(hwnd, TIMER_PORT_CHANGE);
+            SetTimer(hwnd, TIMER_PORT_CHANGE, PORT_CHANGE_DEBOUNCE_MS, NULL);
+        }
+        return TRUE;  // WM_DEVICECHANGE 规范要求返回 TRUE
+    }
+
+    case WM_TIMER: {
+        if (wParam == TIMER_PORT_CHANGE) {
+            KillTimer(hwnd, TIMER_PORT_CHANGE);
+            auto ports = EnumComPorts();
+            std::string body = "\"ports\":[";
+            for (size_t i = 0; i < ports.size(); i++) {
+                if (i > 0) body += ",";
+                std::string p(ports[i].begin(), ports[i].end());
+                body += "\"" + p + "\"";
+            }
+            body += "]";
+            // 同时推两份：ports_changed(语义事件) + ports_list(零改动复用 App.vue 现有监听器)
+            g_pipeServer.SendEvent("ports_changed", body.c_str());
+            g_pipeServer.SendEvent("ports_list", body.c_str());
+        }
+        return 0;
     }
 
     default:
