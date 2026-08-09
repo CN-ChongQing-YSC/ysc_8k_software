@@ -365,14 +365,6 @@ function disableAutoMode() {
   // 不中断正在 flashing 的设备：iap_done 会检查 autoMode=false 走手动逻辑，不再循环
 }
 
-// 外部串口干扰（用户在首页手动连接/断开）→ 暂停自动
-function pauseAuto() {
-  autoMode.value = false;
-  autoState.value = 'off';
-  clearAutoTimers();
-  addLog(t('firmware.autoLogPaused'), 'err');
-}
-
 // arming：拉版本目录 → 下载最新版到主进程内存（pendingFirmware）
 function armFirmware() {
   autoState.value = 'arming';
@@ -493,14 +485,12 @@ onMounted(function() {
       addLog(t('firmware.autoLogNotYsc', { port: flashingPort }), 'warn');
       flashingPort = '';
       autoState.value = 'armed';
-      return;
     }
-    // 待命态收到 serial_error = 外部串口操作干扰
-    if (autoMode.value && autoState.value === 'armed') pauseAuto();
+    // 其他态的 serial_error（如首页手动连接失败）忽略，不暂停自动模式。
   });
-  listen('serial_disconnected', function() {
-    if (autoMode.value && autoState.value === 'armed') pauseAuto();
-  });
+  // 不监听 serial_disconnected：烧完一台后设备会自动重连、随后被拔下换下一台，
+  // 这都会触发 serial_disconnected，是批量烧录的正常环节，绝不应据此暂停。
+  // （serial_disconnected 无法区分「换台拔插」与「首页手动断开」，靠它检测干扰必误伤。）
 
   listen('firmware:download_progress', function(data) {
     dlPercent.value = data.percent || 0;
