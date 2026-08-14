@@ -1,0 +1,17 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "rootDir": "src",
+    "outDir": "dist",
+    "noEmit": true,
+    "jsx": "preserve",
+    "types": [],
+    "paths": {
+      "@ysc/core": ["../packages/ysc-core/src/index.ts"],
+      "@ysc/core/*": ["../packages/ysc-core/src/*"]
+    }
+  },
+  "include": ["src/**/*", "../packages/ysc-core/src/**/*"]
+}

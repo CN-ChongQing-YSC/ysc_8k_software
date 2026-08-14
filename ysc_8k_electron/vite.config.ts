@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import electron from 'vite-plugin-electron'
 import renderer from 'vite-plugin-electron-renderer'
+import { fileURLToPath, URL } from 'node:url'
 
 export default defineConfig({
   plugins: [
@@ -35,6 +36,11 @@ export default defineConfig({
     ]),
     renderer(),
   ],
+  resolve: {
+    alias: {
+      '@ysc/core': fileURLToPath(new URL('../packages/ysc-core/src', import.meta.url)),
+    },
+  },
   build: {
     outDir: 'dist',
   },

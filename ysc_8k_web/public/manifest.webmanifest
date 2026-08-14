@@ -1,0 +1,16 @@
+{
+  "name": "YSC 8K 网页版",
+  "short_name": "YSC 8K",
+  "description": "YSC 8K 设备网页版驱动（Web Serial）",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#181a1b",
+  "theme_color": "#181a1b",
+  "lang": "zh",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

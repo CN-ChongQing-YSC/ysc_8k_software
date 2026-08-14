@@ -1,8 +1,6 @@
 <template>
   <div class="titlebar">
-    <svg class="titlebar-logo" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M11 1L4 12h5l-1 7 7-11h-5l1-7z" />
-    </svg>
+    <img :src="brandLogo" class="titlebar-logo" alt="YSC" />
     <span class="titlebar-text">{{ t('app.title') }}</span>
     <div class="titlebar-spacer" />
     <button class="titlebar-btn lang-btn" @click="toggleLang" :title="t('app.langTooltip')">
@@ -22,6 +20,7 @@
 
 <script setup>
 import { useI18n } from '../i18n/index.js';
+import brandLogo from '@ysc/core/ui/assets/brand-white.png';
 
 const { t, lang, setLang } = useI18n();
 
@@ -43,6 +42,15 @@ function quitApp() {
 </script>
 
 <style scoped>
+/* 覆盖 global.css 里旧的 16px 闪电 SVG 尺寸：YSC logo 图像 */
+.titlebar-logo {
+  width: 26px;
+  height: 26px;
+  margin-left: 12px;
+  margin-right: 2px;
+  display: block;
+  opacity: 0.95;
+}
 .lang-btn {
   font-size: 11px;
   font-weight: 700;
@@ -57,7 +65,7 @@ function quitApp() {
   transition: all 0.15s;
 }
 .lang-btn:hover {
-  color: var(--accent-blue);
-  border-color: var(--accent-blue);
+  color: var(--accent-selected);
+  border-color: var(--accent-selected);
 }
 </style>

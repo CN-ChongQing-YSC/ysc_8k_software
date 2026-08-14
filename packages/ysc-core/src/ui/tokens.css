@@ -1,0 +1,219 @@
+/* ── Wooting 字体 + 图标（与 wooting.io/wootility 同源）── */
+@import url('https://fonts.googleapis.com/css2?family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block');
+
+/**
+ * 设计 token —— 完全复刻 wooting.io / Wootility Web 配色（从线上页面实测提取）。
+ * 关键特征：
+ *  - 背景为多层中性深灰，主画布带轻微蓝调（#2C313A），面板更中性（#222426）。
+ *  - 边框一律为半透明白色细线（rgba(255,255,255,.16/.08)），而非实色灰。
+ *  - 强调色为绿色 #4ADE80（成功/已连接）+ 琥珀 #FFD45C（高亮/Tachyon），无蓝色品牌色。
+ *  - 字体 Nunito Sans；圆角 8/6/4px。
+ *  - 图标为 Material Symbols（填充 currentColor）。
+ */
+:root {
+  /* ===== 背景层级（由深到浅）===== */
+  --bg-deepest: #111213;          /* 最深：导航外栏/下沉容器 */
+  --bg-primary: #2c313a;          /* 主画布（body，带轻微蓝调）*/
+  --bg-secondary: #222426;        /* 面板/卡片 */
+  --bg-tertiary: #2b2e31;         /* 抬升表面 */
+  --bg-elevated: #34383c;         /* hover/浮层 */
+  --bg-input: #181a1b;            /* 输入框/凹槽（最深之一）*/
+
+  /* ===== 文字 ===== */
+  --text-primary: rgba(255, 255, 255, 0.92);   /* 正文（92% 白）*/
+  --text-heading: #e8ebed;                     /* 标题（近白）*/
+  --text-secondary: #ccd1d6;                   /* 次要 */
+  --text-muted: #a6adb5;                       /* 弱化 */
+  --text-dim: #7c848d;                         /* 最弱 */
+
+  /* ===== 边框（半透明白细线 —— Wooting 标志性手法）===== */
+  --border: rgba(255, 255, 255, 0.16);
+  --border-soft: rgba(255, 255, 255, 0.08);
+  --border-hover: rgba(255, 255, 255, 0.24);
+  --border-strong: rgba(255, 255, 255, 0.24);
+  --border-focus: rgba(255, 255, 255, 0.4);
+
+  /* ===== 强调色（Wooting：绿=成功/已连接，琥珀=高亮，红=危险；无蓝）===== */
+  --accent: #4ade80;              /* 主强调：Wooting 绿 */
+  --accent-blue: #4ade80;         /* 兼容旧引用 → 同绿色 */
+  --accent-green: #4ade80;
+  --accent-amber: #ffd45c;        /* 高亮 / Tachyon */
+  --accent-yellow: #ffd45c;
+  --accent-red: #f87171;          /* 危险 */
+
+  /* ===== 按钮（Wooting：半透明蓝灰底 + 细边）===== */
+  --btn-bg: rgba(182, 196, 210, 0.16);
+  --btn-bg-hover: rgba(182, 196, 210, 0.24);
+  --btn-text: #ccd1d6;
+  --btn-primary-bg: #4ade80;
+  --btn-primary-text: #0d1f12;
+
+  /* ===== 圆角（Wooting：.5/.375/.25rem）===== */
+  --panel-radius: 8px;            /* .5rem */
+  --btn-radius: 6px;              /* .375rem */
+  --radius-sm: 4px;               /* .25rem */
+
+  /* ===== 字体 ===== */
+  --font-ui: "Nunito Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", "Source Code Pro", Menlo, Consolas, monospace;
+
+  /* ===== 字号阶梯（实测 Wooting：root 16px，xs/sm/md/lg/xl）===== */
+  --text-xs: 12px;   /* .75rem — 标签/标注/tag */
+  --text-sm: 14px;   /* .875rem — 按钮/正文/导航项 */
+  --text-md: 16px;   /* 1rem — 卡片标题/主标签 */
+  --text-lg: 20px;   /* 1.25rem — 大标题 */
+  --text-xl: 24px;   /* 1.5rem — 页面标题 */
+  --weight-regular: 400;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --leading-tight: 1.2;   /* 标题行高 */
+  --leading-normal: 1.5;  /* 正文行高 */
+
+  --transition-fast: 150ms ease;
+
+  /* ===== 状态药丸 ===== */
+  --pill-on-bg: rgba(74, 222, 128, 0.16);
+  --pill-on-fg: #4ade80;
+  --pill-off-bg: rgba(255, 255, 255, 0.08);
+  --pill-off-fg: #a6adb5;
+
+  /* ===== 导航（双栏）===== */
+  --rail-bg: var(--bg-deepest);
+  --rail-outer-bg: var(--bg-deepest);
+  --rail-inner-bg: var(--bg-primary);
+  --rail-active: rgba(182, 196, 210, 0.16);
+  --rail-icon: var(--text-muted);
+  --rail-icon-active: #ffffff;
+  --space-rail-outer: 64px;
+  --space-rail-inner: 168px;
+
+  /* ===== 卡片 ===== */
+  --card-bg: var(--bg-secondary);
+  --card-border: var(--border);
+  --card-hover: var(--bg-tertiary);
+
+  --canvas-grid: rgba(255, 255, 255, 0.06);
+  --state-warning: var(--accent-amber);
+  --state-danger: var(--accent-red);
+
+  /* ===== 交互状态（实测自 wootility.io 主题变量）===== */
+  /* 选择/聚焦用琥珀，成功/已连接用绿 —— Wooting 的语义区分 */
+  --bg-hover: rgba(182, 196, 210, 0.16);            /* selectable hover */
+  --bg-selected-soft: rgba(175, 189, 203, 0.08);    /* 选中（淡）*/
+  --bg-selected-strong: rgba(205, 219, 234, 0.28);  /* 勾选/强选中（radio/check）*/
+  --border-focus: #ffd45c;                          /* 聚焦环 = 琥珀 */
+  --accent-selected: #ffd45c;                       /* 选中/激活图标 = 琥珀 */
+  --text-disabled: rgba(166, 179, 191, 0.5);
+  --icon-disabled: rgba(166, 179, 191, 0.5);
+  --ring-focus: 0 0 0 2px var(--bg-deepest), 0 0 0 4px var(--border-focus);
+  --shadow-card: rgba(24, 26, 27, 0.24) 0px 8px 12px -2px;
+
+  --devicecard-side-left: #4ade80;
+  --devicecard-side-right: #38bdf8;
+  --devicecard-side-iap: #ffd45c;
+
+  color-scheme: dark;
+}
+
+/* ===== Material Symbols 基础类（填充 currentColor，对齐 Wooting 图标语言）===== */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+  font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+/* ===== 共享组件原语（两版复用）===== */
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--panel-radius);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: var(--shadow-card);
+}
+.card-title {
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  color: var(--text-heading);
+  letter-spacing: 0.1px;
+}
+.view-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+  align-content: start;
+}
+.muted {
+  color: var(--text-muted);
+}
+.placeholder {
+  padding: 56px 24px;
+  text-align: center;
+  color: var(--text-muted);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--panel-radius);
+  background: var(--bg-secondary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  box-shadow: var(--shadow-card);
+}
+.placeholder .ph-icon {
+  font-size: 36px;
+  color: var(--text-dim);
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--bg-selected-soft);
+  opacity: 0.85;
+}
+
+/* ===== 细滚动条（Wooting/Chakra 风格：半透明白，纤细）===== */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.26);
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+/* ===== 文本选区（琥珀，呼应 Wooting 选择色）===== */
+::selection {
+  background: rgba(255, 212, 92, 0.28);
+  color: #ffffff;
+}

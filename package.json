@@ -1,0 +1,18 @@
+{
+  "name": "ysc-8k-software",
+  "version": "1.13.0",
+  "private": true,
+  "description": "YSC 8K 设备软件 —— 共享核心 + Electron 桌面版 + 网页版 (Web Serial)",
+  "workspaces": [
+    "packages/*",
+    "ysc_8k_electron",
+    "ysc_8k_web"
+  ],
+  "scripts": {
+    "dev:electron": "npm -w ysc-8k-driver run dev",
+    "dev:web": "npm -w ysc-8k-web run dev",
+    "build:web": "npm -w ysc-8k-web run build",
+    "dist:electron": "npm -w ysc-8k-driver run dist",
+    "typecheck": "npm -w @ysc/core run typecheck"
+  }
+}

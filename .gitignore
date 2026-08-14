@@ -15,8 +15,19 @@
 /ysc_8k_electron/dist
 /ysc_8k_electron/release
 
+# npm workspaces (root monorepo)
+/node_modules
+/packages/*/node_modules
+/packages/*/dist
+/packages/*/.test-build
+/ysc_8k_web/node_modules
+/ysc_8k_web/dist
+/ysc_8k_web/release
+/package-lock.json.tmp
+
 # misc
 /.codegraph
+/.cache
 /ysc_8k_driver/ysc_8k_driver/x64
 
 # Claude Code 本地指导文件（不入库）

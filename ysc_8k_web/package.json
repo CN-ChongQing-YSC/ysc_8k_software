@@ -1,0 +1,22 @@
+{
+  "name": "ysc-8k-web",
+  "version": "1.13.0",
+  "private": true,
+  "type": "module",
+  "description": "YSC 8K 网页版驱动（Web Serial API，零安装）",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@ysc/core": "*",
+    "pinia": "^2.2.0",
+    "vue": "^3.4.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.7",
+    "typescript": "^5.5.0",
+    "vite": "^8.0.16"
+  }
+}

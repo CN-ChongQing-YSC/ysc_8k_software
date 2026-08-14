@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "rootDir": "src",
+    "outDir": "dist",
+    "declaration": false,
+    "noEmit": true,
+    "paths": {}
+  },
+  "include": ["src/**/*"],
+  "exclude": ["src/**/*.vue", "src/**/*.test.ts", "node_modules", "dist", ".test-build"]
+}

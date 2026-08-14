@@ -1,7 +1,8 @@
 <template>
   <TitleBar />
   <div class="app-body">
-    <Sidebar :current="currentView" @navigate="onNavigate" />
+    <!-- 共享核心双栏导航（@ysc/core/ui），替代扁平 Sidebar；viewKey 同步到 useUiStore -->
+    <NavRail :groups="ELECTRON_NAV" />
     <div class="app-main">
       <StatusBar
         :serial-connected="serialConnected"
@@ -96,9 +97,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import TitleBar from './components/TitleBar.vue';
-import Sidebar from './components/Sidebar.vue';
 import StatusBar from './components/StatusBar.vue';
 import SerialPanel from './components/SerialPanel.vue';
 import KmnetPanel from './components/KmnetPanel.vue';
@@ -112,25 +112,20 @@ import FirmwarePanel from './components/FirmwarePanel.vue';
 import TowmcuFirmwarePanel from './components/TowmcuFirmwarePanel.vue';
 import DebugPanel from './components/DebugPanel.vue';
 import { useI18n } from './i18n/index.js';
+import { NavRail } from '@ysc/core/ui';
+import { useUiStore } from '@ysc/core/store';
+import { ELECTRON_NAV } from './electron-nav';
 
 const api = window.driverApi;
 const { t } = useI18n();
 
 const VALID_VIEWS = ['home', 'docs', 'macro', 'jitter', 'mouse-curve', 'gamepad', 'firmware', 'towmcu-firmware', 'debug'];
-const VIEW_STORAGE_KEY = 'ysc_ui_current_view';
 
-function loadStoredView() {
-  try {
-    const v = localStorage.getItem(VIEW_STORAGE_KEY);
-    return VALID_VIEWS.indexOf(v) >= 0 ? v : 'home';
-  } catch (e) { return 'home'; }
-}
-
-const currentView = ref(loadStoredView());
-
-watch(currentView, function(v) {
-  try { localStorage.setItem(VIEW_STORAGE_KEY, v); } catch (e) { /* ignore */ }
-});
+// 共享核心 ui-store 驱动导航视图（与 @ysc/core NavRail 共用 activeView，持久化由 store 负责）
+const ui = useUiStore();
+ui.loadView();
+if (!VALID_VIEWS.includes(ui.activeView)) ui.setView('home');
+const currentView = computed(() => ui.activeView);
 const serialConnected = ref(false);
 const serialPort = ref('');
 const serialBaud = ref(0);
@@ -247,7 +242,7 @@ function listen(event, handler) {
 }
 
 function onNavigate(view) {
-  currentView.value = view;
+  ui.setView(view);
 }
 
 function onSerialConnect(port, baud) {

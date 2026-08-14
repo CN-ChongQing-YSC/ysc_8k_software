@@ -1,28 +1,5 @@
-:root {
-  --bg-primary: #161b24;
-  --bg-secondary: #1e2536;
-  --bg-tertiary: #263040;
-  --bg-input: #141920;
-
-  --border: #2e3c50;
-  --border-hover: #3f5068;
-  --border-focus: #38bdf8;
-
-  --text-primary: #eaecf2;
-  --text-secondary: #bcc8d8;
-  --text-muted: #8e9eb2;
-  --text-dim: #6e8098;
-
-  --accent-blue: #38bdf8;
-  --accent-green: #34d399;
-  --accent-red: #ef4444;
-  --accent-yellow: #fbbf24;
-
-  --panel-radius: 8px;
-  --btn-radius: 5px;
-
-  --font-ui: "Segoe UI", system-ui, -apple-system, sans-serif;
-  --font-mono: "Consolas", "Cascadia Code", monospace;
-
-  --transition-fast: 150ms ease;
-}
+/* 已退役：颜色系统统一迁至 @ysc/core/ui/tokens.css（Wooting 配色）。
+ * 本文件不再定义任何颜色变量，避免与新 token 冲突。
+ * 旧变量名（--bg-primary / --accent-blue 等）全部由 tokens.css 以 Wooting 取值重新提供。
+ * 见 packages/ysc-core/src/ui/tokens.css。
+ */

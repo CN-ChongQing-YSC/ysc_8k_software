@@ -1,0 +1,33 @@
+{
+  "name": "@ysc/core",
+  "version": "1.13.0",
+  "private": true,
+  "type": "module",
+  "description": "YSC 8K 共享核心：设备协议、传输抽象、命令层、Pinia store、UI 外壳与 i18n（Electron 与网页版共用）",
+  "main": "./src/index.ts",
+  "module": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./protocol": "./src/protocol/index.ts",
+    "./transport": "./src/transport/index.ts",
+    "./device": "./src/device/index.ts",
+    "./store": "./src/store/index.ts",
+    "./ui": "./src/ui/index.ts",
+    "./i18n": "./src/i18n/index.ts",
+    "./platform": "./src/platform.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test:proto": "tsc --module commonjs --target ES2020 --esModuleInterop --skipLibCheck --moduleResolution node --rootDir src --outDir ../../.cache/proto-test src/protocol/__test__/frame.test.ts && node ../../.cache/proto-test/protocol/__test__/frame.test.js"
+  },
+  "peerDependencies": {
+    "vue": "^3.4.0"
+  },
+  "dependencies": {
+    "pinia": "^2.2.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  }
+}

@@ -10,8 +10,12 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "moduleResolution": "node"
+    "moduleResolution": "node",
+    "paths": {
+      "@ysc/core": ["../packages/ysc-core/src/index.ts"],
+      "@ysc/core/*": ["../packages/ysc-core/src/*"]
+    }
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/**/*", "../packages/ysc-core/src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "../packages/ysc-core/src/**/*.vue", "../packages/ysc-core/src/**/*.test.ts"]
 }
