@@ -39,3 +39,6 @@ EXPORTS
     Ysc_GamepadSetConfig    = _Ysc_GamepadSetConfig@8
     Ysc_GamepadEnable       = _Ysc_GamepadEnable@8
     Ysc_GamepadReset        = _Ysc_GamepadReset@4
+    Ysc_InterpGet           = _Ysc_InterpGet@16
+    Ysc_InterpSet           = _Ysc_InterpSet@20
+    Ysc_InterpReset         = _Ysc_InterpReset@4

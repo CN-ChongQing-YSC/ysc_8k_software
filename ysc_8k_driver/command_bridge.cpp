@@ -163,6 +163,27 @@ bool CommandBridge::SendGamepadReset() {
     return s_serial->SendJsonCommand("{\"cmd\":104}");
 }
 
+/* ---- Mouse interpolation (firmware cmd 51/52/53) ---- */
+bool CommandBridge::SendInterpSet(int enable, int profile, int windowMs, int maxWindowMs) {
+    if (!s_serial) return false;
+    char json[96];
+    snprintf(json, sizeof(json), "{\"cmd\":51,\"e\":%d,\"p\":%d,\"w\":%d,\"mx\":%d}",
+             enable ? 1 : 0, profile, windowMs, maxWindowMs);
+    DebugLog("TX interp set: %s", json);
+    DebugLogger::Log("TX interp set: %s", json);
+    return s_serial->SendJsonCommand(json);
+}
+bool CommandBridge::SendInterpGet() {
+    if (!s_serial) return false;
+    DebugLog("TX interp get");
+    return s_serial->SendJsonCommand("{\"cmd\":52}");
+}
+bool CommandBridge::SendInterpReset() {
+    if (!s_serial) return false;
+    DebugLog("TX interp reset");
+    return s_serial->SendJsonCommand("{\"cmd\":53}");
+}
+
 /* ---- Debug capture commands ----
  * Command codes must stay in sync with firmware (USART1Dma.h).
  *   700 enter / 701 exit / 702 status

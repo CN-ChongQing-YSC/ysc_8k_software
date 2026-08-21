@@ -1,6 +1,6 @@
 {
   "name": "ysc-8k-web",
-  "version": "1.13.0",
+  "version": "1.14.0",
   "private": true,
   "type": "module",
   "description": "YSC 8K 网页版驱动（Web Serial API，零安装）",

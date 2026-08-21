@@ -44,6 +44,7 @@ export const NAV: NavGroup[] = [
       { key: 'macro', label: '宏', icon: 'macro' },
       { key: 'jitter', label: '抖动', icon: 'jitter' },
       { key: 'mouse-curve', label: '鼠标曲线', icon: 'curve' },
+      { key: 'mouse-interp', label: '鼠标插值', icon: 'curve' },
     ],
   },
   {

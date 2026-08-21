@@ -81,6 +81,13 @@
         @reset="onMouseCurveReset"
         @load="loadMouseCurve"
       />
+      <MouseInterpPanel
+        v-else-if="currentView === 'mouse-interp'"
+        :config="mouseInterpConfig"
+        @save="onMouseInterpSave"
+        @reset="onMouseInterpReset"
+        @load="loadMouseInterp"
+      />
       <GamepadMapperPanel v-else-if="currentView === 'gamepad'" />
       <DocsPanel v-else-if="currentView === 'docs'" />
       <FirmwarePanel
@@ -106,6 +113,7 @@ import MonitorPanel from './components/MonitorPanel.vue';
 import MacroPanel from './components/MacroPanel.vue';
 import JitterMacroPanel from './components/JitterMacroPanel.vue';
 import MouseCurvePanel from './components/MouseCurvePanel.vue';
+import MouseInterpPanel from './components/MouseInterpPanel.vue';
 import GamepadMapperPanel from './components/GamepadMapperPanel.vue';
 import DocsPanel from './components/DocsPanel.vue';
 import FirmwarePanel from './components/FirmwarePanel.vue';
@@ -119,7 +127,7 @@ import { ELECTRON_NAV } from './electron-nav';
 const api = window.driverApi;
 const { t } = useI18n();
 
-const VALID_VIEWS = ['home', 'docs', 'macro', 'jitter', 'mouse-curve', 'gamepad', 'firmware', 'towmcu-firmware', 'debug'];
+const VALID_VIEWS = ['home', 'docs', 'macro', 'jitter', 'mouse-curve', 'mouse-interp', 'gamepad', 'firmware', 'towmcu-firmware', 'debug'];
 
 // 共享核心 ui-store 驱动导航视图（与 @ysc/core NavRail 共用 activeView，持久化由 store 负责）
 const ui = useUiStore();
@@ -233,6 +241,7 @@ const macros = ref([]);
 const jitterConfig = ref({ enabled: 0, trigger: 1, ax: 10, fx: 0, py: 5, fy: 0 });
 
 const mouseCurveConfig = ref({ enabled: 0, profile: 2, segments: 4, duration: 0, jitter: 15 });
+const mouseInterpConfig = ref({ enabled: 1, profile: 0, window: 0, maxw: 50, ema: 0 });
 
 const cleanups = [];
 
@@ -384,6 +393,26 @@ function loadMouseCurve() {
   api.send('send_ysc', { cmd: JSON.stringify({ cmd: 43 }) });
 }
 
+function onMouseInterpSave(cfg) {
+  mouseInterpConfig.value = { ...cfg };
+  api.send('send_ysc', { cmd: JSON.stringify({
+    cmd: 51,
+    e: cfg.enabled ? 1 : 0,
+    p: cfg.profile,
+    w: cfg.window,
+    mx: cfg.maxw
+  }) });
+}
+
+function onMouseInterpReset() {
+  mouseInterpConfig.value = { enabled: 1, profile: 0, window: 0, maxw: 50 };
+  api.send('send_ysc', { cmd: JSON.stringify({ cmd: 53 }) });
+}
+
+function loadMouseInterp() {
+  api.send('send_ysc', { cmd: JSON.stringify({ cmd: 52 }) });
+}
+
 let monitorTimer = null;
 let portsRefreshAt = 0;
 
@@ -416,6 +445,7 @@ onMounted(function() {
     setTimeout(loadMacros, 500);
     setTimeout(loadJitter, 600);
     setTimeout(loadMouseCurve, 650);
+    setTimeout(loadMouseInterp, 700);
   });
 
   listen('serial_disconnected', function() {
@@ -530,6 +560,21 @@ onMounted(function() {
         segments: c.segments != null ? c.segments : 4,
         duration: c.duration != null ? c.duration : 0,
         jitter: c.jitter != null ? c.jitter : 15
+      };
+    } catch (e) { /* ignore parse errors */ }
+  });
+
+  listen('debug_response', function(data) {
+    if (!data || data.message !== 'interp') return;
+    if (typeof data.data !== 'string') return;
+    try {
+      var c = JSON.parse(data.data);
+      mouseInterpConfig.value = {
+        enabled: c.enabled ? 1 : 0,
+        profile: c.profile != null ? c.profile : 0,
+        window: c.window != null ? c.window : 0,
+        maxw: c.maxw != null ? c.maxw : 50,
+        ema: c.ema || 0
       };
     } catch (e) { /* ignore parse errors */ }
   });

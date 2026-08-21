@@ -195,6 +195,15 @@ YSC_API int YSC_CALL Ysc_GamepadSetConfig(YscDevice *dev, const char *configJson
 YSC_API int YSC_CALL Ysc_GamepadEnable(YscDevice *dev, int on);
 YSC_API int YSC_CALL Ysc_GamepadReset(YscDevice *dev);
 
+// 鼠标插值（cmd 51/52/53，固件持久化）：低频软件移动指令按设备实际回报率
+// （最高 8kHz）平滑展开。windowMs=0 自适应（EMA 跟踪移动命令到达节奏），
+// >0 固定窗口；maxWindowMs 为自适应上限（默认 50）。
+YSC_API int YSC_CALL Ysc_InterpGet(YscDevice *dev, int timeoutMs,
+                                   char *outBuf, int bufSize);
+YSC_API int YSC_CALL Ysc_InterpSet(YscDevice *dev, int enable, int profile,
+                                   int windowMs, int maxWindowMs);
+YSC_API int YSC_CALL Ysc_InterpReset(YscDevice *dev);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

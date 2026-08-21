@@ -697,6 +697,23 @@ YSC_API int YSC_CALL Ysc_GamepadReset(YscDevice *dev) {
     return Ysc_SendCommandNoWait(dev, "{\"cmd\":104}");
 }
 
+// ---- 鼠标插值 (firmware cmd 51/52/53)：低频软件移动按设备实际回报率平滑展开 ----
+YSC_API int YSC_CALL Ysc_InterpGet(YscDevice *dev, int timeoutMs,
+                                   char *outBuf, int bufSize) {
+    // data: {"enabled":..,"profile":..,"window":..,"maxw":..,"ema":..}
+    return Ysc_SendCommand(dev, "{\"cmd\":52}", timeoutMs, outBuf, bufSize);
+}
+YSC_API int YSC_CALL Ysc_InterpSet(YscDevice *dev, int enable, int profile,
+                                   int windowMs, int maxWindowMs) {
+    char j[96];
+    snprintf(j, sizeof(j), "{\"cmd\":51,\"e\":%d,\"p\":%d,\"w\":%d,\"mx\":%d}",
+             enable ? 1 : 0, profile, windowMs, maxWindowMs);
+    return Ysc_SendCommandNoWait(dev, j);
+}
+YSC_API int YSC_CALL Ysc_InterpReset(YscDevice *dev) {
+    return Ysc_SendCommandNoWait(dev, "{\"cmd\":53}");
+}
+
 // DLL 入口（可选）：进程/线程附加时无需特殊处理
 BOOL APIENTRY DllMain(HMODULE, DWORD reason, LPVOID) {
     switch (reason) {

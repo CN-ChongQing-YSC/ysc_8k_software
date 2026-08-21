@@ -353,7 +353,7 @@ static void OnPipeCommand(const char *json, void *userData) {
         g_pipeServer.SendEvent("local_ip", body);
     }
     else if (type == "get_version") {
-        g_pipeServer.SendEvent("version", "\"version\":\"1.13.0\"");
+        g_pipeServer.SendEvent("version", "\"version\":\"1.14.0\"");
     }
     else if (type == "get_monitor") {
         auto m = MonitorPush::GetLatest();
@@ -427,6 +427,36 @@ static void OnPipeCommand(const char *json, void *userData) {
         else {
             bool ok = CommandBridge::SendGamepadReset();
             g_pipeServer.SendEvent("send_result", ok ? "\"ok\":true,\"cmd\":\"gmap_reset\"" : "\"ok\":false");
+        }
+    }
+    else if (type == "set_interp_config") {
+        // {"type":"set_interp_config","enable":..,"profile":..,"window":..,"maxw":..} → firmware cmd 51
+        int enable  = ExtractJsonInt(json, "enable");
+        int profile = ExtractJsonInt(json, "profile");
+        int window  = ExtractJsonInt(json, "window");
+        int maxw    = ExtractJsonInt(json, "maxw");
+        if (!g_app.serialConnected)
+            g_pipeServer.SendEvent("send_result", "\"ok\":false,\"error\":\"未连接设备\"");
+        else {
+            bool ok = CommandBridge::SendInterpSet(enable, profile, window, maxw);
+            g_pipeServer.SendEvent("send_result", ok ? "\"ok\":true,\"cmd\":\"interp_set\"" : "\"ok\":false");
+        }
+    }
+    else if (type == "get_interp_config") {
+        if (!g_app.serialConnected)
+            g_pipeServer.SendEvent("send_result", "\"ok\":false,\"error\":\"未连接设备\"");
+        else {
+            // response arrives asynchronously as debug_response(message="interp") via ForwardDebugResponse
+            bool ok = CommandBridge::SendInterpGet();
+            g_pipeServer.SendEvent("send_result", ok ? "\"ok\":true,\"cmd\":\"interp_get\"" : "\"ok\":false");
+        }
+    }
+    else if (type == "reset_interp_config") {
+        if (!g_app.serialConnected)
+            g_pipeServer.SendEvent("send_result", "\"ok\":false,\"error\":\"未连接设备\"");
+        else {
+            bool ok = CommandBridge::SendInterpReset();
+            g_pipeServer.SendEvent("send_result", ok ? "\"ok\":true,\"cmd\":\"interp_reset\"" : "\"ok\":false");
         }
     }
     else if (type == "send_makcu") {

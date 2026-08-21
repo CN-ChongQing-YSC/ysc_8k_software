@@ -19,6 +19,9 @@ export const CMD_JITTER_RESET = 41;
 export const CMD_MOUSE_CURVE_SET = 42;
 export const CMD_MOUSE_CURVE_GET = 43;
 export const CMD_MOUSE_CURVE_RESET = 44;
+export const CMD_MOUSE_INTERP_SET = 51;
+export const CMD_MOUSE_INTERP_GET = 52;
+export const CMD_MOUSE_INTERP_RESET = 53;
 
 // ── 键盘 ──
 export const CMD_KEYBOARD_KEY = 45;             // {"cmd":45,"kc":HID,"down":0/1}

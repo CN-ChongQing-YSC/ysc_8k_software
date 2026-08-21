@@ -38,6 +38,14 @@ public:
     static bool SendGamepadEnable(bool on);            // {"cmd":102,"on":...}
     static bool SendGamepadReset();                    // {"cmd":104}
 
+    /* Mouse interpolation (firmware cmd 51/52/53). Spreads low-rate software
+     * move commands (e.g. 200Hz) into smooth micro-increments at the device's
+     * real polling rate (up to 8kHz). Firmware persists the config; driver is
+     * a bridge. windowMs=0 adaptive (EMA of cmd-30 cadence), >0 fixed window. */
+    static bool SendInterpSet(int enable, int profile, int windowMs, int maxWindowMs);  // {"cmd":51,...}
+    static bool SendInterpGet();                                                         // {"cmd":52}
+    static bool SendInterpReset();                                                       // {"cmd":53}
+
     /* Debug capture commands (forwarded to firmware over serial).
      * Responses are delivered asynchronously through the PipeServer event
      * "debug_response" once the firmware replies. */

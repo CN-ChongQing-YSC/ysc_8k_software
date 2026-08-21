@@ -1,6 +1,6 @@
 {
   "name": "@ysc/core",
-  "version": "1.13.0",
+  "version": "1.14.0",
   "private": true,
   "type": "module",
   "description": "YSC 8K 共享核心：设备协议、传输抽象、命令层、Pinia store、UI 外壳与 i18n（Electron 与网页版共用）",
