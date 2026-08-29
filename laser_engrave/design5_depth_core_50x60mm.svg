@@ -1,0 +1,35 @@
+<svg id="d5" viewBox="0 0 50 60" xmlns="http://www.w3.org/2000/svg" width="50mm" height="60mm">
+  <defs>
+    <radialGradient id="gcore" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#000000"/>
+      <stop offset="65%" stop-color="#1c1c1c"/>
+      <stop offset="100%" stop-color="#6e6e6e"/>
+    </radialGradient>
+  </defs>
+  <rect x="0" y="0" width="50" height="60" fill="#fff"/>
+  <rect x="2" y="2" width="46" height="56" fill="none" stroke="#9e9e9e" stroke-width="0.4"/>
+  <!-- 顶部 YSC logo（100% 黑 = 最深层） -->
+  <g transform="translate(14,4.6) scale(0.052758)"><path d="M44.0 121.0L42.0 120.0L60.0 58.0L0.0 0.0L39.0 0.0L77.0 38.0L80.0 38.0L117.0 0.0L155.0 0.0L88.0 63.0L79.0 97.0ZM226.0 104.0L110.0 103.0L137.0 81.0L219.0 81.0L239.0 63.0L144.0 62.0L154.0 29.0L187.0 0.0L297.0 0.0L273.0 24.0L194.0 24.0L174.0 42.0L270.0 43.0L260.0 76.0ZM371.0 104.0L294.0 104.0L277.0 84.0L294.0 30.0L328.0 0.0L417.0 0.0L393.0 24.0L335.0 24.0L318.0 40.0L306.0 71.0L311.0 81.0L394.0 81.0Z" fill="#000" fill-rule="evenodd"/></g>
+  <!-- 深度阶梯台（由浅到深） -->
+  <rect x="5" y="18" width="40" height="24" rx="2" fill="#e0e0e0"/>
+  <rect x="8" y="20" width="34" height="20" rx="1.6" fill="#bfbfbf"/>
+  <rect x="11" y="22" width="28" height="16" rx="1.3" fill="#8c8c8c"/>
+  <rect x="14" y="24" width="22" height="12" rx="1" fill="#4d4d4d"/>
+  <!-- 渐变核心 + 白色闪电（白 = 不雕刻，凸起） -->
+  <circle cx="25" cy="30" r="6.5" fill="url(#gcore)"/>
+  <polygon points="26.2,26 23.2,31.4 25.4,31.4 23.8,34.4 27.9,29.4 25.7,29.4" fill="#fff"/>
+  <!-- 灰阶校准条（左黑右白 8 级） -->
+  <g>
+    <rect x="6.97" y="44.3" width="4.2" height="3.4" fill="#000000"/>
+    <rect x="11.52" y="44.3" width="4.2" height="3.4" fill="#242424"/>
+    <rect x="16.07" y="44.3" width="4.2" height="3.4" fill="#484848"/>
+    <rect x="20.62" y="44.3" width="4.2" height="3.4" fill="#6b6b6b"/>
+    <rect x="25.17" y="44.3" width="4.2" height="3.4" fill="#8f8f8f"/>
+    <rect x="29.72" y="44.3" width="4.2" height="3.4" fill="#b3b3b3"/>
+    <rect x="34.27" y="44.3" width="4.2" height="3.4" fill="#d8d8d8"/>
+    <rect x="38.82" y="44.3" width="4.2" height="3.4" fill="#ffffff" stroke="#8c8c8c" stroke-width="0.2"/>
+  </g>
+  <text x="25" y="50.2" text-anchor="middle" font-family="Arial" font-size="1.7" letter-spacing="0.6" fill="#737373">DEPTH SCALE · 100 → 0</text>
+  <text x="25" y="54" text-anchor="middle" font-family="Arial" font-weight="bold" font-size="4.2" letter-spacing="1.4" fill="#000">8K DRIVER</text>
+  <text x="25" y="56.6" text-anchor="middle" font-family="Arial" font-size="1.8" letter-spacing="0.6" fill="#595959">LAYERED DEPTH ENGRAVING</text>
+</svg>

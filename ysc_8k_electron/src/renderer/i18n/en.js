@@ -198,7 +198,7 @@ export default {
     maxWindowHint: 'Max spread window in adaptive mode (1..200ms)',
     msUnit: 'ms',
     emaLabel: 'Detected call interval (EMA)',
-    note: 'On by default. Moves from software (e.g. 200Hz) are automatically split into many smooth micro-steps output at the mouse native polling rate (up to 8kHz); total displacement is exactly conserved. Calls with explicit step count c>1 are unaffected. When combined with Mouse Curve: curve provides the shape, interpolation the duration.',
+    note: 'On by default. Moves from software (e.g. 200Hz) are automatically split into many smooth micro-steps output at the mouse native polling rate (up to 8kHz); total displacement is exactly conserved. While enabled, the step count c sent by software is ignored — everything is spread automatically from the measured cadence. When combined with Mouse Curve: curve provides the shape, interpolation the duration.',
     notEnabled: 'Disabled (software moves sent as-is, single report)',
     saved: 'Saved',
     resetDone: 'Reset done',

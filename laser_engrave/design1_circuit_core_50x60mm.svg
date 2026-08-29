@@ -1,0 +1,38 @@
+<svg id="d1" viewBox="0 0 50 60" xmlns="http://www.w3.org/2000/svg" width="50mm" height="60mm">
+  <rect x="0" y="0" width="50" height="60" fill="#fff"/>
+  <rect x="2" y="2" width="46" height="56" rx="3" fill="none" stroke="#000" stroke-width="0.9"/>
+  <rect x="3.6" y="3.6" width="42.8" height="52.8" rx="2" fill="none" stroke="#000" stroke-width="0.3"/>
+  <g transform="translate(13,4.8) scale(0.057554)"><path d="M44.0 121.0L42.0 120.0L60.0 58.0L0.0 0.0L39.0 0.0L77.0 38.0L80.0 38.0L117.0 0.0L155.0 0.0L88.0 63.0L79.0 97.0ZM226.0 104.0L110.0 103.0L137.0 81.0L219.0 81.0L239.0 63.0L144.0 62.0L154.0 29.0L187.0 0.0L297.0 0.0L273.0 24.0L194.0 24.0L174.0 42.0L270.0 43.0L260.0 76.0ZM371.0 104.0L294.0 104.0L277.0 84.0L294.0 30.0L328.0 0.0L417.0 0.0L393.0 24.0L335.0 24.0L318.0 40.0L306.0 71.0L311.0 81.0L394.0 81.0Z" fill="#000" fill-rule="evenodd"/></g>
+  <!-- 四角电路走线 -->
+  <path d="M 11 6.5 H 6.5 V 11.5" fill="none" stroke="#000" stroke-width="0.45"/>
+  <circle cx="11" cy="6.5" r="1" fill="#000"/><circle cx="6.5" cy="11.5" r="1" fill="#000"/>
+  <path d="M 39 6.5 H 43.5 V 11.5" fill="none" stroke="#000" stroke-width="0.45"/>
+  <circle cx="39" cy="6.5" r="1" fill="#000"/><circle cx="43.5" cy="11.5" r="1" fill="#000"/>
+  <path d="M 11 53.5 H 6.5 V 48.5" fill="none" stroke="#000" stroke-width="0.45"/>
+  <circle cx="11" cy="53.5" r="1" fill="#000"/><circle cx="6.5" cy="48.5" r="1" fill="#000"/>
+  <path d="M 39 53.5 H 43.5 V 48.5" fill="none" stroke="#000" stroke-width="0.45"/>
+  <circle cx="39" cy="53.5" r="1" fill="#000"/><circle cx="43.5" cy="48.5" r="1" fill="#000"/>
+  <!-- 芯片引脚 -->
+  <rect x="19.3" y="13.5" width="1.4" height="4.5" fill="#000"/>
+  <rect x="24.3" y="13.5" width="1.4" height="4.5" fill="#000"/>
+  <rect x="29.3" y="13.5" width="1.4" height="4.5" fill="#000"/>
+  <rect x="19.3" y="38" width="1.4" height="4.5" fill="#000"/>
+  <rect x="24.3" y="38" width="1.4" height="4.5" fill="#000"/>
+  <rect x="29.3" y="38" width="1.4" height="4.5" fill="#000"/>
+  <rect x="10.5" y="21.3" width="4.5" height="1.4" fill="#000"/>
+  <rect x="10.5" y="26.3" width="4.5" height="1.4" fill="#000"/>
+  <rect x="10.5" y="31.3" width="4.5" height="1.4" fill="#000"/>
+  <rect x="35" y="21.3" width="4.5" height="1.4" fill="#000"/>
+  <rect x="35" y="26.3" width="4.5" height="1.4" fill="#000"/>
+  <rect x="35" y="31.3" width="4.5" height="1.4" fill="#000"/>
+  <!-- 芯片主体 -->
+  <rect x="15" y="18" width="20" height="20" rx="1.2" fill="#000"/>
+  <text x="25" y="31.2" text-anchor="middle" font-family="Arial" font-weight="bold" font-size="7" letter-spacing="0.6" fill="#fff">8K</text>
+  <!-- 两侧走线焊盘 -->
+  <path d="M 7 22 H 10.5 M 7 27 H 10.5 M 7 32 H 10.5" stroke="#000" stroke-width="0.45"/>
+  <circle cx="6" cy="22" r="1" fill="#000"/><circle cx="6" cy="27" r="1" fill="#000"/><circle cx="6" cy="32" r="1" fill="#000"/>
+  <path d="M 39.5 22 H 43 M 39.5 27 H 43 M 39.5 32 H 43" stroke="#000" stroke-width="0.45"/>
+  <circle cx="44" cy="22" r="1" fill="#000"/><circle cx="44" cy="27" r="1" fill="#000"/><circle cx="44" cy="32" r="1" fill="#000"/>
+  <text x="25" y="48.8" text-anchor="middle" font-family="Arial" font-weight="bold" font-size="4.6" letter-spacing="1.2" fill="#000">DRIVER</text>
+  <text x="25" y="53" text-anchor="middle" font-family="Arial" font-size="2.2" letter-spacing="0.8" fill="#000">HARDWARE MODULE</text>
+</svg>

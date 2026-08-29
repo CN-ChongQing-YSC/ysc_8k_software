@@ -1,0 +1,31 @@
+<svg id="d3" viewBox="0 0 50 60" xmlns="http://www.w3.org/2000/svg" width="50mm" height="60mm">
+  <rect x="0" y="0" width="50" height="60" fill="#fff"/>
+  <rect x="2" y="2" width="46" height="56" fill="none" stroke="#000" stroke-width="0.5"/>
+  <rect x="4" y="4" width="1.7" height="1.7" fill="#000"/>
+  <rect x="44.3" y="4" width="1.7" height="1.7" fill="#000"/>
+  <rect x="4" y="54.3" width="1.7" height="1.7" fill="#000"/>
+  <rect x="44.3" y="54.3" width="1.7" height="1.7" fill="#000"/>
+  <g transform="translate(15,3.9) scale(0.047962)"><path d="M44.0 121.0L42.0 120.0L60.0 58.0L0.0 0.0L39.0 0.0L77.0 38.0L80.0 38.0L117.0 0.0L155.0 0.0L88.0 63.0L79.0 97.0ZM226.0 104.0L110.0 103.0L137.0 81.0L219.0 81.0L239.0 63.0L144.0 62.0L154.0 29.0L187.0 0.0L297.0 0.0L273.0 24.0L194.0 24.0L174.0 42.0L270.0 43.0L260.0 76.0ZM371.0 104.0L294.0 104.0L277.0 84.0L294.0 30.0L328.0 0.0L417.0 0.0L393.0 24.0L335.0 24.0L318.0 40.0L306.0 71.0L311.0 81.0L394.0 81.0Z" fill="#000" fill-rule="evenodd"/></g>
+  <!-- 电机符号 -->
+  <path d="M 13.5 17 H 19.5 M 30.5 17 H 36.5" stroke="#000" stroke-width="0.7"/>
+  <circle cx="13.5" cy="17" r="1.1" fill="#000"/>
+  <circle cx="36.5" cy="17" r="1.1" fill="#000"/>
+  <circle cx="25" cy="17" r="5.6" fill="none" stroke="#000" stroke-width="1"/>
+  <text x="25" y="19.2" text-anchor="middle" font-family="Arial" font-weight="bold" font-size="5.6" fill="#000">M</text>
+  <!-- 中轴虚线 -->
+  <path d="M 5 33 H 45" stroke="#000" stroke-width="0.3" stroke-dasharray="1.2 1"/>
+  <!-- PWM 波形 -->
+  <polyline points="5,40 8,40 8,26 13,26 13,40 20,40 20,26 23,26 23,40 30,40 30,26 36,26 36,40 45,40" fill="none" stroke="#000" stroke-width="1.4" stroke-linejoin="miter"/>
+  <!-- 排针 -->
+  <g fill="#000">
+    <rect x="10.4" y="44" width="2.2" height="2.2"/>
+    <rect x="14.6" y="44" width="2.2" height="2.2"/>
+    <rect x="18.8" y="44" width="2.2" height="2.2"/>
+    <rect x="23" y="44" width="2.2" height="2.2"/>
+    <rect x="27.2" y="44" width="2.2" height="2.2"/>
+    <rect x="31.4" y="44" width="2.2" height="2.2"/>
+    <rect x="35.6" y="44" width="2.2" height="2.2"/>
+  </g>
+  <text x="25" y="51.8" text-anchor="middle" font-family="Consolas, monospace" font-weight="bold" font-size="2.4" letter-spacing="0.5" fill="#000">PWM SIGNAL CONTROL</text>
+  <text x="25" y="55.2" text-anchor="middle" font-family="Consolas, monospace" font-size="2" letter-spacing="0.5" fill="#000">HARDWARE · v2.0</text>
+</svg>

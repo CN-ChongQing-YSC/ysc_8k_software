@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>激光雕刻设计 · 50×60mm · 驱动主题</title>
+<style>
+  body { background:#14161a; color:#e8e8e8; font-family:"Segoe UI",Arial,sans-serif; margin:0; padding:28px; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  .sub { color:#9aa0a8; font-size:13px; margin-bottom:24px; }
+  .grid { display:flex; flex-wrap:wrap; gap:26px; }
+  .card { background:#1d2026; border:1px solid #2c313a; border-radius:10px; padding:16px; width:372px; }
+  .art { background:#fff; border-radius:6px; padding:10px; }
+  .art svg { width:340px; height:408px; display:block; }
+  .card h2 { font-size:15px; margin:12px 0 4px; color:#fff; }
+  .card p { font-size:12px; line-height:1.6; color:#a8aeb8; margin:0; }
+  .btn { margin-top:10px; width:100%; padding:9px 0; border:1px solid #3a4150; border-radius:7px;
+         background:#262b34; color:#e8e8e8; font-size:13px; cursor:pointer; }
+  .btn:hover { background:#2f3542; border-color:#4a5468; }
+  .btn:disabled { opacity:.5; cursor:default; }
+</style>
+</head>
+<body>
+<h1>激光雕刻图案设计 · 50 × 60 mm（600 DPI）</h1>
+<div class="sub">驱动主题 · 纯黑白高对比 · 最小细节 ≥ 0.3mm · 黑色 = 雕刻区域（深色表面可选用反相版）</div>
+<div class="grid">
+
+<!-- ============ 方案 1 · 驱动核心芯片 ============ -->
+<div class="card">
+<div class="art">
+<svg id="d1" viewBox="0 0 50 60" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="50" height="60" fill="#fff"/>
+  <rect x="2" y="2" width="46" height="56" rx="3" fill="none" stroke="#000" stroke-width="0.9"/>
+  <rect x="3.6" y="3.6" width="42.8" height="52.8" rx="2" fill="none" stroke="#000" stroke-width="0.3"/>
+  <g transform="translate(13,4.8) scale(0.057554)"><path d="M44.0 121.0L42.0 120.0L60.0 58.0L0.0 0.0L39.0 0.0L77.0 38.0L80.0 38.0L117.0 0.0L155.0 0.0L88.0 63.0L79.0 97.0ZM226.0 104.0L110.0 103.0L137.0 81.0L219.0 81.0L239.0 63.0L144.0 62.0L154.0 29.0L187.0 0.0L297.0 0.0L273.0 24.0L194.0 24.0L174.0 42.0L270.0 43.0L260.0 76.0ZM371.0 104.0L294.0 104.0L277.0 84.0L294.0 30.0L328.0 0.0L417.0 0.0L393.0 24.0L335.0 24.0L318.0 40.0L306.0 71.0L311.0 81.0L394.0 81.0Z" fill="#000" fill-rule="evenodd"/></g>
+  <!-- 四角电路走线 -->
+  <path d="M 11 6.5 H 6.5 V 11.5" fill="none" stroke="#000" stroke-width="0.45"/>
+  <circle cx="11" cy="6.5" r="1" fill="#000"/><circle cx="6.5" cy="11.5" r="1" fill="#000"/>
+  <path d="M 39 6.5 H 43.5 V 11.5" fill="none" stroke="#000" stroke-width="0.45"/>
+  <circle cx="39" cy="6.5" r="1" fill="#000"/><circle cx="43.5" cy="11.5" r="1" fill="#000"/>
+  <path d="M 11 53.5 H 6.5 V 48.5" fill="none" stroke="#000" stroke-width="0.45"/>
+  <circle cx="11" cy="53.5" r="1" fill="#000"/><circle cx="6.5" cy="48.5" r="1" fill="#000"/>
+  <path d="M 39 53.5 H 43.5 V 48.5" fill="none" stroke="#000" stroke-width="0.45"/>
+  <circle cx="39" cy="53.5" r="1" fill="#000"/><circle cx="43.5" cy="48.5" r="1" fill="#000"/>
+  <!-- 芯片引脚 -->
+  <rect x="19.3" y="13.5" width="1.4" height="4.5" fill="#000"/>
+  <rect x="24.3" y="13.5" width="1.4" height="4.5" fill="#000"/>
+  <rect x="29.3" y="13.5" width="1.4" height="4.5" fill="#000"/>
+  <rect x="19.3" y="38" width="1.4" height="4.5" fill="#000"/>
+  <rect x="24.3" y="38" width="1.4" height="4.5" fill="#000"/>
+  <rect x="29.3" y="38" width="1.4" height="4.5" fill="#000"/>
+  <rect x="10.5" y="21.3" width="4.5" height="1.4" fill="#000"/>
+  <rect x="10.5" y="26.3" width="4.5" height="1.4" fill="#000"/>
+  <rect x="10.5" y="31.3" width="4.5" height="1.4" fill="#000"/>
+  <rect x="35" y="21.3" width="4.5" height="1.4" fill="#000"/>
+  <rect x="35" y="26.3" width="4.5" height="1.4" fill="#000"/>
+  <rect x="35" y="31.3" width="4.5" height="1.4" fill="#000"/>
+  <!-- 芯片主体 -->
+  <rect x="15" y="18" width="20" height="20" rx="1.2" fill="#000"/>
+  <text x="25" y="31.2" text-anchor="middle" font-family="Arial" font-weight="bold" font-size="7" letter-spacing="0.6" fill="#fff">8K</text>
+  <!-- 两侧走线焊盘 -->
+  <path d="M 7 22 H 10.5 M 7 27 H 10.5 M 7 32 H 10.5" stroke="#000" stroke-width="0.45"/>
+  <circle cx="6" cy="22" r="1" fill="#000"/><circle cx="6" cy="27" r="1" fill="#000"/><circle cx="6" cy="32" r="1" fill="#000"/>
+  <path d="M 39.5 22 H 43 M 39.5 27 H 43 M 39.5 32 H 43" stroke="#000" stroke-width="0.45"/>
+  <circle cx="44" cy="22" r="1" fill="#000"/><circle cx="44" cy="27" r="1" fill="#000"/><circle cx="44" cy="32" r="1" fill="#000"/>
+  <text x="25" y="48.8" text-anchor="middle" font-family="Arial" font-weight="bold" font-size="4.6" letter-spacing="1.2" fill="#000">DRIVER</text>
+  <text x="25" y="53" text-anchor="middle" font-family="Arial" font-size="2.2" letter-spacing="0.8" fill="#000">HARDWARE MODULE</text>
+</svg>
+</div>
+<h2>方案 1 · 驱动核心（Circuit Core）</h2>
+<p>中央主控芯片 + 四边引脚 + 电路走线焊盘，科技感最强，与"驱动板"身份最贴合。</p>
+<button class="btn" data-design="d1">⬇ 导出图片（PNG · 600 DPI）</button>
+</div>
+
+<!-- ============ 方案 2 · 动力齿轮 ============ -->
+<div class="card">
+<div class="art">
+<svg id="d2" viewBox="0 0 50 60" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="50" height="60" fill="#fff"/>
+  <path d="M 4 9 V 4 H 9 M 41 4 H 46 V 9 M 4 51 V 56 H 9 M 41 56 H 46 V 51" fill="none" stroke="#000" stroke-width="0.9"/>
+  <g transform="translate(15,4.2) scale(0.047962)"><path d="M44.0 121.0L42.0 120.0L60.0 58.0L0.0 0.0L39.0 0.0L77.0 38.0L80.0 38.0L117.0 0.0L155.0 0.0L88.0 63.0L79.0 97.0ZM226.0 104.0L110.0 103.0L137.0 81.0L219.0 81.0L239.0 63.0L144.0 62.0L154.0 29.0L187.0 0.0L297.0 0.0L273.0 24.0L194.0 24.0L174.0 42.0L270.0 43.0L260.0 76.0ZM371.0 104.0L294.0 104.0L277.0 84.0L294.0 30.0L328.0 0.0L417.0 0.0L393.0 24.0L335.0 24.0L318.0 40.0L306.0 71.0L311.0 81.0L394.0 81.0Z" fill="#000" fill-rule="evenodd"/></g>
+  <!-- 速度弧线 -->
+  <path d="M 7.15 22.5 A 19 19 0 0 0 16.97 11.78" fill="none" stroke="#000" stroke-width="0.7" stroke-linecap="round"/>
+  <path d="M 5.52 17.75 A 22.5 22.5 0 0 0 13.76 9.52" fill="none" stroke="#000" stroke-width="0.7" stroke-linecap="round"/>
+  <path d="M 42.85 22.5 A 19 19 0 0 1 33.03 11.78" fill="none" stroke="#000" stroke-width="0.7" stroke-linecap="round"/>
+  <path d="M 44.48 17.75 A 22.5 22.5 0 0 1 36.24 9.52" fill="none" stroke="#000" stroke-width="0.7" stroke-linecap="round"/>
+  <!-- 齿轮 -->
+  <g fill="#000">
+    <rect x="-1.75" y="-16.8" width="3.5" height="5" transform="translate(25,29)"/>
+    <rect x="-1.75" y="-16.8" width="3.5" height="5" transform="translate(25,29) rotate(36)"/>
+    <rect x="-1.75" y="-16.8" width="3.5" height="5" transform="translate(25,29) rotate(72)"/>
+    <rect x="-1.75" y="-16.8" width="3.5" height="5" transform="translate(25,29) rotate(108)"/>
+    <rect x="-1.75" y="-16.8" width="3.5" height="5" transform="translate(25,29) rotate(144)"/>
+    <rect x="-1.75" y="-16.8" width="3.5" height="5" transform="translate(25,29) rotate(180)"/>
+    <rect x="-1.75" y="-16.8" width="3.5" height="5" transform="translate(25,29) rotate(216)"/>
+    <rect x="-1.75" y="-16.8" width="3.5" height="5" transform="translate(25,29) rotate(252)"/>
+    <rect x="-1.75" y="-16.8" width="3.5" height="5" transform="translate(25,29) rotate(288)"/>
+    <rect x="-1.75" y="-16.8" width="3.5" height="5" transform="translate(25,29) rotate(324)"/>
+  </g>
+  <circle cx="25" cy="29" r="12.3" fill="none" stroke="#000" stroke-width="1.7"/>
+  <circle cx="25" cy="29" r="9.2" fill="none" stroke="#000" stroke-width="0.5"/>
+  <circle cx="25" cy="29" r="7" fill="none" stroke="#000" stroke-width="0.9"/>
+  <polygon points="26.8,22.6 21.8,30.2 24.9,30.2 23.2,35.6 28.2,27.7 25.1,27.7" fill="#000"/>
+  <text x="25" y="52.6" text-anchor="middle" font-family="Arial" font-weight="900" font-size="6.2" letter-spacing="1.6" fill="#000">DRIVE</text>
+  <text x="25" y="56.4" text-anchor="middle" font-family="Arial" font-size="1.9" letter-spacing="0.6" fill="#000">POWER · PRECISION</text>
+</svg>
+</div>
+<h2>方案 2 · 动力齿轮（Gear Bolt）</h2>
+<p>齿轮 + 闪电 + 速度弧线，工业力量感，强调"驱动 = 动力输出"的意象。</p>
+<button class="btn" data-design="d2">⬇ 导出图片（PNG · 600 DPI）</button>
+</div>
+
+<!-- ============ 方案 3 · PWM 信号 ============ -->
+<div class="card">
+<div class="art">
+<svg id="d3" viewBox="0 0 50 60" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="50" height="60" fill="#fff"/>
+  <rect x="2" y="2" width="46" height="56" fill="none" stroke="#000" stroke-width="0.5"/>
+  <rect x="4" y="4" width="1.7" height="1.7" fill="#000"/>
+  <rect x="44.3" y="4" width="1.7" height="1.7" fill="#000"/>
+  <rect x="4" y="54.3" width="1.7" height="1.7" fill="#000"/>
+  <rect x="44.3" y="54.3" width="1.7" height="1.7" fill="#000"/>
+  <g transform="translate(15,3.9) scale(0.047962)"><path d="M44.0 121.0L42.0 120.0L60.0 58.0L0.0 0.0L39.0 0.0L77.0 38.0L80.0 38.0L117.0 0.0L155.0 0.0L88.0 63.0L79.0 97.0ZM226.0 104.0L110.0 103.0L137.0 81.0L219.0 81.0L239.0 63.0L144.0 62.0L154.0 29.0L187.0 0.0L297.0 0.0L273.0 24.0L194.0 24.0L174.0 42.0L270.0 43.0L260.0 76.0ZM371.0 104.0L294.0 104.0L277.0 84.0L294.0 30.0L328.0 0.0L417.0 0.0L393.0 24.0L335.0 24.0L318.0 40.0L306.0 71.0L311.0 81.0L394.0 81.0Z" fill="#000" fill-rule="evenodd"/></g>
+  <!-- 电机符号 -->
+  <path d="M 13.5 17 H 19.5 M 30.5 17 H 36.5" stroke="#000" stroke-width="0.7"/>
+  <circle cx="13.5" cy="17" r="1.1" fill="#000"/>
+  <circle cx="36.5" cy="17" r="1.1" fill="#000"/>
+  <circle cx="25" cy="17" r="5.6" fill="none" stroke="#000" stroke-width="1"/>
+  <text x="25" y="19.2" text-anchor="middle" font-family="Arial" font-weight="bold" font-size="5.6" fill="#000">M</text>
+  <!-- 中轴虚线 -->
+  <path d="M 5 33 H 45" stroke="#000" stroke-width="0.3" stroke-dasharray="1.2 1"/>
+  <!-- PWM 波形 -->
+  <polyline points="5,40 8,40 8,26 13,26 13,40 20,40 20,26 23,26 23,40 30,40 30,26 36,26 36,40 45,40" fill="none" stroke="#000" stroke-width="1.4" stroke-linejoin="miter"/>
+  <!-- 排针 -->
+  <g fill="#000">
+    <rect x="10.4" y="44" width="2.2" height="2.2"/>
+    <rect x="14.6" y="44" width="2.2" height="2.2"/>
+    <rect x="18.8" y="44" width="2.2" height="2.2"/>
+    <rect x="23" y="44" width="2.2" height="2.2"/>
+    <rect x="27.2" y="44" width="2.2" height="2.2"/>
+    <rect x="31.4" y="44" width="2.2" height="2.2"/>
+    <rect x="35.6" y="44" width="2.2" height="2.2"/>
+  </g>
+  <text x="25" y="51.8" text-anchor="middle" font-family="Consolas, monospace" font-weight="bold" font-size="2.4" letter-spacing="0.5" fill="#000">PWM SIGNAL CONTROL</text>
+  <text x="25" y="55.2" text-anchor="middle" font-family="Consolas, monospace" font-size="2" letter-spacing="0.5" fill="#000">HARDWARE · v2.0</text>
+</svg>
+</div>
+<h2>方案 3 · 信号波形（PWM Signal）</h2>
+<p>电机电路符号 + PWM 方波 + 排针阵列，终端/示波器风格，突出"驱动信号"本质。</p>
+<button class="btn" data-design="d3">⬇ 导出图片（PNG · 600 DPI）</button>
+</div>
+
+<!-- ============ 方案 4 · 徽章铭牌 ============ -->
+<div class="card">
+<div class="art">
+<svg id="d4" viewBox="0 0 50 60" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="50" height="60" fill="#fff"/>
+  <rect x="2.5" y="2.5" width="45" height="55" rx="4.5" fill="none" stroke="#000" stroke-width="1.1"/>
+  <rect x="4.8" y="4.8" width="40.4" height="50.4" rx="2.5" fill="none" stroke="#000" stroke-width="0.35"/>
+  <g fill="none" stroke="#000" stroke-width="0.55">
+    <circle cx="7.8" cy="7.8" r="1.55"/><line x1="6.7" y1="6.7" x2="8.9" y2="8.9"/>
+    <circle cx="42.2" cy="7.8" r="1.55"/><line x1="41.1" y1="8.9" x2="43.3" y2="6.7"/>
+    <circle cx="7.8" cy="52.2" r="1.55"/><line x1="6.7" y1="52.2" x2="8.9" y2="52.2"/>
+    <circle cx="42.2" cy="52.2" r="1.55"/><line x1="41.1" y1="52.2" x2="43.3" y2="52.2"/>
+  </g>
+  <g transform="translate(11,7.2) scale(0.067146)"><path d="M44.0 121.0L42.0 120.0L60.0 58.0L0.0 0.0L39.0 0.0L77.0 38.0L80.0 38.0L117.0 0.0L155.0 0.0L88.0 63.0L79.0 97.0ZM226.0 104.0L110.0 103.0L137.0 81.0L219.0 81.0L239.0 63.0L144.0 62.0L154.0 29.0L187.0 0.0L297.0 0.0L273.0 24.0L194.0 24.0L174.0 42.0L270.0 43.0L260.0 76.0ZM371.0 104.0L294.0 104.0L277.0 84.0L294.0 30.0L328.0 0.0L417.0 0.0L393.0 24.0L335.0 24.0L318.0 40.0L306.0 71.0L311.0 81.0L394.0 81.0Z" fill="#000" fill-rule="evenodd"/></g>
+  <path d="M 12 19.2 H 38" stroke="#000" stroke-width="0.4"/>
+  <rect x="24" y="18.2" width="2" height="2" transform="rotate(45 25 19.2)" fill="#000"/>
+  <!-- 六边形 + 闪电 -->
+  <polygon points="25,24.8 32.3,29 32.3,37.4 25,41.6 17.7,37.4 17.7,29" fill="none" stroke="#000" stroke-width="1"/>
+  <g stroke="#000" stroke-width="0.5">
+    <line x1="25" y1="22.8" x2="25" y2="21"/>
+    <line x1="34" y1="28" x2="35.56" y2="27.1"/>
+    <line x1="34" y1="38.4" x2="35.56" y2="39.3"/>
+    <line x1="25" y1="43.8" x2="25" y2="45.2"/>
+    <line x1="16" y1="38.4" x2="14.44" y2="39.3"/>
+    <line x1="16" y1="28" x2="14.44" y2="27.1"/>
+  </g>
+  <polygon points="26.3,27.6 22.6,33.4 25.2,33.4 23.7,38.8 28.4,32.6 25.7,32.6" fill="#000"/>
+  <text x="25" y="49" text-anchor="middle" font-family="Arial" font-weight="bold" font-size="4.4" letter-spacing="1.2" fill="#000">8K DRIVER</text>
+  <text x="25" y="52.8" text-anchor="middle" font-family="Arial" font-size="1.9" letter-spacing="0.5" fill="#000">HARDWARE EDITION</text>
+</svg>
+</div>
+<h2>方案 4 · 徽章铭牌（Emblem Plate）</h2>
+<p>双线边框 + 四角螺丝 + 六边形闪电徽标，设备铭牌风格，经典耐看，适合深色金属阳极氧化表面。</p>
+<button class="btn" data-design="d4">⬇ 导出图片（PNG · 600 DPI）</button>
+</div>
+
+<!-- ============ 方案 5 · 层次深雕（灰度映射深度） ============ -->
+<div class="card">
+<div class="art">
+<svg id="d5" viewBox="0 0 50 60" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="gcore" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#000000"/>
+      <stop offset="65%" stop-color="#1c1c1c"/>
+      <stop offset="100%" stop-color="#6e6e6e"/>
+    </radialGradient>
+  </defs>
+  <rect x="0" y="0" width="50" height="60" fill="#fff"/>
+  <rect x="2" y="2" width="46" height="56" fill="none" stroke="#9e9e9e" stroke-width="0.4"/>
+  <!-- 顶部 YSC logo（100% 黑 = 最深层） -->
+  <g transform="translate(14,4.6) scale(0.052758)"><path d="M44.0 121.0L42.0 120.0L60.0 58.0L0.0 0.0L39.0 0.0L77.0 38.0L80.0 38.0L117.0 0.0L155.0 0.0L88.0 63.0L79.0 97.0ZM226.0 104.0L110.0 103.0L137.0 81.0L219.0 81.0L239.0 63.0L144.0 62.0L154.0 29.0L187.0 0.0L297.0 0.0L273.0 24.0L194.0 24.0L174.0 42.0L270.0 43.0L260.0 76.0ZM371.0 104.0L294.0 104.0L277.0 84.0L294.0 30.0L328.0 0.0L417.0 0.0L393.0 24.0L335.0 24.0L318.0 40.0L306.0 71.0L311.0 81.0L394.0 81.0Z" fill="#000" fill-rule="evenodd"/></g>
+  <!-- 深度阶梯台（由浅到深） -->
+  <rect x="5" y="18" width="40" height="24" rx="2" fill="#e0e0e0"/>
+  <rect x="8" y="20" width="34" height="20" rx="1.6" fill="#bfbfbf"/>
+  <rect x="11" y="22" width="28" height="16" rx="1.3" fill="#8c8c8c"/>
+  <rect x="14" y="24" width="22" height="12" rx="1" fill="#4d4d4d"/>
+  <!-- 渐变核心 + 白色闪电（白 = 不雕刻，凸起） -->
+  <circle cx="25" cy="30" r="6.5" fill="url(#gcore)"/>
+  <polygon points="26.2,26 23.2,31.4 25.4,31.4 23.8,34.4 27.9,29.4 25.7,29.4" fill="#fff"/>
+  <!-- 灰阶校准条（左黑右白 8 级） -->
+  <g>
+    <rect x="6.97" y="44.3" width="4.2" height="3.4" fill="#000000"/>
+    <rect x="11.52" y="44.3" width="4.2" height="3.4" fill="#242424"/>
+    <rect x="16.07" y="44.3" width="4.2" height="3.4" fill="#484848"/>
+    <rect x="20.62" y="44.3" width="4.2" height="3.4" fill="#6b6b6b"/>
+    <rect x="25.17" y="44.3" width="4.2" height="3.4" fill="#8f8f8f"/>
+    <rect x="29.72" y="44.3" width="4.2" height="3.4" fill="#b3b3b3"/>
+    <rect x="34.27" y="44.3" width="4.2" height="3.4" fill="#d8d8d8"/>
+    <rect x="38.82" y="44.3" width="4.2" height="3.4" fill="#ffffff" stroke="#8c8c8c" stroke-width="0.2"/>
+  </g>
+  <text x="25" y="50.2" text-anchor="middle" font-family="Arial" font-size="1.7" letter-spacing="0.6" fill="#737373">DEPTH SCALE · 100 → 0</text>
+  <text x="25" y="54" text-anchor="middle" font-family="Arial" font-weight="bold" font-size="4.2" letter-spacing="1.4" fill="#000">8K DRIVER</text>
+  <text x="25" y="56.6" text-anchor="middle" font-family="Arial" font-size="1.8" letter-spacing="0.6" fill="#595959">LAYERED DEPTH ENGRAVING</text>
+</svg>
+</div>
+<h2>方案 5 · 层次深雕（Depth Core）</h2>
+<p>灰度亮暗 = 雕刻深度：阶梯台 4 级 + 径向渐变核心 + 白色凸起闪电；底部灰阶条用于校准你雕刻机的功率映射（越黑 → 功率越大 → 越深）。</p>
+<button class="btn" data-design="d5">⬇ 导出图片（PNG · 600 DPI）</button>
+</div>
+
+</div>
+<script>
+window.exportAll = async function () {
+  const out = {};
+  const scale = 23.622; // 600 DPI
+  for (const id of ['d1', 'd2', 'd3', 'd4', 'd5']) {
+    const src = document.getElementById(id);
+    const cloneA = src.cloneNode(true);
+    cloneA.setAttribute('width', '50mm');
+    cloneA.setAttribute('height', '60mm');
+    out[id + '_art.svg'] = new XMLSerializer().serializeToString(cloneA);
+    const W = Math.round(50 * scale), H = Math.round(60 * scale);
+    const clone = src.cloneNode(true);
+    clone.setAttribute('width', W);
+    clone.setAttribute('height', H);
+    const xml = new XMLSerializer().serializeToString(clone);
+    const img = new Image();
+    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml); });
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H); ctx.drawImage(img, 0, 0, W, H);
+    out[id + '_600dpi.png'] = c.toDataURL('image/png');
+    const idata = ctx.getImageData(0, 0, W, H), d = idata.data;
+    for (let i = 0; i < d.length; i += 4) { d[i] = 255 - d[i]; d[i+1] = 255 - d[i+1]; d[i+2] = 255 - d[i+2]; }
+    ctx.putImageData(idata, 0, 0);
+    out[id + '_600dpi_inverted.png'] = c.toDataURL('image/png');
+  }
+  return out;
+};
+
+// 单方案导出按钮
+const FILE_NAMES = { d1: 'design1_circuit_core', d2: 'design2_gear_bolt', d3: 'design3_pwm_signal', d4: 'design4_emblem_plate', d5: 'design5_depth_core' };
+async function renderPNG(id) {
+  const scale = 23.622; // 600 DPI
+  const src = document.getElementById(id);
+  const W = Math.round(50 * scale), H = Math.round(60 * scale);
+  const clone = src.cloneNode(true);
+  clone.setAttribute('width', W);
+  clone.setAttribute('height', H);
+  const xml = new XMLSerializer().serializeToString(clone);
+  const img = new Image();
+  await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml); });
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H); ctx.drawImage(img, 0, 0, W, H);
+  return c.toDataURL('image/png');
+}
+document.querySelectorAll('.btn').forEach(function (btn) {
+  btn.addEventListener('click', async function () {
+    const id = btn.getAttribute('data-design');
+    const old = btn.textContent;
+    btn.disabled = true; btn.textContent = '生成中…';
+    try {
+      const url = await renderPNG(id);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = FILE_NAMES[id] + '_50x60mm_600dpi.png';
+      document.body.appendChild(a); a.click(); a.remove();
+      btn.textContent = '✓ 已导出';
+      setTimeout(function () { btn.textContent = old; }, 1500);
+    } catch (e) {
+      btn.textContent = '导出失败';
+      console.error(e);
+    }
+    btn.disabled = false;
+  });
+});
+</script>
+</body>
+</html>

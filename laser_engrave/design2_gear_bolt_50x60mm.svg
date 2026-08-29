@@ -1,0 +1,29 @@
+<svg id="d2" viewBox="0 0 50 60" xmlns="http://www.w3.org/2000/svg" width="50mm" height="60mm">
+  <rect x="0" y="0" width="50" height="60" fill="#fff"/>
+  <path d="M 4 9 V 4 H 9 M 41 4 H 46 V 9 M 4 51 V 56 H 9 M 41 56 H 46 V 51" fill="none" stroke="#000" stroke-width="0.9"/>
+  <g transform="translate(15,4.2) scale(0.047962)"><path d="M44.0 121.0L42.0 120.0L60.0 58.0L0.0 0.0L39.0 0.0L77.0 38.0L80.0 38.0L117.0 0.0L155.0 0.0L88.0 63.0L79.0 97.0ZM226.0 104.0L110.0 103.0L137.0 81.0L219.0 81.0L239.0 63.0L144.0 62.0L154.0 29.0L187.0 0.0L297.0 0.0L273.0 24.0L194.0 24.0L174.0 42.0L270.0 43.0L260.0 76.0ZM371.0 104.0L294.0 104.0L277.0 84.0L294.0 30.0L328.0 0.0L417.0 0.0L393.0 24.0L335.0 24.0L318.0 40.0L306.0 71.0L311.0 81.0L394.0 81.0Z" fill="#000" fill-rule="evenodd"/></g>
+  <!-- 速度弧线 -->
+  <path d="M 7.15 22.5 A 19 19 0 0 0 16.97 11.78" fill="none" stroke="#000" stroke-width="0.7" stroke-linecap="round"/>
+  <path d="M 5.52 17.75 A 22.5 22.5 0 0 0 13.76 9.52" fill="none" stroke="#000" stroke-width="0.7" stroke-linecap="round"/>
+  <path d="M 42.85 22.5 A 19 19 0 0 1 33.03 11.78" fill="none" stroke="#000" stroke-width="0.7" stroke-linecap="round"/>
+  <path d="M 44.48 17.75 A 22.5 22.5 0 0 1 36.24 9.52" fill="none" stroke="#000" stroke-width="0.7" stroke-linecap="round"/>
+  <!-- 齿轮 -->
+  <g fill="#000">
+    <rect x="-1.75" y="-16.8" width="3.5" height="5" transform="translate(25,29)"/>
+    <rect x="-1.75" y="-16.8" width="3.5" height="5" transform="translate(25,29) rotate(36)"/>
+    <rect x="-1.75" y="-16.8" width="3.5" height="5" transform="translate(25,29) rotate(72)"/>
+    <rect x="-1.75" y="-16.8" width="3.5" height="5" transform="translate(25,29) rotate(108)"/>
+    <rect x="-1.75" y="-16.8" width="3.5" height="5" transform="translate(25,29) rotate(144)"/>
+    <rect x="-1.75" y="-16.8" width="3.5" height="5" transform="translate(25,29) rotate(180)"/>
+    <rect x="-1.75" y="-16.8" width="3.5" height="5" transform="translate(25,29) rotate(216)"/>
+    <rect x="-1.75" y="-16.8" width="3.5" height="5" transform="translate(25,29) rotate(252)"/>
+    <rect x="-1.75" y="-16.8" width="3.5" height="5" transform="translate(25,29) rotate(288)"/>
+    <rect x="-1.75" y="-16.8" width="3.5" height="5" transform="translate(25,29) rotate(324)"/>
+  </g>
+  <circle cx="25" cy="29" r="12.3" fill="none" stroke="#000" stroke-width="1.7"/>
+  <circle cx="25" cy="29" r="9.2" fill="none" stroke="#000" stroke-width="0.5"/>
+  <circle cx="25" cy="29" r="7" fill="none" stroke="#000" stroke-width="0.9"/>
+  <polygon points="26.8,22.6 21.8,30.2 24.9,30.2 23.2,35.6 28.2,27.7 25.1,27.7" fill="#000"/>
+  <text x="25" y="52.6" text-anchor="middle" font-family="Arial" font-weight="900" font-size="6.2" letter-spacing="1.6" fill="#000">DRIVE</text>
+  <text x="25" y="56.4" text-anchor="middle" font-family="Arial" font-size="1.9" letter-spacing="0.6" fill="#000">POWER · PRECISION</text>
+</svg>
