@@ -252,6 +252,13 @@ static void OnPipeCommand(const char *json, void *userData) {
             return;
         }
         std::wstring wport(port.begin(), port.end());
+        // 若驱动仍持有串口（异常残留状态），先释放再探测：否则 DetectBaudrate
+        // 全部 gle=5(访问被拒)，用户被迫重插 USB 才能恢复。
+        if (g_serial.IsConnected()) {
+            g_serial.Disconnect();
+            g_app.serialConnected = false;
+            UpdateTrayTip();
+        }
         uint32_t baud = 0;
         if (baudReq > 0) {
             // Validate baudrate
@@ -298,6 +305,7 @@ static void OnPipeCommand(const char *json, void *userData) {
             if (newBaud != g_app.serialBaudRate) {
                 if (g_serial.SwitchBaudrate(newBaud)) {
                     g_app.serialBaudRate = newBaud;
+                    g_app.serialConnected = true;  // 防御：切换成功后连接态必须为真
                     g_serial.StartReadThread(g_app.hStopEvent);
                     UpdateTrayTip();
                     char body[64];
@@ -928,6 +936,7 @@ void HandleMenuCommand(UINT cmdId) {
             if (newBaud != g_app.serialBaudRate) {
                 if (g_serial.SwitchBaudrate(newBaud)) {
                     g_app.serialBaudRate = newBaud;
+                    g_app.serialConnected = true;  // 防御：切换成功后连接态必须为真
                     g_serial.StartReadThread(g_app.hStopEvent);
                     UpdateTrayTip();
                     char body[64];

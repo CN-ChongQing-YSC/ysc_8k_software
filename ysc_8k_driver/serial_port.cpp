@@ -229,6 +229,14 @@ bool SerialPort::SwitchBaudrate(uint32_t newBaud) {
     Sleep(200);
 
     // Stop read thread, close port
+    // 先作废旧 reader 的代际：它即将因 CancelIo 退出，退出时的
+    // myGen == m_readerGen 检查会失败，从而不再上报 WM_SERIAL_LOST。
+    // 否则 GUI(管道线程)切换时，主线程会并行处理这条过期上报，把
+    // serialConnected 误清成 false —— 设备显示"断开"但句柄仍被占用，
+    // 用户重连时 DetectBaudrate 全部 gle=5(访问被拒)，只能重插 USB。
+    // 托盘路径切换跑在主线程上，WM_SERIAL_LOST 被迫排队到切换完成后
+    // 才处理，彼时代际已变、上报被拒 —— 这就是"托盘正常、GUI 必挂"的原因。
+    InterlockedIncrement(&m_readerGen);
     StopReadThread();
     CloseHandle(m_hPort);
     m_hPort = NULL;
@@ -343,6 +351,11 @@ bool SerialPort::StartReadThread(HANDLE hStopEvent) {
 
 void SerialPort::StopReadThread() {
     StopWriteThread();
+    // 取消挂起的读 I/O，唤醒阻塞在 ReadFile 完成等待上的读线程；
+    // 否则下面的 WaitForSingleObject 只能白等 2 秒超时（读线程平时
+    // 无限等待 OL 事件，没有任何唤醒机制）。
+    if (m_hPort && m_hReadOL)
+        CancelIoEx(m_hPort, (LPOVERLAPPED)m_hReadOL);
     if (m_hReadThread) {
         WaitForSingleObject(m_hReadThread, 2000);
         CloseHandle(m_hReadThread);

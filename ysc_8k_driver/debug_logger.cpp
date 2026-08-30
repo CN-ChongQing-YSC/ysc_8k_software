@@ -2,6 +2,7 @@
 #include "main.h"
 #include "pipe_server.h"
 #include <cstring>
+#include <share.h>
 
 CRITICAL_SECTION DebugLogger::s_cs = {};
 FILE *DebugLogger::s_fp = nullptr;
@@ -18,7 +19,7 @@ void DebugLogger::Init() {
     if (slash) strcpy_s(slash + 1, MAX_PATH - (int)(slash + 1 - s_path), "ysc_driver_debug.log");
     else strcpy_s(s_path, "ysc_driver_debug.log");
 
-    fopen_s(&s_fp, s_path, "w");
+    s_fp = _fsopen(s_path, "w", _SH_DENYNO);  // 共享读取：驱动运行中日志可被外部实时查看
     if (s_fp) {
         SYSTEMTIME st;
         GetLocalTime(&st);
@@ -63,7 +64,7 @@ void DebugLogger::Log(const char *fmt, ...) {
 
     if (s_lineCount >= 50000) {
         fclose(s_fp);
-        fopen_s(&s_fp, s_path, "w");
+        s_fp = _fsopen(s_path, "w", _SH_DENYNO);  // 共享读取：驱动运行中日志可被外部实时查看
         if (s_fp) {
             SYSTEMTIME st;
             GetLocalTime(&st);

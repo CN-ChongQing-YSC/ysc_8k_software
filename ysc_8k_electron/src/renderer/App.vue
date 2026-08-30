@@ -241,7 +241,7 @@ const macros = ref([]);
 const jitterConfig = ref({ enabled: 0, trigger: 1, ax: 10, fx: 0, py: 5, fy: 0 });
 
 const mouseCurveConfig = ref({ enabled: 0, profile: 2, segments: 4, duration: 0, jitter: 15 });
-const mouseInterpConfig = ref({ enabled: 1, profile: 0, window: 0, maxw: 50, ema: 0 });
+const mouseInterpConfig = ref({ enabled: 1, profile: 0, ema: 0 });
 
 const cleanups = [];
 
@@ -398,14 +398,12 @@ function onMouseInterpSave(cfg) {
   api.send('send_ysc', { cmd: JSON.stringify({
     cmd: 51,
     e: cfg.enabled ? 1 : 0,
-    p: cfg.profile,
-    w: cfg.window,
-    mx: cfg.maxw
+    p: cfg.profile
   }) });
 }
 
 function onMouseInterpReset() {
-  mouseInterpConfig.value = { enabled: 1, profile: 0, window: 0, maxw: 50 };
+  mouseInterpConfig.value = { enabled: 1, profile: 0 };
   api.send('send_ysc', { cmd: JSON.stringify({ cmd: 53 }) });
 }
 
@@ -572,8 +570,6 @@ onMounted(function() {
       mouseInterpConfig.value = {
         enabled: c.enabled ? 1 : 0,
         profile: c.profile != null ? c.profile : 0,
-        window: c.window != null ? c.window : 0,
-        maxw: c.maxw != null ? c.maxw : 50,
         ema: c.ema || 0
       };
     } catch (e) { /* ignore parse errors */ }

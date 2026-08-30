@@ -44,27 +44,6 @@
           </select>
         </div>
 
-        <div class="macro-field minterp-field-row">
-          <div class="minterp-col">
-            <span class="macro-field-label">{{ t('mouseInterp.window') }}</span>
-            <span class="macro-field-hint">{{ t('mouseInterp.windowHint') }}</span>
-            <div class="macro-num-input">
-              <input type="number" class="input-select" min="0" max="1000" step="1"
-                :value="cfg.window" @input="setNum('window', $event, 0, 1000)" />
-              <span class="macro-num-unit">{{ t('mouseInterp.msUnit') }}</span>
-            </div>
-          </div>
-          <div class="minterp-col">
-            <span class="macro-field-label">{{ t('mouseInterp.maxWindow') }}</span>
-            <span class="macro-field-hint">{{ t('mouseInterp.maxWindowHint') }}</span>
-            <div class="macro-num-input">
-              <input type="number" class="input-select" min="1" max="200" step="1"
-                :value="cfg.maxw" @input="setNum('maxw', $event, 1, 200)" />
-              <span class="macro-num-unit">{{ t('mouseInterp.msUnit') }}</span>
-            </div>
-          </div>
-        </div>
-
         <div class="minterp-ema" v-if="ema > 0">
           {{ t('mouseInterp.emaLabel') }}: <b>{{ ema }} ms</b>
           <span class="minterp-ema-sub">≈ {{ (1000 / ema).toFixed(0) }} Hz</span>
@@ -118,7 +97,7 @@
               type="number"
               class="input-select"
               min="1"
-              max="1000"
+              max="2000"
               step="1"
               :value="testAmplitude"
               :disabled="testRunning"
@@ -156,7 +135,7 @@ const { t } = useI18n();
 const api = window.driverApi;
 
 const props = defineProps({
-  config: { type: Object, default: () => ({ enabled: 1, profile: 0, window: 0, maxw: 50, ema: 0 }) }
+  config: { type: Object, default: () => ({ enabled: 1, profile: 0, ema: 0 }) }
 });
 const emit = defineEmits(['save', 'reset', 'load']);
 
@@ -172,15 +151,13 @@ function showToast(msg, type) {
   toastTimer = setTimeout(function() { toast.value = ''; }, 2000);
 }
 
-const cfg = reactive({ enabled: 1, profile: 0, window: 0, maxw: 50 });
+const cfg = reactive({ enabled: 1, profile: 0 });
 const ema = ref(0);
 
 watch(() => props.config, (newCfg) => {
   if (!newCfg) return;
   cfg.enabled = newCfg.enabled != null ? (newCfg.enabled ? 1 : 0) : 1;
   cfg.profile = newCfg.profile != null ? newCfg.profile : 0;
-  cfg.window  = newCfg.window != null ? newCfg.window : 0;
-  cfg.maxw    = newCfg.maxw != null ? newCfg.maxw : 50;
   ema.value   = newCfg.ema || 0;
   dirty.value = false;
 }, { deep: true, immediate: true });
@@ -192,21 +169,10 @@ function toggleEnabled() {
   markDirty();
 }
 
-function setNum(field, ev, minVal, maxVal) {
-  var v = parseInt(ev.target.value, 10);
-  if (isNaN(v)) v = minVal;
-  if (v < minVal) v = minVal;
-  if (v > maxVal) v = maxVal;
-  cfg[field] = v;
-  markDirty();
-}
-
 function saveAll() {
   emit('save', {
     enabled: cfg.enabled ? 1 : 0,
-    profile: cfg.profile,
-    window: cfg.window,
-    maxw: cfg.maxw
+    profile: cfg.profile
   });
   dirty.value = false;
   showToast(t('mouseInterp.saved'), 'ok');
@@ -215,8 +181,6 @@ function saveAll() {
 function onReset() {
   cfg.enabled = 1;
   cfg.profile = 0;
-  cfg.window = 0;
-  cfg.maxw = 50;
   emit('reset');
   dirty.value = false;
   showToast(t('mouseInterp.resetDone'), 'ok');
@@ -229,7 +193,7 @@ function loadFromDevice() {
 
 const testRunning = ref(false);
 const testInterval = ref(10);
-const testAmplitude = ref(200);
+const testAmplitude = ref(1000);
 const testTicks = ref(0);
 const testDirection = ref(1);
 let testTimer = null;
@@ -248,9 +212,9 @@ function setTestInterval(ev) {
 
 function setTestAmplitude(ev) {
   var v = parseInt(ev.target.value, 10);
-  if (isNaN(v)) v = 200;
+  if (isNaN(v)) v = 1000;
   if (v < 1) v = 1;
-  if (v > 1000) v = 1000;
+  if (v > 2000) v = 2000;
   testAmplitude.value = v;
 }
 
