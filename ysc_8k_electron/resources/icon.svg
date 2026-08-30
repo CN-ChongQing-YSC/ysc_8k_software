@@ -1,5 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
-  <rect width="256" height="256" rx="48" fill="#0f1117"/>
-  <rect x="4" y="4" width="248" height="248" rx="44" fill="none" stroke="#1a2035" stroke-width="2"/>
-  <path d="M145 20L52 140h65l-10 96 89-120h-65l14-96z" fill="none" stroke="#62d0fa" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- YSC app icon: dark plate (#0f1117) + white wordmark, aligned with the
+       driver UI titlebar brand (packages/ysc-core/src/ui/assets/brand-white.png).
+       Wordmark paths traced from that PNG's alpha channel. -->
+  <rect width="1024" height="1024" rx="192" fill="#0f1117"/>
+  <g transform="translate(73.26 64.47) scale(3.397196 3.397196)">
+    <path d="M25 100 45 100 63 119 65 119 83 100 102 100 89 114 87 114 75 127 73 127 69 131 65 148 48 160 46 159 55 129 25 101Z M118 100 173 100 162 112 122 112 112 121 160 122 155 138 138 152 80 152 93 141 134 141 144 132 97 131 102 114 118 101Z M189 100 233 100 222 112 192 112 187 118 185 118 183 122 178 135 181 141 222 141 211 152 172 152 163 142 172 115 187 101 189 101Z" fill="#ffffff" fill-rule="evenodd"/>
+  </g>
 </svg>

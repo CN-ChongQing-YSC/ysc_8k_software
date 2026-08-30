@@ -26,39 +26,50 @@
           <button class="btn" @click="dismissCh343Warn">{{ t('driver.dismiss') }}</button>
         </div>
       </div>
-      <div v-if="currentView === 'home'" class="main-content">
-        <div class="left-col">
-          <SerialPanel
-            :connected="serialConnected"
-            :connected-port="serialPort"
-            :ports="ports"
-            :baud="serialBaud"
-            @connect="onSerialConnect"
-            @disconnect="onSerialDisconnect"
-            @refresh="onRefreshPorts"
-            @switch-baud="onSwitchBaud"
-          />
-          <KmnetPanel
-            :running="netRunning"
-            :ip="netIp"
-            :mac="netMac"
-            :port="netPort"
-            :self-check="kmnetSelfCheck"
-            :serial-connected="serialConnected"
-            @start="onKmnetStart"
-            @stop="onKmnetStop"
-          />
+      <template v-if="currentView === 'home'">
+        <div class="main-content">
+          <div class="left-col">
+            <SerialPanel
+              :connected="serialConnected"
+              :connected-port="serialPort"
+              :ports="ports"
+              :baud="serialBaud"
+              @connect="onSerialConnect"
+              @disconnect="onSerialDisconnect"
+              @refresh="onRefreshPorts"
+              @switch-baud="onSwitchBaud"
+            />
+            <KmnetPanel
+              :running="netRunning"
+              :ip="netIp"
+              :mac="netMac"
+              :port="netPort"
+              :self-check="kmnetSelfCheck"
+              :serial-connected="serialConnected"
+              @start="onKmnetStart"
+              @stop="onKmnetStop"
+            />
+          </div>
+          <div class="right-col">
+            <MonitorPanel
+              :buttons="monitorButtons"
+              :x="monitorX"
+              :y="monitorY"
+              :connected="serialConnected"
+              @toggle-upload="onToggleUpload"
+            />
+          </div>
         </div>
-        <div class="right-col">
-          <MonitorPanel
-            :buttons="monitorButtons"
-            :x="monitorX"
-            :y="monitorY"
-            :connected="serialConnected"
-            @toggle-upload="onToggleUpload"
-          />
-        </div>
-      </div>
+        <!-- 下方一栏：透传鼠标 USB 序列号自定义 -->
+        <SerialNumberPanel
+          :connected="serialConnected"
+          :info="snInfo"
+          :loading="snLoading"
+          @write="onSnWrite"
+          @clear="onSnClear"
+          @refresh="loadSerialNumber"
+        />
+      </template>
       <div v-else-if="currentView === 'macro'" class="main-content">
         <MacroPanel
           :macros="macros"
@@ -114,6 +125,7 @@ import MacroPanel from './components/MacroPanel.vue';
 import JitterMacroPanel from './components/JitterMacroPanel.vue';
 import MouseCurvePanel from './components/MouseCurvePanel.vue';
 import MouseInterpPanel from './components/MouseInterpPanel.vue';
+import SerialNumberPanel from './components/SerialNumberPanel.vue';
 import GamepadMapperPanel from './components/GamepadMapperPanel.vue';
 import DocsPanel from './components/DocsPanel.vue';
 import FirmwarePanel from './components/FirmwarePanel.vue';
@@ -242,6 +254,11 @@ const jitterConfig = ref({ enabled: 0, trigger: 1, ax: 10, fx: 0, py: 5, fy: 0 }
 
 const mouseCurveConfig = ref({ enabled: 0, profile: 2, segments: 4, duration: 0, jitter: 15 });
 const mouseInterpConfig = ref({ enabled: 1, profile: 0, ema: 0 });
+
+// 透传鼠标 USB 序列号（cmd 54 回读 {custom, physical, active}）
+const snInfo = ref({ custom: '', physical: '', active: '' });
+const snLoading = ref(false);   // 回读进行中：刷新按钮转圈防重复点击
+let snLoadingTimer = null;
 
 const cleanups = [];
 
@@ -411,6 +428,32 @@ function loadMouseInterp() {
   api.send('send_ysc', { cmd: JSON.stringify({ cmd: 52 }) });
 }
 
+function loadSerialNumber() {
+  if (snLoading.value) return;   // 上一轮回读未结束，忽略重复触发
+  snLoading.value = true;
+  clearTimeout(snLoadingTimer);
+  // 设备无响应（未升级新固件/已断开）时 3s 兜底解除，避免永远转圈
+  snLoadingTimer = setTimeout(function() { snLoading.value = false; }, 3000);
+  api.send('send_ysc', { cmd: JSON.stringify({ cmd: 54 }) });
+}
+
+// cmd 55 写入（固件延迟落盘）→ 800ms 后 cmd 57 软重启重新枚举生效 → 回读
+function onSnWrite(s) {
+  api.send('send_ysc', { cmd: JSON.stringify({ cmd: 55, s: s }) });
+  setTimeout(function() {
+    api.send('send_ysc', { cmd: JSON.stringify({ cmd: 57 }) });
+  }, 800);
+  setTimeout(loadSerialNumber, 3200);
+}
+
+function onSnClear() {
+  api.send('send_ysc', { cmd: JSON.stringify({ cmd: 56 }) });
+  setTimeout(function() {
+    api.send('send_ysc', { cmd: JSON.stringify({ cmd: 57 }) });
+  }, 800);
+  setTimeout(loadSerialNumber, 3200);
+}
+
 let monitorTimer = null;
 let portsRefreshAt = 0;
 
@@ -444,6 +487,7 @@ onMounted(function() {
     setTimeout(loadJitter, 600);
     setTimeout(loadMouseCurve, 650);
     setTimeout(loadMouseInterp, 700);
+    setTimeout(loadSerialNumber, 800);
   });
 
   listen('serial_disconnected', function() {
@@ -575,6 +619,21 @@ onMounted(function() {
     } catch (e) { /* ignore parse errors */ }
   });
 
+  listen('debug_response', function(data) {
+    if (!data || data.message !== 'sn') return;
+    snLoading.value = false;
+    clearTimeout(snLoadingTimer);
+    if (typeof data.data !== 'string') return;
+    try {
+      var j = JSON.parse(data.data);
+      snInfo.value = {
+        custom: j.custom || '',
+        physical: j.physical || '',
+        active: j.active || ''
+      };
+    } catch (e) { /* ignore parse errors */ }
+  });
+
   listen('ports_list', function(data) {
     ports.value = data.ports || [];
   });
@@ -618,6 +677,7 @@ onUnmounted(function() {
   for (var i = 0; i < cleanups.length; i++) cleanups[i]();
   if (monitorTimer) clearInterval(monitorTimer);
   selfCheckCleanupTimers();
+  clearTimeout(snLoadingTimer);
   window.removeEventListener('focus', onWindowFocus);
 });
 </script>
