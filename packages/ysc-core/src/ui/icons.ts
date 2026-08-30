@@ -22,4 +22,6 @@ export const ICONS: Record<IconKey, string> = {
   dualchip: 'developer_board',
   bug: 'bug_report',
   wrench: 'build',
+  menu: 'menu',
+  menuOpen: 'menu_open',
 };

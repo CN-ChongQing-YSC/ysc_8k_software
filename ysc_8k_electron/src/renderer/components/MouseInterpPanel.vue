@@ -68,14 +68,83 @@
         <span>{{ t('mouseInterp.notEnabled') }}</span>
       </div>
     </div>
+
+    <div class="minterp-card minterp-test-card">
+      <div class="macro-slot-header">
+        <span class="macro-slot-title">{{ t('mouseInterp.testTitle') }}</span>
+        <div style="flex:1" />
+        <button
+          class="btn"
+          :class="testRunning ? 'btn-outline red' : 'btn-accent'"
+          @click="toggleTest"
+        >
+          {{ testRunning ? t('mouseInterp.testStop') : t('mouseInterp.testStart') }}
+        </button>
+      </div>
+      <div class="minterp-test-hint">{{ t('mouseInterp.testHint') }}</div>
+
+      <div class="minterp-field-row">
+        <div class="minterp-col">
+          <span class="macro-field-label">{{ t('mouseInterp.testInterval') }}</span>
+          <span class="macro-field-hint">{{ t('mouseInterp.testIntervalHint') }}</span>
+          <div class="macro-num-input">
+            <input
+              type="number"
+              class="input-select"
+              min="1"
+              max="1000"
+              step="1"
+              :value="testInterval"
+              :disabled="testRunning"
+              @input="setTestInterval"
+            />
+            <span class="macro-num-unit">{{ t('mouseInterp.msUnit') }}</span>
+          </div>
+        </div>
+        <div class="minterp-col">
+          <span class="macro-field-label">{{ t('mouseInterp.testAmplitude') }}</span>
+          <span class="macro-field-hint">{{ t('mouseInterp.testAmplitudeHint') }}</span>
+          <div class="macro-num-input">
+            <input
+              type="number"
+              class="input-select"
+              min="1"
+              max="1000"
+              step="1"
+              :value="testAmplitude"
+              :disabled="testRunning"
+              @input="setTestAmplitude"
+            />
+            <span class="macro-num-unit">{{ t('mouseInterp.testAmplitudeUnit') }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="minterp-test-rate">
+        <span class="macro-field-label">{{ t('mouseInterp.testRateLabel') }}</span>
+        <div class="minterp-test-rate-value">
+          <b>{{ testCallsPerSecond }}</b> {{ t('mouseInterp.testRateUnit') }}
+          <span class="minterp-test-rate-sub">{{ t('mouseInterp.testRateNote') }} {{ testInterval }} ms</span>
+        </div>
+      </div>
+
+      <div class="minterp-test-status" :class="{ running: testRunning }">
+        <span v-if="testRunning">
+          {{ t('mouseInterp.testRunning') }} · {{ testTicks }}
+          <span class="minterp-test-dir">{{ testDirection === 1 ? '→' : '←' }}</span>
+        </span>
+        <span v-else>{{ t('mouseInterp.testIdle') }}</span>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { reactive, ref, watch } from 'vue';
+import { reactive, ref, watch, onUnmounted, computed } from 'vue';
 import { useI18n } from '../i18n/index.js';
 
 const { t } = useI18n();
+const api = window.driverApi;
 
 const props = defineProps({
   config: { type: Object, default: () => ({ enabled: 1, profile: 0, window: 0, maxw: 50, ema: 0 }) }
@@ -148,6 +217,75 @@ function loadFromDevice() {
   emit('load');
   showToast(t('mouseInterp.refreshed'), 'ok');
 }
+
+const testRunning = ref(false);
+const testInterval = ref(10);
+const testAmplitude = ref(200);
+const testTicks = ref(0);
+const testDirection = ref(1);
+let testTimer = null;
+
+const testCallsPerSecond = computed(() => {
+  return testInterval.value > 0 ? Math.round(1000 / testInterval.value) : 0;
+});
+
+function setTestInterval(ev) {
+  var v = parseInt(ev.target.value, 10);
+  if (isNaN(v)) v = 10;
+  if (v < 1) v = 1;
+  if (v > 1000) v = 1000;
+  testInterval.value = v;
+}
+
+function setTestAmplitude(ev) {
+  var v = parseInt(ev.target.value, 10);
+  if (isNaN(v)) v = 200;
+  if (v < 1) v = 1;
+  if (v > 1000) v = 1000;
+  testAmplitude.value = v;
+}
+
+function sendTestMove() {
+  api.send('send_ysc', {
+    cmd: JSON.stringify({
+      cmd: 30,
+      x: testDirection.value * testAmplitude.value,
+      y: 0,
+      c: 1
+    })
+  });
+}
+
+function startTest() {
+  if (!api) {
+    showToast(t('mouseInterp.testNoDriver'), 'err');
+    return;
+  }
+  testRunning.value = true;
+  testTicks.value = 0;
+  testDirection.value = 1;
+  sendTestMove();
+  testTimer = setInterval(function() {
+    testTicks.value += 1;
+    testDirection.value = testDirection.value === 1 ? -1 : 1;
+    sendTestMove();
+  }, testInterval.value);
+}
+
+function stopTest() {
+  if (testTimer) {
+    clearInterval(testTimer);
+    testTimer = null;
+  }
+  testRunning.value = false;
+}
+
+function toggleTest() {
+  if (testRunning.value) stopTest();
+  else startTest();
+}
+
+onUnmounted(stopTest);
 </script>
 
 <style scoped>
@@ -191,5 +329,52 @@ function loadFromDevice() {
   padding: 8px 10px;
   border-radius: 6px;
   background: var(--bg-elevated, #181b26);
+}
+.minterp-page .minterp-test-hint {
+  font-size: 12px;
+  color: var(--text-muted, #7a8294);
+  line-height: 1.5;
+  margin-top: 12px;
+}
+.minterp-page .minterp-test-rate {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--bg-elevated, #181b26);
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.minterp-page .minterp-test-rate-value {
+  font-size: 13px;
+  color: var(--text, #e6e9f0);
+}
+.minterp-page .minterp-test-rate-value b {
+  font-size: 18px;
+  color: var(--accent, #4f8cff);
+  font-variant-numeric: tabular-nums;
+}
+.minterp-page .minterp-test-rate-sub {
+  margin-left: 8px;
+  font-size: 12px;
+  color: var(--text-muted, #7a8294);
+}
+.minterp-page .minterp-test-status {
+  font-size: 12px;
+  color: var(--text-muted, #7a8294);
+  margin-top: 14px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--bg-elevated, #181b26);
+  font-variant-numeric: tabular-nums;
+}
+.minterp-page .minterp-test-status.running {
+  color: var(--accent, #4f8cff);
+}
+.minterp-page .minterp-test-dir {
+  display: inline-block;
+  margin-left: 6px;
+  color: var(--text, #e6e9f0);
 }
 </style>
