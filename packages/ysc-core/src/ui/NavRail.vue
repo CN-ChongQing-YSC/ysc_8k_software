@@ -9,19 +9,19 @@
           :key="g.key"
           class="group-btn"
           :class="{ active: activeGroup === g.key }"
-          :title="g.label + '：' + firstLabel(g)"
+          :title="groupBtnTitle(g)"
           @click="goToGroup(g)"
         >
           <Icon :name="g.icon" :size="20" />
         </button>
-        <button class="group-btn rail-toggle" title="展开侧栏" @click="ui.setRailExpanded(true)">
+        <button class="group-btn rail-toggle" :title="t('nav.expand')" @click="ui.setRailExpanded(true)">
           <Icon name="menu" :size="20" />
         </button>
       </div>
 
       <div class="rail-inner">
         <div class="rail-inner-head">
-          <span class="rail-title">{{ currentGroup?.label }}</span>
+          <span class="rail-title">{{ currentGroup ? groupLabel(currentGroup) : '' }}</span>
         </div>
         <button
           v-for="item in currentItems"
@@ -29,12 +29,12 @@
           class="item-btn"
           :class="{ active: ui.activeView === item.key, disabled: isDesktopOnly(item) }"
           :disabled="isDesktopOnly(item)"
-          :title="isDesktopOnly(item) ? '仅桌面版可用' : (item.desc ?? item.label)"
+          :title="itemTitle(item)"
           @click="onSelect(item)"
         >
           <Icon :name="item.icon" :size="16" />
-          <span class="item-label">{{ item.label }}</span>
-          <span v-if="isDesktopOnly(item)" class="tag">仅桌面</span>
+          <span class="item-label">{{ itemLabel(item) }}</span>
+          <span v-if="isDesktopOnly(item)" class="tag">{{ t('nav.desktopTag') }}</span>
         </button>
       </div>
     </template>
@@ -46,11 +46,11 @@
           <button
             class="grp-head"
             :class="{ active: activeGroup === g.key }"
-            :title="'打开「' + g.label + '」'"
+            :title="t('nav.openGroup', { name: groupLabel(g) })"
             @click="goToGroup(g)"
           >
             <Icon :name="g.icon" :size="18" />
-            <span class="grp-title">{{ g.label }}</span>
+            <span class="grp-title">{{ groupLabel(g) }}</span>
           </button>
           <div class="grp-items">
             <button
@@ -59,23 +59,23 @@
               class="item-btn has-desc"
               :class="{ active: ui.activeView === item.key, disabled: isDesktopOnly(item) }"
               :disabled="isDesktopOnly(item)"
-              :title="isDesktopOnly(item) ? '仅桌面版可用' : item.desc"
+              :title="itemTitle(item)"
               @click="onSelect(item)"
             >
               <Icon :name="item.icon" :size="16" />
               <span class="item-text">
                 <span class="item-label">
-                  {{ item.label }}
-                  <span v-if="isDesktopOnly(item)" class="tag">仅桌面</span>
+                  {{ itemLabel(item) }}
+                  <span v-if="isDesktopOnly(item)" class="tag">{{ t('nav.desktopTag') }}</span>
                 </span>
-                <span class="item-desc">{{ item.desc }}</span>
+                <span class="item-desc">{{ itemDesc(item) }}</span>
               </span>
             </button>
           </div>
         </template>
         <button class="rail-toggle-full" @click="ui.setRailExpanded(false)">
           <Icon name="menuOpen" :size="18" />
-          <span>收起侧栏</span>
+          <span>{{ t('nav.collapse') }}</span>
         </button>
       </div>
     </template>
@@ -87,13 +87,38 @@ import { computed, ref, watch } from 'vue';
 import Icon from './Icon.vue';
 import type { NavGroup, NavItem } from './nav-config';
 import { useUiStore } from '../store/ui-store';
+import { useI18n } from '../i18n';
 import { getPlatform } from '../platform';
 
 const props = defineProps<{ groups: NavGroup[] }>();
 
 const ui = useUiStore();
 ui.loadRailExpanded(); // 恢复上次展开/收起状态（默认展开）
+const { t } = useI18n();
 const isWeb = getPlatform() === 'web';
+
+// ===== 导航文案 i18n：按 group.key / item.key 查 nav.* 字典，缺失时回退导航表自带文案 =====
+function tOr(path: string, fallback: string): string {
+  const v = t(path);
+  return v === path ? fallback : v;
+}
+function groupLabel(g: NavGroup): string {
+  return tOr('nav.group.' + g.key, g.label);
+}
+function itemLabel(i: NavItem): string {
+  return tOr('nav.item.' + i.key, i.label);
+}
+function itemDesc(i: NavItem): string {
+  return tOr('nav.desc.' + i.key, i.desc ?? '');
+}
+function itemTitle(i: NavItem): string {
+  if (isDesktopOnly(i)) return t('nav.desktopOnlyTip');
+  return itemDesc(i) || itemLabel(i);
+}
+function groupBtnTitle(g: NavGroup): string {
+  const target = groupTarget(g);
+  return target ? groupLabel(g) + '：' + itemLabel(target) : groupLabel(g);
+}
 
 // item.key -> 所属分组 key（展开态全量渲染时，点击条目也要记录到正确的分组）
 const groupKeyOfItem = computed<Record<string, string>>(() => {
@@ -126,10 +151,6 @@ function groupTarget(g: NavGroup): NavItem | undefined {
   const last = g.items.find((i) => i.key === ui.lastViewByGroup[g.key]);
   if (last && !isDesktopOnly(last)) return last;
   return g.items.find((i) => !isDesktopOnly(i)) ?? g.items[0];
-}
-
-function firstLabel(g: NavGroup): string {
-  return groupTarget(g)?.label ?? '';
 }
 
 /** 点击分组图标：直达该组页面（免二次点击），activeGroup 由 activeView 的 watch 同步。 */

@@ -15,6 +15,15 @@
     </div>
     <div v-if="toast" class="macro-toast" :class="toastType">{{ toast }}</div>
 
+    <div v-if="dirty" class="minterp-unsaved">
+      <svg class="minterp-unsaved-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M8 2 L14 13 H2 Z" />
+        <path d="M8 6 L8 9" />
+        <circle cx="8" cy="11" r="0.5" fill="currentColor" />
+      </svg>
+      <span>{{ t('mouseInterp.unsaved') }}</span>
+    </div>
+
     <div class="minterp-card">
       <div class="macro-slot-header">
         <span class="macro-slot-title">{{ t('mouseInterp.configTitle') }}</span>
@@ -295,6 +304,25 @@ onUnmounted(stopTest);
   border-radius: 10px;
   padding: 18px 20px;
   margin-top: 14px;
+}
+.minterp-page .minterp-unsaved {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(230, 174, 76, 0.35);
+  border-left: 3px solid #e6ae4c;
+  border-radius: 8px;
+  background: rgba(230, 174, 76, 0.10);
+  color: #e8c98a;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.minterp-page .minterp-unsaved-icon {
+  width: 15px;
+  height: 15px;
+  flex: none;
 }
 .minterp-page .minterp-body {
   margin-top: 12px;

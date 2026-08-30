@@ -3,6 +3,8 @@ import zh from './zh.js';
 import en from './en.js';
 import { docs as docsZh } from './docs/zh.js';
 import { docs as docsEn } from './docs/en.js';
+// 共享核心 i18n（NavRail 等 core 组件使用）。两套实例并存过渡期，切换语言时同步之。
+import { setLang as setCoreLang } from '@ysc/core/i18n';
 
 const messages = { zh, en };
 const docsPacks = { zh: docsZh, en: docsEn };
@@ -54,6 +56,7 @@ export function setLang(lang) {
   state.lang = lang;
   try { localStorage.setItem(STORAGE_KEY, lang); } catch (e) {}
   document.documentElement.setAttribute('lang', lang);
+  setCoreLang(lang); // 同步 core i18n，NavRail 等共享组件文案实时跟随
 }
 
 export function getLang() {

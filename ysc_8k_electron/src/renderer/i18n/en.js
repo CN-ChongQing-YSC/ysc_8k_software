@@ -200,6 +200,7 @@ export default {
     emaLabel: 'Detected call interval (EMA)',
     note: 'On by default. Moves from software (e.g. 200Hz) are automatically split into many smooth micro-steps output at the mouse native polling rate (up to 8kHz); total displacement is exactly conserved. While enabled, the step count c sent by software is ignored — everything is spread automatically from the measured cadence. When combined with Mouse Curve: curve provides the shape, interpolation the duration.',
     notEnabled: 'Disabled (software moves sent as-is, single report)',
+    unsaved: 'Interpolation config not saved to the device yet; changes have not taken effect',
     testTitle: 'Interpolation On/Off Test',
     testHint: 'Send one horizontal mouse move (cmd 30) back and forth at the chosen interval. Tip: disable interpolation above to see stuttering, then enable it to compare smoothness.',
     testInterval: 'Call Interval',
