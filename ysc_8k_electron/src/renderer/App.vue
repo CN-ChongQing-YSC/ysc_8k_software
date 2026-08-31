@@ -153,7 +153,7 @@ const netRunning = ref(false);
 const netPort = ref(5251);
 const netIp = ref('');
 const netMac = ref('');
-const version = ref('1.12.0');
+const version = ref('');
 const ports = ref([]);
 
 const firmwareFilePath = ref('');
@@ -662,6 +662,12 @@ onMounted(function() {
   });
 
   api.send('get_state');
+  // 状态栏版本：直接取应用自身版本（app.getVersion）。
+  // 原先只靠主进程启动时一次性的 driver 'version' 事件，回包常早于 renderer
+  // 加载完成而丢失，界面永远停在写死的默认值（1.12.0）。
+  if (api && api.getAppVersion) {
+    api.getAppVersion().then(function(v) { if (v) version.value = v; });
+  }
   portsRefreshAt = Date.now();
   api.send('enum_ports');
   checkCh343DriverNow(); // 启动时检测一次驱动状态

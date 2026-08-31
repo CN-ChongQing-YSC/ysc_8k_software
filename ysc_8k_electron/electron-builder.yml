@@ -4,6 +4,9 @@ copyright: "Copyright (C) 2026 YSC"
 directories:
   output: release
   buildResources: resources
+# 字体已由 Vite 编译进 dist/assets（哈希文件名），fontsource 原包不参与运行，剔除省 ~22MB
+files:
+  - "!**/node_modules/@fontsource{,-variable}/**"
 win:
   target:
     - target: nsis
