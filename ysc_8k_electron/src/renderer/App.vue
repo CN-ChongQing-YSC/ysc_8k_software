@@ -714,7 +714,14 @@ onMounted(function() {
   listen('device_lost', function() { api.send('device_list'); });
 
   listen('kbd_state', function(data) {
-    if (data && typeof data === 'object') kbdState.value = data;
+    /* 驱动的载荷多一层包装：事件是 SendEvent("kbd_state", body)，
+     * 而 body 本身就是 SerializeKbdJson() 的 {"kbd":{valid,mod,count,overflow,keys}}。
+     * 也就是说渲染进程拿到的是 {kbd:{...}}，必须取 .kbd 再赋值。
+     * 之前直接 kbdState.value = data，导致 kbdState.valid / .keys 全是 undefined，
+     * 面板永远显示「无数据」—— 尽管事件和键码都是对的。 */
+    if (!data || typeof data !== 'object') return;
+    var payload = (data.kbd && typeof data.kbd === 'object') ? data.kbd : data;
+    kbdState.value = payload;
   });
 
   listen('kbd_result', function() {
