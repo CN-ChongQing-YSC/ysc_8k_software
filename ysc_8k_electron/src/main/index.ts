@@ -97,6 +97,8 @@ async function connectWithRetries(maxRetries = 10, interval = 500): Promise<void
   for (let i = 0; i < maxRetries; i++) {
     try {
       await driver.connect(2000);
+      // 连上后开启自动重连：驱动进程被外部重启/崩溃时，界面不会静默冻住
+      driver.enableAutoReconnect();
       return;
     } catch {
       await new Promise(r => setTimeout(r, interval));
@@ -446,6 +448,7 @@ app.whenReady().then(async () => {
 
   try {
     await driver.connect(2000);
+    driver.enableAutoReconnect();
   } catch {
     startDriverProcess();
     try {

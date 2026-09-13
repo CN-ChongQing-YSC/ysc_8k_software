@@ -118,9 +118,47 @@ export class DriverPipe extends EventEmitter {
   private client: net.Socket | null = null;
   private lineBuffer = '';
   private _connected = false;
+  /* 自动重连：驱动是被 Electron 拉起来的子进程，但它也可能被外部重启
+   * （手动调驱动、崩溃重启、升级替换）。一旦管道断开，旧 Socket 上的所有
+   * send() 都会静默失败（writable 为 false），界面就会永远停在最后一帧状态、
+   * 既不报错也不更新 —— 排查时极易被误判成"固件没数据"。
+   * 这里在断开后自动重试，直到重新连上或调用方显式 disconnect()。 */
+  private _reconnectTimer: NodeJS.Timeout | null = null;
+  private _reconnectDelay = 500;
+  private _closedByUser = false;
+  private _autoReconnectEnabled = false;
 
   get isConnected(): boolean {
     return this._connected;
+  }
+
+  /** 启动自动重连（主进程启动时调用一次；重复调用无副作用）。 */
+  enableAutoReconnect(): void {
+    if (this._autoReconnectEnabled) return;
+    this._autoReconnectEnabled = true;
+    this._closedByUser = false;
+    this.on('disconnected', () => this.scheduleReconnect());
+    this.on('error', () => this.scheduleReconnect());
+  }
+
+  private scheduleReconnect(): void {
+    if (this._closedByUser || this._reconnectTimer) return;
+    const delay = this._reconnectDelay;
+    // 退避到最多 3s，避免驱动长期不在时狂刷连接
+    this._reconnectDelay = Math.min(this._reconnectDelay * 2, 3000);
+    this._reconnectTimer = setTimeout(() => {
+      this._reconnectTimer = null;
+      if (this._closedByUser || this._connected) return;
+      this.connect(2000)
+        .then(() => {
+          this._reconnectDelay = 500;
+          /* 重连成功后主动要一次全量状态：断线期间设备可能已被重新枚举，
+           * 前端需要一份新快照来替换掉冻结的旧数据。 */
+          this.enumPorts();
+          this.send('device_list');
+        })
+        .catch(() => this.scheduleReconnect());
+    }, delay);
   }
 
   connect(timeout = 5000): Promise<void> {
@@ -184,6 +222,11 @@ export class DriverPipe extends EventEmitter {
   }
 
   disconnect(): void {
+    this._closedByUser = true;
+    if (this._reconnectTimer) {
+      clearTimeout(this._reconnectTimer);
+      this._reconnectTimer = null;
+    }
     this.client?.destroy();
     this.client = null;
     this._connected = false;
