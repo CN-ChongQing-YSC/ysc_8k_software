@@ -301,8 +301,9 @@ bool SerialPort::SwitchBaudrate(uint32_t newBaud) {
         }
     }
 
-    // Verification failed
-    Disconnect();
+    // 验证失败。这里**不** Disconnect：调用方（DeviceContext::SwitchBaud）需要
+    // 用这个仍然打开的句柄把速率回退到原值，否则两端失联、只能断电恢复。
+    // 端口保持打开状态，由调用方决定回退还是真正断开。
     return false;
 }
 

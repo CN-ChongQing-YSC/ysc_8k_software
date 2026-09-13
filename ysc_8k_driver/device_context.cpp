@@ -314,7 +314,28 @@ bool DeviceContext::SwitchBaud(int slot, DWORD baud) {
     if (!d || !d->serial || !d->connected || baud == 0) return false;
     if (d->baud == baud) return true;          /* 已是目标速率，无需切换 */
 
-    if (!d->serial->SwitchBaudrate(baud)) return false;
+    const DWORD oldBaud = d->baud;
+
+    if (!d->serial->SwitchBaudrate(baud)) {
+        /* 切到新速率后验证失败。此时固件也可能没切成（例如它不支持该速率，
+         * 直接丢弃了 cmd 133），两边就此失联 —— 必须把两端都拉回原速率，
+         * 否则设备表面上"还在"，实际只能靠断电恢复。 */
+        if (d->serial->SwitchBaudrate(oldBaud)) {
+            d->serial->SetResponseCallback(OnSerialDataForSlot, (void *)(intptr_t)slot);
+            d->serial->StartReadThread(g_app.hStopEvent);
+            d->baud = oldBaud;
+            d->connected = true;
+            d->probeState = 0;
+            d->probeDone = 0;
+            d->probeDeadline = GetTickCount() + 5000;
+            s_probeStage[slot] = 0;
+            DebugLogger::Log("DEVICE slot=%d baud %u unsupported, reverted to %u",
+                             slot, (unsigned)baud, (unsigned)oldBaud);
+        } else {
+            d->connected = false;
+        }
+        return false;
+    }
 
     /* 切换过程停掉了读线程，必须重挂回调并重启，否则设备显示"已连接"但收不到数据 */
     d->serial->SetResponseCallback(OnSerialDataForSlot, (void *)(intptr_t)slot);
