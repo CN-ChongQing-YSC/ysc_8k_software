@@ -33,14 +33,37 @@ struct DeviceSlot {
     DWORD       baud          = 0;
     bool        connected     = false;
     bool        autoDetected  = false;   // 角色是自动识别（true）还是用户手动指定
+    // 用户是否手动指定过角色。不能用 (autoDetected==false) 反推 ——
+    // 自动识别完成后也会把 autoDetected 置 true，反推会把"自动判定为模糊态"
+    // 误当成"用户指定"，从而挡掉数据流判据。
+    bool        roleManual    = false;
     int         role          = DEV_ROLE_NONE;
     int         probeState    = 0;       // 0=未探测 1=探测中 2=已判定
+    /* 探测是否已有结论（成功判定 或 超时放弃）。
+     * 必须与 probeState 分开：probeState 同时被当作"阶段"用时，
+     * "已发出 711 等待回包"会与"已判定"撞成同一个值，导致回包被丢弃。 */
+    uint8_t     probeDone     = 0;
     DWORD       probeDeadline = 0;       // GetTickCount() 超时
     // 上游设备身份（探测得到，UI 展示用）
     int         vid           = -1;
     int         pid           = -1;
     char        product[48]   = {};
     int         ifaceMask     = 0;       // bit0=见到 keyboard iface, bit1=见到 mouse iface
+    // 数据流兜底判据：不依赖固件支持调试命令。旧固件不认 cmd 715/711 时，
+    // 靠"设备实际上报的是鼠标还是键盘数据"也能定角色。
+    uint8_t     sawMouseData  = 0;       // 收到过 message:"mouse"
+    uint8_t     sawKbdData    = 0;       // 收到过 message:"kbd"
+    // 探测两块回包是否到齐。不能只看"回包来过"：
+    //   * 715(身份) 和 711(描述符) 是两条独立响应；
+    //   * 设备可能仍处在上一次 debug_enter 留下的调试模式里，回包会先于
+    //     本次探测就绪到达，导致只收到其中一块就下结论（vid/pid 为 0）。
+    // 两块都到齐（或超时）才置 probeDone。
+    uint8_t     probeGotInfo  = 0;       // 收到 715
+    uint8_t     probeGotCfg   = 0;       // 收到 711
+    // 描述符判据是否"分不出来"：同款透传盒子自身就带键盘+鼠标两个接口，
+    // 两支盒子的 ifaceMask 都是 3，靠描述符**天然无法区分**上游插的是哪个。
+    // 这种情况必须让位给"设备实际上报哪类数据"的判据。
+    uint8_t     probeAmbiguous = 0;
 
     bool InUse() const { return serial != nullptr; }
 };
@@ -64,7 +87,12 @@ public:
     // 必须在主循环/管道线程周期性调用（内部有超时与节流）。
     static void ProbeTick();
 
-    // UI 手动指定角色（autoDetected 置 false，人工优先）
+    // 由数据流回调调用：记录该设备实际上报过哪类数据，作为角色识别的兜底判据。
+    // kind: 0=鼠标数据, 1=键盘数据
+    static void NoteDataKind(int slot, int kind);
+
+    // UI 手动指定角色。role == DEV_ROLE_NONE 表示"交回自动识别"：
+    // 会重新发起一轮探测（用户从下拉里选「自动」就是这个语义）。
     static bool SetRole(int slot, int role);
 
     // 串口数据回调：区分是哪个槽来的

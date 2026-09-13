@@ -32,8 +32,9 @@
             <option value="mouse">{{ t('device.roleMouse') }}</option>
             <option value="kbd">{{ t('device.roleKbd') }}</option>
           </select>
-          <span v-if="slot.connected && slot.auto" class="d-auto-tag">{{ t('device.auto') }}</span>
-          <span v-else-if="slot.connected && slot.role === 'none'" class="d-auto-tag warn">{{ t('device.detecting') }}</span>
+          <span v-if="slot.connected && slot.role !== 'none' && slot.auto" class="d-auto-tag">{{ t('device.auto') }}</span>
+          <span v-else-if="slot.connected && slot.role === 'none' && !slot.probeDone" class="d-auto-tag warn">{{ t('device.detecting') }}</span>
+          <span v-else-if="slot.connected && slot.role === 'none' && slot.probeDone" class="d-auto-tag warn">{{ t('device.detectFailed') }}</span>
         </div>
 
         <template v-if="!slot.connected">

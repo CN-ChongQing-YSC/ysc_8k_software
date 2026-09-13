@@ -35,6 +35,11 @@ static const GUID GUID_DEVINTERFACE_COMPORT_LOCAL = {
 // WM_DEVICECHANGE 防抖定时器：一次插拔连发多条，合并成一次 EnumComPorts 推送
 #define TIMER_PORT_CHANGE         1001
 #define PORT_CHANGE_DEBOUNCE_MS   400
+/* 设备角色探测心跳。必须用定时器驱动：探测写在这个消息循环里时，
+ * GetMessage() 在无消息时会阻塞，没有 UI 轮询就永远轮不到 ProbeTick()，
+ * 表现为"一直卡在识别中"。定时器让主循环定期醒来推进探测状态机。 */
+#define TIMER_DEVICE_PROBE        1002
+#define DEVICE_PROBE_MS           100
 
 // ========== Pipe Server ==========
 PipeServer g_pipeServer;
@@ -234,7 +239,16 @@ static void OnSerialResponseCombo(const uint8_t *data, int len, void *userData) 
 // 两个槽都会走到这里 —— 鼠标机发 "mouse"、键盘机发 "kbd"，MonitorPush 内部
 // 按 message 分流，因此 UI / kmboxnet 能同时看到两台设备的真实物理状态。
 static void OnDeviceData(int slot, const uint8_t *data, int len, void *userData) {
-    (void)slot;
+    (void)userData;
+    // 数据流兜底判角色：设备在报鼠标数据就是鼠标机、报键盘数据就是键盘机。
+    // 不依赖固件支持调试命令（旧固件不认 cmd 715/711，描述符判据会失效）。
+    if (len > 0 && len < 512) {
+        char probe[512];
+        memcpy(probe, data, len);
+        probe[len] = '\0';
+        if (strstr(probe, "\"message\":\"mouse\""))      DeviceContext::NoteDataKind(slot, 0);
+        else if (strstr(probe, "\"message\":\"kbd\""))   DeviceContext::NoteDataKind(slot, 1);
+    }
     OnSerialResponseCombo(data, len, userData);
 }
 
@@ -273,10 +287,10 @@ static void SendDeviceList() {
         n += snprintf(body + n, sizeof(body) - n,
                       "%s{\"dev\":%d,\"role\":\"%s\",\"auto\":%s,\"connected\":%s,"
                       "\"port\":\"%s\",\"baud\":%lu,\"vid\":%d,\"pid\":%d,\"product\":\"%s\","
-                      "\"ifaceMask\":%d}",
+                      "\"ifaceMask\":%d,\"probeDone\":%d}",
                       i ? "," : "", i, roleStr, d->autoDetected ? "true" : "false",
                       d->connected ? "true" : "false", portU8, d->baud,
-                      d->vid, d->pid, d->product, d->ifaceMask);
+                      d->vid, d->pid, d->product, d->ifaceMask, d->probeDone ? 1 : 0);
         if (n < 0 || n >= (int)sizeof(body)) break;
     }
     if (n > 0 && n < (int)sizeof(body) - 2)
@@ -383,6 +397,33 @@ static void OnPipeCommand(const char *json, void *userData) {
         char body[256];
         MonitorPush::SerializeKbdJson(body, sizeof(body));
         g_pipeServer.SendEvent("kbd_state", body);
+    }
+    /* 联调用：把一段帧当成某槽位收到的数据喂进设备数据通路。
+     * 用途：不起真硬件也能验证"按数据流判角色"（NoteDataKind）与监控分流 ——
+     * 同款透传盒子两支 ifaceMask 都是 3，描述符分不出角色，只能靠数据判。
+     * 用 hex 而不是 base64：base64 字母表含 '/'，经 ExtractJsonString 解转义时
+     * 会被误当成转义序列吃掉。需显式带 test:1，正常前端不会发。 */
+    else if (type == "debug_inject_slot" && ExtractJsonInt(json, "test") == 1) {
+        int dev = ExtractJsonInt(json, "dev");
+        std::string hex = ExtractJsonString(json, "rawHex");
+        std::vector<uint8_t> payload;
+        auto hexv = [](char c) -> int {
+            if (c >= '0' && c <= '9') return c - '0';
+            if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+            if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+            return -1;
+        };
+        for (size_t i = 0; i + 1 < hex.size(); i += 2) {
+            int h = hexv(hex[i]), l = hexv(hex[i + 1]);
+            if (h < 0 || l < 0) { payload.clear(); break; }
+            payload.push_back((uint8_t)((h << 4) | l));
+        }
+        if (dev >= 0 && dev < DEV_MAX_SLOTS && !payload.empty()) {
+            OnDeviceData(dev, payload.data(), (int)payload.size(), nullptr);
+            g_pipeServer.SendEvent("inject_result", "\"ok\":true");
+        } else {
+            g_pipeServer.SendEvent("inject_result", "\"ok\":false");
+        }
     }
     // 键盘命令（按键 / 打字符串 / 全释放），路由到键盘设备
     else if (type == "kbd_key") {
@@ -971,12 +1012,12 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR, int) {
 
     // Message loop
     MSG msg;
+    // 设备角色探测心跳（100ms）：必须靠定时器，不能放在循环体里 ——
+    // GetMessage() 无消息时阻塞，没人在发命令就轮不到探测，会一直卡在"识别中"。
+    SetTimer(g_app.hwndMain, TIMER_DEVICE_PROBE, DEVICE_PROBE_MS, NULL);
     while (GetMessage(&msg, NULL, 0, 0)) {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
-        // 双设备角色自动识别：对已连接但角色未知的槽位发 cmd 715/711 探测
-        // 上游插的是鼠标还是键盘。内部有 100ms 节流 + 超时放弃，无设备时空转。
-        DeviceContext::ProbeTick();
     }
 
     // Cleanup
@@ -1071,6 +1112,9 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             // 同时推两份：ports_changed(语义事件) + ports_list(零改动复用 App.vue 现有监听器)
             g_pipeServer.SendEvent("ports_changed", body.c_str());
             g_pipeServer.SendEvent("ports_list", body.c_str());
+        } else if (wParam == TIMER_DEVICE_PROBE) {
+            // 推进设备角色自动识别（内部 100ms 节流 + 5s 超时兜底）
+            DeviceContext::ProbeTick();
         }
         return 0;
     }

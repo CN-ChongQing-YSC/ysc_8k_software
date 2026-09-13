@@ -85,7 +85,12 @@ bool SerialPort::Connect(const wchar_t *portName, uint32_t baudRate) {
         GENERIC_READ | GENERIC_WRITE, 0, NULL,
         OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
     if (m_hPort == INVALID_HANDLE_VALUE) {
+        DWORD gle = GetLastError();
         m_hPort = NULL;
+        /* 打开失败必须留下错误码：5=访问被拒（别的进程占着，或前一次没释放
+         * 干净）、2=端口不存在。没有这条日志时上层只看到"无法打开串口"，
+         * 分不清是"被别人占用"还是"驱动自己没释放"。 */
+        DebugLogger::Log("SERIAL open FAILED %ls baud=%u gle=%lu", portName, baudRate, gle);
         return false;
     }
 

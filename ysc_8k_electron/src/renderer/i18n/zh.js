@@ -87,6 +87,7 @@ export default {
     roleKbd: '键盘机',
     roleNone: '未指定',
     detecting: '识别中…',
+    detectFailed: '识别失败,请手动指定',
     connect: '连接',
     disconnect: '断开',
     connected: '已连接',

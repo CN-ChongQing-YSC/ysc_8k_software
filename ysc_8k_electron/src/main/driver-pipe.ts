@@ -22,6 +22,7 @@ export interface DeviceSlotInfo {
   pid: number;
   product: string;        // 上游设备产品名
   ifaceMask: number;      // bit0=见到键盘接口, bit1=见到鼠标接口
+  probeDone: number;      // 1=识别已有结论（成功或超时放弃）
 }
 
 /** 鼠标物理状态快照 */

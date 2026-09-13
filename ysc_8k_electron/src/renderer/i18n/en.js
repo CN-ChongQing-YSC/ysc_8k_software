@@ -87,6 +87,7 @@ export default {
     roleKbd: 'Keyboard',
     roleNone: 'Unassigned',
     detecting: 'Detecting…',
+    detectFailed: 'Detect failed - set manually',
     connect: 'Connect',
     disconnect: 'Disconnect',
     connected: 'Connected',

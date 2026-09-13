@@ -1,6 +1,7 @@
 #include "device_context.h"
 #include "serial_port.h"
 #include "main.h"
+#include "debug_logger.h"
 #include <cstring>
 #include <cstdio>
 #include <cstdlib>
@@ -26,12 +27,22 @@ static int s_probeStage[DEV_MAX_SLOTS] = {};
 // 都可能出现，无法区分"上游插的是鼠标还是键盘"。
 // --------------------------------------------------------------------------
 
-// 从 "data":"<hex>" 里解析 CONFIG 描述符，返回 HID 接口协议位图。
-// 帧格式来自固件 dbg_send_descr：{"code":711,"message":"descr","data":"<hex>"}
+// 从 711 回包里取 CONFIG 描述符的 hex 串，返回 HID 接口协议位图。
+//
+// 注意固件实际回的是**嵌套 JSON**（cJSON 会把内层对象的引号转义）：
+//   {"code":711,"message":"ok",
+//    "data":"{\"total\":84,\"offset\":0,\"len\":84,\"hex\":\"0902540003...\"}"}
+// 所以 hex 在 data 内层对象的 "hex" 字段里，**不是** data 本身 ——
+// 早先按 "data":"<hex>" 解析永远拿不到内容，角色识别必然失败。
+// 另外该回包可能被截断、也可能不带 offset（整条一次给），故做容错取值。
 static bool ParseCfgIfaceMask(const char *json, int *maskOut) {
-    const char *p = strstr(json, "\"data\":\"");
+    const char *p = strstr(json, "hex");
     if (!p) return false;
-    p += 8;   // strlen("\"data\":\"")
+    p = strchr(p, ':');
+    if (!p) return false;
+    p++;
+    while (*p == ' ' || *p == '\\' || *p == '"') p++;
+    if (!*p) return false;
 
     uint8_t buf[512];
     int n = 0;
@@ -41,21 +52,24 @@ static bool ParseCfgIfaceMask(const char *json, int *maskOut) {
         if (c >= 'A' && c <= 'F') return c - 'A' + 10;
         return -1;
     };
-    while (*p && *p != '"' && n < (int)sizeof(buf)) {
-        char hi = *p++;
-        if (!*p || *p == '"') break;
-        char lo = *p++;
-        int h = hexv(hi), l = hexv(lo);
-        if (h < 0 || l < 0) break;
-        buf[n++] = (uint8_t)((h << 4) | l);
+    while (*p && n < (int)sizeof(buf)) {
+        if (*p == '\\' || *p == '"') break;      // 内层字符串结束
+        int hi = hexv(p[0]);
+        if (hi < 0) break;
+        int lo = hexv(p[1]);
+        if (lo < 0) break;
+        buf[n++] = (uint8_t)((hi << 4) | lo);
+        p += 2;
     }
     if (n < 9 || buf[1] != 0x02) return false;   // 必须是 CONFIG 描述符
 
+    /* 解析：CONFIG 头后按 bLength 步进，取每个 HID 接口的 bInterfaceProtocol。
+     * total 字段可能因为回包截断而偏大，所以以实际解析到的字节数为界。 */
     int mask = 0;
     int total = buf[2] | (buf[3] << 8);
     if (total > n) total = n;
     for (int i = 0; i + 8 < total; ) {
-        int blen = buf[i];
+        int blen  = buf[i];
         int btype = buf[i + 1];
         if (blen < 2) break;
         if (btype == 0x04 && blen >= 9) {            // INTERFACE
@@ -72,20 +86,51 @@ static bool ParseCfgIfaceMask(const char *json, int *maskOut) {
     return true;
 }
 
+/* 从 JSON 里取某个 key 后的整数，兼容两种引号形态。
+ *
+ * 为什么不能直接 strstr("\"vid\":")：固件回的 715 里 data 是**嵌套 JSON**，
+ * 内层引号在传输时是带反斜杠的 —— 线上实际是 `{\"vid\":13652,...}`。
+ * 而 C 源码里的 "\"vid\":" 编译出来是 `"vid":`（无反斜杠），永远匹配不上，
+ * 于是 vid/pid 恒为 0。这里只搜 `key\` 这个不带引号的前缀，
+ * 从而对 `"key":` / `\"key\":` 两种形态都成立。 */
+static bool JsonIntAfterKey(const char *json, const char *key, int *out, const char **after) {
+    char pat[24];
+    int n = snprintf(pat, sizeof(pat), "%s\\", key);
+    if (n <= 0 || n >= (int)sizeof(pat)) return false;
+    const char *p = strstr(json, pat);
+    if (!p) return false;
+    /* 关键：key 后面线上是 `\":`（引号+冒号），必须 locate 到冒号之后才是数字。
+     * 早先直接 p += strlen(pat) 会停在 ':' 上，把数值解析成 0 / 直接失败。 */
+    p = strchr(p, ':');
+    if (!p) return false;
+    p++;
+    while (*p == ' ' || *p == '\\' || *p == '"') p++;
+    if (*p != '-' && (*p < '0' || *p > '9')) return false;
+    *out = atoi(p);
+    if (after) *after = p;
+    return true;
+}
+
 static bool ParseVidPidProduct(const char *json, int *vid, int *pid,
                                char *product, int prodSize) {
-    const char *p = strstr(json, "\"vid\":");
-    if (!p) return false;
-    *vid = atoi(p + 6);
-    p = strstr(json, "\"pid\":");
-    if (!p) return false;
-    *pid = atoi(p + 6);
-    p = strstr(json, "\"product\":\"");
-    if (p && product && prodSize > 0) {
-        p += 11;
-        int i = 0;
-        while (*p && *p != '"' && i < prodSize - 1) product[i++] = *p++;
-        product[i] = '\0';
+    if (!JsonIntAfterKey(json, "vid", vid, nullptr)) return false;
+    if (!JsonIntAfterKey(json, "pid", pid, nullptr)) return false;
+
+    if (product && prodSize > 0) {
+        product[0] = '\0';
+        const char *p = strstr(json, "product\\");
+        if (p) {
+            p = strchr(p, ':');              // 跳到冒号后
+            if (p) {
+                p++;
+                while (*p == ' ') p++;
+                while (*p == '\\' || *p == '"') p++;   // 跳过 \" 或 "
+                int i = 0;
+                while (*p && *p != '"' && *p != '\\' && i < prodSize - 1)
+                    product[i++] = *p++;
+                product[i] = '\0';
+            }
+        }
     }
     return true;
 }
@@ -94,10 +139,15 @@ static bool ParseVidPidProduct(const char *json, int *vid, int *pid,
 static bool ProbeConsume(int slot, const char *json) {
     if (slot < 0 || slot >= DEV_MAX_SLOTS) return false;
     DeviceSlot &d = s_slots[slot];
-    if (d.probeState == 2) return false;             // 已判定：全部转发
+    /* 判据用 probeDone 而不是 probeState：probeState==2 在"已发出 711 等待
+     * 回包"时就会置上，用它会让 715/711 的回包被当成普通数据直接转发掉，
+     * 探测永远拿不到结论。 */
+    if (d.probeDone) return false;                   // 已有结论：全部转发
 
     bool is715 = strstr(json, "\"code\":715") != nullptr;
     bool is711 = strstr(json, "\"code\":711") != nullptr;
+    if (is715) DebugLogger::Log("PROBE got715 raw=%.180s", json);
+    if (is711) DebugLogger::Log("PROBE got711 raw=%.120s", json);
     if (!is715 && !is711) return false;
 
     if (is715) {
@@ -107,19 +157,43 @@ static bool ProbeConsume(int slot, const char *json) {
             d.vid = vid;
             d.pid = pid;
             strncpy_s(d.product, prod, _TRUNCATE);
+            d.probeGotInfo = 1;
         }
-        return true;
+    } else {
+        int mask = 0;
+        if (ParseCfgIfaceMask(json, &mask)) {
+            d.ifaceMask = mask;
+            d.probeGotCfg = 1;
+        }
     }
 
-    int mask = 0;
-    if (ParseCfgIfaceMask(json, &mask)) {
-        d.ifaceMask = mask;
-        if (mask & 0x1)      d.role = DEV_ROLE_KBD;    // 上游是键盘
-        else if (mask & 0x2) d.role = DEV_ROLE_MOUSE;  // 上游是鼠标
-        else                 d.role = DEV_ROLE_NONE;   // 既无键盘也无鼠标接口
-        d.autoDetected = true;
+    /* 两块都到齐才下结论。
+     * 只看 711 就定角色是不行的：设备可能仍处在上一次 debug_enter 留下的
+     * 调试模式里，711 会先于本次探测到达，结果 role 判出来了但 vid/pid 是 0。
+     * 等 715 到齐（或 ProbeTick 超时兜底）再收尾。 */
+    if (d.probeGotInfo && d.probeGotCfg) {
+        bool hasKbd = (d.ifaceMask & 0x1) != 0;
+        bool hasMouse = (d.ifaceMask & 0x2) != 0;
+        if (hasKbd && hasMouse) {
+            /* 两个接口都有 —— 同款透传盒子都是这样，描述符分不出角色。
+             * 保留 none 并标记 ambiguous，等设备实际数据来定
+             *（鼠标机在报 mouse 数据、键盘机在报 kbd 数据）。 */
+            d.role = DEV_ROLE_NONE;
+            d.probeAmbiguous = 1;
+        } else if (hasKbd) {
+            d.role = DEV_ROLE_KBD;
+        } else if (hasMouse) {
+            d.role = DEV_ROLE_MOUSE;
+        } else {
+            d.role = DEV_ROLE_NONE;
+        }
+        d.autoDetected = 1;
         d.probeState = 2;
+        d.probeDone = 1;
         s_probeStage[slot] = 2;
+        DebugLogger::Log("PROBE done slot=%d mask=%d vid=%04X pid=%04X role=%d ambig=%d",
+                         slot, d.ifaceMask, (unsigned)d.vid, (unsigned)d.pid,
+                         d.role, d.probeAmbiguous);
     }
     return true;
 }
@@ -173,7 +247,12 @@ int DeviceContext::Attach(int slot, const wchar_t *port, DWORD baud) {
     d.connected = true;
     d.role = DEV_ROLE_NONE;
     d.autoDetected = false;
+    d.roleManual = false;
+    d.probeAmbiguous = 0;
     d.probeState = 0;
+    d.probeDone = 0;
+    d.probeGotInfo = 0;
+    d.probeGotCfg = 0;
     d.probeDeadline = GetTickCount() + 5000;
     d.ifaceMask = 0;
     d.vid = d.pid = -1;
@@ -235,9 +314,30 @@ bool DeviceContext::SetRole(int slot, int role) {
     if (!d) return false;
     if (role != DEV_ROLE_NONE && role != DEV_ROLE_MOUSE && role != DEV_ROLE_KBD)
         return false;
+
+    if (role == DEV_ROLE_NONE) {
+        /* "交回自动识别"：重新发起一轮探测。
+         * 旧实现这里直接置 probeState=2，导致用户选「自动」后探测被永久关闭，
+         * 只能拔插设备才能恢复。 */
+        d->role = DEV_ROLE_NONE;
+        d->autoDetected = false;
+        d->roleManual = false;      // 交回自动识别
+        d->probeAmbiguous = 0;
+        d->probeDone = 0;
+        d->probeState = 0;
+        d->probeGotInfo = 0;
+        d->probeGotCfg = 0;
+        d->probeDeadline = GetTickCount() + 5000;
+        s_probeStage[slot] = 0;
+        return true;
+    }
+
     d->role = role;
-    d->autoDetected = false;      // 人工指定优先，自动探测不再改动
+    d->autoDetected = false;
+    d->roleManual = true;         // 人工指定优先：数据流判据与探测都不再覆盖
+    d->probeAmbiguous = 0;
     d->probeState = 2;
+    d->probeDone = 1;
     return true;
 }
 
@@ -257,6 +357,35 @@ int DeviceContext::SlotByReaderGen(LONG gen) {
     return -1;
 }
 
+/* 数据流兜底判据：设备实际上报的是鼠标(start)还是键盘数据。
+ *
+ * 为什么需要它：基于描述符的角色识别要固件支持 cmd 715/711（调试抓包），
+ * 旧固件不认这两条命令 → 拿不到描述符 → 识别永远没结论。而"设备在报鼠标
+ * 数据还是键盘数据"这件事所有固件版本都成立，所以用它兜底。
+ *
+ * 只在自动识别还没结论、且解析出明确类型时才落角色（probeDone=1），
+ * 避免过早锁死；用户手动指定过的槽位不动。 */
+void DeviceContext::NoteDataKind(int slot, int kind) {
+    if (slot < 0 || slot >= DEV_MAX_SLOTS) return;
+    DeviceSlot &d = s_slots[slot];
+    if (!d.connected) return;
+    if (kind == 0)      d.sawMouseData = 1;
+    else if (kind == 1) d.sawKbdData = 1;
+    else return;
+
+    /* 用户手动指定过就不动。注意不能拿 (autoDetected==false) 反推：
+     * 自动识别完成后 autoDetected 也是 true，而"自动判定为模糊态"
+     * (probeAmbiguous) 恰恰需要被数据流判据覆盖。 */
+    if (d.roleManual) return;
+
+    d.role = (kind == 0) ? DEV_ROLE_MOUSE : DEV_ROLE_KBD;
+    d.probeAmbiguous = 0;      // 数据流给出了确定答案，不再是模糊态
+    d.autoDetected = 1;
+    d.probeDone = 1;
+    d.probeState = 2;
+    DebugLogger::Log("PROBE role by data slot=%d kind=%d role=%d", slot, kind, d.role);
+}
+
 // --------------------------------------------------------------------------
 // 探测驱动：主循环周期调用。发 715 拿身份、发 711 拿接口协议判角色。
 // 到 probeDeadline 仍判不出来就停手，留给 UI 手动指定角色。
@@ -269,9 +398,26 @@ void DeviceContext::ProbeTick() {
     for (int i = 0; i < DEV_MAX_SLOTS; i++) {
         DeviceSlot &d = s_slots[i];
         if (!d.serial || !d.connected) continue;
-        if (d.probeState == 2) continue;         // 已判定
+        if (d.probeDone) continue;               // 已有结论
         if (d.autoDetected) continue;
-        if (now > d.probeDeadline) continue;     // 超时：放弃自动识别
+
+        /* 超时：必须落一个"结论"，否则 probeDone 永远为 0，
+         * 前端会永远停在"识别中…"。此时 role 保持 none，
+         * 由用户在下拉里手动指定。 */
+        if (now > d.probeDeadline) {
+            /* 超时也尽量用已到手的信息给个结论：只拿到描述符就按描述符判，
+             * 只拿到身份就保持 none。 */
+            if (d.probeGotCfg) {
+                if (d.ifaceMask & 0x1)      d.role = DEV_ROLE_KBD;
+                else if (d.ifaceMask & 0x2) d.role = DEV_ROLE_MOUSE;
+                d.autoDetected = true;
+            }
+            d.probeDone = 1;
+            d.probeState = 2;
+            DebugLogger::Log("PROBE timeout slot=%d gotInfo=%d gotCfg=%d mask=%d role=%d",
+                             i, d.probeGotInfo, d.probeGotCfg, d.ifaceMask, d.role);
+            continue;
+        }
 
         if (s_probeStage[i] == 0) {
             d.serial->SendJsonCommand("{\"cmd\":715}");
@@ -279,9 +425,12 @@ void DeviceContext::ProbeTick() {
             continue;
         }
         if (s_probeStage[i] == 1) {
+            /* 715 已发出。这里**不能**置 probeDone/probeState —— 那会让
+             * 715 自身的回包被 ProbeConsume 当成普通数据处理掉。 */
             d.serial->SendJsonCommand("{\"cmd\":711}");
             s_probeStage[i] = 2;
             continue;
         }
+        /* stage==2：715/711 都已发出，等回包（超时分支在上面兜底） */
     }
 }
