@@ -508,8 +508,10 @@ let deviceTimer = null;   // 设备槽位/角色轮询
 let portsRefreshAt = 0;
 
 // ── 双设备操作 ──
-function onDeviceConnect(dev, port, baud) {
-  api.send('device_attach', { dev: dev, port: port, baud: baud || 0 });
+function onDeviceConnect(dev, port, baud, role) {
+  // role 一起带上：device_attach 会把槽位角色重置为 none，不带上就会把用户在
+  // 连接前选好的角色清掉（角色选择器排在最后，允许"先选角色再连接"）。
+  api.send('device_attach', { dev: dev, port: port, baud: baud || 0, role: role || 'auto' });
 }
 
 function onDeviceDisconnect(dev) {

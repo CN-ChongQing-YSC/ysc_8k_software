@@ -21,22 +21,8 @@
           <span v-if="slot.connected" class="d-port">{{ slot.port }}<template v-if="slot.baud"> @ {{ slot.baud }}</template></span>
         </div>
 
-        <div class="d-row">
-          <label>{{ t('device.roleLabel') }}</label>
-          <select
-            class="input-select"
-            :value="slot.role === 'none' ? 'auto' : slot.role"
-            @change="onRoleChange(slot, $event)"
-          >
-            <option value="auto">{{ t('device.roleAuto') }}</option>
-            <option value="mouse">{{ t('device.roleMouse') }}</option>
-            <option value="kbd">{{ t('device.roleKbd') }}</option>
-          </select>
-          <span v-if="slot.connected && slot.role !== 'none' && slot.auto" class="d-auto-tag">{{ t('device.auto') }}</span>
-          <span v-else-if="slot.connected && slot.role === 'none' && !slot.probeDone" class="d-auto-tag warn">{{ t('device.detecting') }}</span>
-          <span v-else-if="slot.connected && slot.role === 'none' && slot.probeDone" class="d-auto-tag warn">{{ t('device.detectFailed') }}</span>
-        </div>
-
+        <!-- 字段顺序按用户操作顺序排：端口 → 波特率 → 角色。
+             选端口是第一动作，角色放最后（它多数时候由驱动自动识别，无需干预）。 -->
         <template v-if="!slot.connected">
           <div class="d-row">
             <label>{{ t('device.port') }}</label>
@@ -48,6 +34,17 @@
           <div class="d-row">
             <label>{{ t('device.baud') }}</label>
             <input class="input-text" v-model="pick[slot.dev].baud" :placeholder="t('device.baudHint')" />
+          </div>
+          <div class="d-row">
+            <label>{{ t('device.roleLabel') }}</label>
+            <select
+              class="input-select"
+              v-model="pick[slot.dev].role"
+            >
+              <option value="auto">{{ t('device.roleAuto') }}</option>
+              <option value="mouse">{{ t('device.roleMouse') }}</option>
+              <option value="kbd">{{ t('device.roleKbd') }}</option>
+            </select>
           </div>
           <div class="d-actions">
             <button
@@ -80,6 +77,22 @@
             </select>
             <span v-if="baudBusy[slot.dev]" class="d-auto-tag warn">{{ t('device.switching') }}</span>
           </div>
+          <!-- 角色同样放最后 -->
+          <div class="d-row">
+            <label>{{ t('device.roleLabel') }}</label>
+            <select
+              class="input-select"
+              :value="slot.role === 'none' ? 'auto' : slot.role"
+              @change="onRoleChange(slot, $event)"
+            >
+              <option value="auto">{{ t('device.roleAuto') }}</option>
+              <option value="mouse">{{ t('device.roleMouse') }}</option>
+              <option value="kbd">{{ t('device.roleKbd') }}</option>
+            </select>
+            <span v-if="slot.role !== 'none' && slot.auto" class="d-auto-tag">{{ t('device.auto') }}</span>
+            <span v-else-if="slot.role === 'none' && !slot.probeDone" class="d-auto-tag warn">{{ t('device.detecting') }}</span>
+            <span v-else-if="slot.role === 'none' && slot.probeDone" class="d-auto-tag warn">{{ t('device.detectFailed') }}</span>
+          </div>
           <div class="d-actions">
             <button class="btn btn-outline red" @click="onDisconnect(slot)">
               {{ t('device.disconnect') }}
@@ -106,10 +119,12 @@ const props = defineProps({
 
 const emit = defineEmits(['connect', 'disconnect', 'set-role', 'set-baud', 'refresh']);
 
-// 每个槽位的待连接端口/波特率
+// 每个槽位的待连接端口/波特率/角色。
+// role 默认 'auto'（交给驱动探测）；用户可先选好角色再连接 —— 因为
+// device_attach 会把槽位角色重置为 none，不带上就会被清掉。
 const pick = reactive({
-  0: { port: '', baud: '0' },
-  1: { port: '', baud: '0' },
+  0: { port: '', baud: '0', role: 'auto' },
+  1: { port: '', baud: '0', role: 'auto' },
 });
 
 /* 已连接后可切换的波特率，与驱动 SUPPORTED_BAUDS / 固件白名单对齐。
@@ -144,7 +159,7 @@ function upstreamText(slot) {
 
 function onConnect(slot) {
   const p = pick[slot.dev];
-  emit('connect', slot.dev, p.port, parseInt(p.baud) || 0);
+  emit('connect', slot.dev, p.port, parseInt(p.baud) || 0, p.role || 'auto');
 }
 
 function onDisconnect(slot) {
@@ -153,7 +168,10 @@ function onDisconnect(slot) {
 
 function onRoleChange(slot, e) {
   // auto = 交回驱动自动识别（置为 none，驱动会重新探测）
-  emit('set-role', slot.dev, e.target.value === 'auto' ? 'none' : e.target.value);
+  const v = e.target.value;
+  // 记下来：未连接时它会在 next connect 里带上去；已连接时立即生效
+  pick[slot.dev].role = v;
+  emit('set-role', slot.dev, v === 'auto' ? 'none' : v);
 }
 
 function onSwitchBaud(slot, e) {
