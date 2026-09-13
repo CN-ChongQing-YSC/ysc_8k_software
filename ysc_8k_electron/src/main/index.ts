@@ -218,8 +218,6 @@ function setupDriverEvents(): void {
     // 双设备（一鼠标机 + 一键盘机）
     'device_list', 'device_attached', 'device_detached', 'device_lost',
     'kbd_state', 'kbd_result',
-    // 串口原始帧旁路（排障：把驱动收到的每一帧打到界面/console）
-    'serial_raw',
   ];
 
   for (const evt of forwardEvents) {

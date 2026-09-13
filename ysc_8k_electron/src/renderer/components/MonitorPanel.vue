@@ -32,9 +32,6 @@
           <span class="mon-label">{{ t('monitor.kbdDev') }}</span>
           <span v-if="!kbd || !kbd.valid" class="mon-sub">{{ t('monitor.noData') }}</span>
           <span v-else class="mon-sub mon-live">{{ t('monitor.live') }}</span>
-          <span class="mon-sub" style="margin-left:auto">
-            {{ t('monitor.rawCount') }}: {{ rawKbdCount }}
-          </span>
         </div>
         <div class="mon-grid">
           <div class="mon-cell">
@@ -44,32 +41,6 @@
           <div class="mon-cell wide">
             <span class="mon-label">{{ t('monitor.kbdKeys') }}</span>
             <span class="mon-val">{{ keyLabels }}</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- 串口原始帧：驱动收到的每一帧原文。
-           排障用途：界面上「看不到键盘数据」有两种完全不同的原因 —— 固件没发，
-           或被某一层吃掉了。这里只要出现 message:"kbd" 就说明帧到了驱动，
-           问题在后端消费/渲染；完全没有就说明固件侧没上报。 -->
-      <div class="raw-block">
-        <div class="raw-head">
-          <span class="mon-label">{{ t('monitor.rawTitle') }}</span>
-          <button class="raw-clear" @click="$emit('clear-raw')">{{ t('monitor.rawClear') }}</button>
-        </div>
-        <div v-if="!rawFrames || rawFrames.length === 0" class="raw-empty">
-          {{ t('monitor.rawEmpty') }}
-        </div>
-        <div v-else class="raw-list">
-          <div
-            v-for="(f, i) in rawFrames.slice().reverse().slice(0, 12)"
-            :key="i"
-            class="raw-row"
-            :class="{ 'raw-kbd': f.kind === 'kbd' || f.kind === 'kbd_raw' }"
-          >
-            <span class="raw-t">{{ f.t }}</span>
-            <span class="raw-kind">{{ f.kind }}</span>
-            <span class="raw-text" :title="f.text">{{ f.text }}</span>
           </div>
         </div>
       </div>
@@ -90,17 +61,9 @@ const props = defineProps({
   connected: { type: Boolean, default: false },
   /** 键盘物理状态快照 {valid, mod, count, overflow, keys[]} */
   kbd: { type: Object, default: null },
-  /** 驱动实际收到的串口原始帧 [{t,kind,len,text}]（排障用） */
-  rawFrames: { type: Array, default: () => [] },
 });
 
-const emit = defineEmits(['toggle-upload', 'clear-raw']);
-
-/* 收到过多少条真实按键帧（kind=kbd）。这个计数是「固件有没有把按键上报出来」
- * 最直接的证据：一直为 0 说明固件侧没发，>0 但面板无数据就是后端/渲染问题。 */
-const rawKbdCount = computed(() =>
-  (props.rawFrames || []).filter(function (f) { return f.kind === 'kbd'; }).length
-);
+const emit = defineEmits(['toggle-upload']);
 
 const uploadEnabled = ref(false);
 
@@ -177,51 +140,6 @@ const keyLabels = computed(() => {
 }
 .mon-sub { font-size: 11px; opacity: 0.5; }
 .mon-live { opacity: 1; color: var(--accent, #4a9); }
-
-/* ---- 串口原始帧列表 ---- */
-.raw-block {
-  margin-top: 10px;
-  padding-top: 8px;
-  border-top: 1px dashed var(--border, #444);
-}
-.raw-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-.raw-clear {
-  margin-left: auto;
-  padding: 1px 8px;
-  font-size: 11px;
-  border: 1px solid var(--border, #444);
-  border-radius: 3px;
-  background: transparent;
-  color: var(--text, #ccc);
-  cursor: pointer;
-}
-.raw-empty { font-size: 11px; opacity: 0.45; padding: 4px 0; }
-.raw-list {
-  max-height: 190px;
-  overflow-y: auto;
-  font-family: Consolas, "Courier New", monospace;
-  font-size: 10.5px;
-  line-height: 1.45;
-}
-.raw-row {
-  display: flex;
-  gap: 6px;
-  padding: 1px 0;
-  white-space: nowrap;
-}
-.raw-row.raw-kbd { color: var(--accent, #4a9); font-weight: 600; }
-.raw-t { opacity: 0.5; flex: 0 0 auto; }
-.raw-kind { flex: 0 0 48px; opacity: 0.8; }
-.raw-text {
-  flex: 1 1 auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 .mon-cell.wide { flex: 2; }
 </style>
 

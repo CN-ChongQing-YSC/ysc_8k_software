@@ -601,8 +601,8 @@ void SerialPort::ReadLoop() {
                 if (m_rxLen == payloadLen + END_MARKER_LEN) {
                     if (memcmp(m_rxBuf + payloadLen, END_MARKER, END_MARKER_LEN) == 0) {
                         DebugLogger::Log("SERIAL RX frame: %d bytes payload", payloadLen);
-                        if (payloadLen > 0 && payloadLen < 1024) {
-                            char tmp[1025];
+                        if (payloadLen > 0 && payloadLen < 256) {
+                            char tmp[257];
                             memcpy(tmp, m_rxBuf, payloadLen);
                             tmp[payloadLen] = '\0';
                             DebugLogger::Log("SERIAL RX data: %s", tmp);
