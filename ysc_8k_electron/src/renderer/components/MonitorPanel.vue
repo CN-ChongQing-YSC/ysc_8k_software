@@ -31,6 +31,7 @@
         <div class="kbd-head">
           <span class="mon-label">{{ t('monitor.kbdDev') }}</span>
           <span v-if="!kbd || !kbd.valid" class="mon-sub">{{ t('monitor.noData') }}</span>
+          <span v-else class="mon-sub mon-live">{{ t('monitor.live') }}</span>
         </div>
         <div class="mon-grid">
           <div class="mon-cell">
@@ -138,6 +139,7 @@ const keyLabels = computed(() => {
   margin-bottom: 6px;
 }
 .mon-sub { font-size: 11px; opacity: 0.5; }
+.mon-live { opacity: 1; color: var(--accent, #4a9); }
 .mon-cell.wide { flex: 2; }
 </style>
 

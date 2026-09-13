@@ -64,7 +64,7 @@
               :x="monitorX"
               :y="monitorY"
               :kbd="kbdState"
-              :connected="serialConnected"
+              :connected="anyDeviceConnected"
               @toggle-upload="onToggleUpload"
             />
           </div>
@@ -174,6 +174,14 @@ const deviceSlots = ref([
   { dev: 1, role: 'none', auto: false, connected: false, port: '', baud: 0, vid: -1, pid: -1, product: '', ifaceMask: 0 },
 ]);
 const kbdState = ref({ valid: 0, mod: 0, count: 0, overflow: 0, keys: [] });
+
+/* 是否已连上任意设备。双设备面板连的设备不算在 serialConnected 里
+ * （那是旧单串口路径的状态），所以监控开关/面板的可用性要用这个综合判断，
+ * 否则用「双设备」连上后「开始监控」按钮会一直是灰的。 */
+const anyDeviceConnected = computed(() =>
+  serialConnected.value ||
+  deviceSlots.value.some(function (d) { return d && d.connected; })
+);
 
 const firmwareFilePath = ref('');
 const firmwareFileInfo = ref('');

@@ -69,6 +69,7 @@ export default {
     kbdNone: 'None',
     kbdMore: '+{n} more',
     noData: 'No data',
+    live: 'Live',
     btn: {
       left: 'Left',
       right: 'Right',

@@ -398,6 +398,30 @@ static void OnPipeCommand(const char *json, void *userData) {
         MonitorPush::SerializeKbdJson(body, sizeof(body));
         g_pipeServer.SendEvent("kbd_state", body);
     }
+    /* 排障用：读键盘链路原始诊断（固件 cmd 58）。返回最近一包键盘原始报告
+     * 与 NKRO 位图映射表；响应本身由串口回调打进调试日志，同时也直接回一份
+     * 给调用方。正常前端不会发这条。 */
+    else if (type == "kbd_raw_diag") {
+        int dev = ExtractJsonInt(json, "dev");
+        if (dev < 0 || dev >= DEV_MAX_SLOTS) dev = 0;
+        (void)dev;
+        bool ok = CommandBridge::SendRawYsc("{\"cmd\":58}", DEV_ROLE_NONE);
+        g_pipeServer.SendEvent("kbd_raw_diag_result",
+                               ok ? "\"ok\":true" : "\"ok\":false,\"error\":\"send failed\"");
+    }
+    /* 排障用：把一段原始 YSC 命令串（相对固件的 JSON）发给设备。
+     * 用途：固件新增/临时命令（如 cmd 59 导出指定接口报告描述符）不需要为每条
+     * 都改驱动。响应由串口回调打进调试日志并作为 debug_response 转发回前端。 */
+    else if (type == "raw_ysc") {
+        std::string body = ExtractJsonString(json, "json");
+        if (body.empty()) {
+            g_pipeServer.SendEvent("raw_ysc_result", "\"ok\":false,\"error\":\"empty json\"");
+        } else {
+            bool ok = CommandBridge::SendRawYsc(body.c_str(), DEV_ROLE_NONE);
+            g_pipeServer.SendEvent("raw_ysc_result",
+                                   ok ? "\"ok\":true" : "\"ok\":false,\"error\":\"send failed\"");
+        }
+    }
     /* 联调用：把一段帧当成某槽位收到的数据喂进设备数据通路。
      * 用途：不起真硬件也能验证"按数据流判角色"（NoteDataKind）与监控分流 ——
      * 同款透传盒子两支 ifaceMask 都是 3，描述符分不出角色，只能靠数据判。

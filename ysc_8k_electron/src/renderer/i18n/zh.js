@@ -69,6 +69,7 @@ export default {
     kbdNone: '无',
     kbdMore: '等 {n} 键',
     noData: '无数据',
+    live: '实时',
     btn: {
       left: '左键',
       right: '右键',
