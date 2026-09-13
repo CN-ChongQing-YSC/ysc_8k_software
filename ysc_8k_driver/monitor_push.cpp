@@ -2,6 +2,7 @@
 #include "kmboxnet_server.h"
 #include "kmboxnet_proto.h"
 #include "main.h"
+#include "pipe_server.h"   // g_pipeServer.SendEvent（UI 推送）
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -21,11 +22,68 @@ static bool             s_haveLast = false;
 static MonitorState     s_lastMouse;
 static KbdMonitorState  s_lastKbd;
 
+/* ===== UI（Electron）推送 =====
+ * 背景：前端原先每 100ms 发一次 get_monitor 拉状态，高回报率下看着有延时。
+ * 改成"状态一变就推"，但**不能**把 8K 鼠标的每一帧都推给前端（8000 次/秒的
+ * 管道写 + JSON 解析 + Vue 更新会真的卡）。所以在驱动里做一次合并：
+ *   - PushIfChanged() 只负责把 UiPushThread 叫醒（SetEvent，开销极小）；
+ *   - UiPushThread 取的是"当前最新快照"，并按 UI_PUSH_MIN_INTERVAL_MS 限速；
+ *   - 被限速挡下的变化不会丢 —— 事件会在睡梦期间再次被置位，醒来后推最新的。
+ * 于是：按键/键盘变化最坏晚 UI_PUSH_MIN_INTERVAL_MS 到达前端，位移按 ~100Hz
+ * 刷新，空闲时线程阻塞在事件上、零 CPU（不轮询、不定时器）。 */
+#define UI_PUSH_MIN_INTERVAL_MS 8u    /* ≈125Hz 上限；进程已 timeBeginPeriod(1) */
+static HANDLE       s_hUiWake   = NULL;   /* 自动复位事件：有新状态待推送 */
+static HANDLE       s_hUiThread = NULL;
+static volatile LONG s_uiThreadStop = 0;
+static ULONGLONG    s_lastUiPushMs = 0;   /* 仅 UiPushThread 访问 */
+
+static DWORD WINAPI UiPushThreadProc(LPVOID) {
+    while (!s_uiThreadStop) {
+        DWORD w = WaitForSingleObject(s_hUiWake, 200);
+        if (s_uiThreadStop) break;
+        if (w != WAIT_OBJECT_0) continue;
+
+        ULONGLONG dt = GetTickCount64() - s_lastUiPushMs;
+        if (dt < UI_PUSH_MIN_INTERVAL_MS)
+            Sleep((DWORD)(UI_PUSH_MIN_INTERVAL_MS - dt));
+        if (s_uiThreadStop) break;
+
+        s_lastUiPushMs = GetTickCount64();
+        if (g_pipeServer.HasClient()) {
+            char body[512];
+            MonitorPush::SerializeUiJson(body, sizeof(body));
+            g_pipeServer.SendEvent("monitor_data", body);
+        }
+    }
+    return 0;
+}
+
+void MonitorPush::Shutdown() {
+    if (s_hUiThread) {
+        InterlockedExchange(&s_uiThreadStop, 1);
+        if (s_hUiWake) SetEvent(s_hUiWake);
+        WaitForSingleObject(s_hUiThread, 2000);
+        CloseHandle(s_hUiThread);
+        s_hUiThread = NULL;
+    }
+    if (s_hUiWake) {
+        CloseHandle(s_hUiWake);
+        s_hUiWake = NULL;
+    }
+}
+
 void MonitorPush::Init(KmboxnetServer *server) {
     s_server = server;
     if (!s_csInit) {
         InitializeCriticalSection(&s_cs);
         s_csInit = true;
+    }
+    if (!s_hUiWake) {
+        s_hUiWake = CreateEvent(NULL, FALSE, FALSE, NULL);   /* 自动复位 */
+    }
+    if (!s_hUiThread && s_hUiWake) {
+        s_uiThreadStop = 0;
+        s_hUiThread = CreateThread(NULL, 0, UiPushThreadProc, NULL, 0, NULL);
     }
 }
 
@@ -146,16 +204,19 @@ void MonitorPush::OnSerialResponse(const uint8_t *data, int len, void *userData)
         LeaveCriticalSection(&s_cs);
     } else {
         // ---- 鼠标状态（来自鼠标设备；旧固件不带 message 字段，走这里） ----
-        int b = 0, x = 0, y = 0;
+        int b = 0, x = 0, y = 0, wh = 0;
         if (!ExtractJsonInt(innerJson, "b", b)) return;
         if (!ExtractJsonInt(innerJson, "x", x)) return;
         if (!ExtractJsonInt(innerJson, "y", y)) return;
+        /* "wh" 是物理滚轮增量，新固件才带；老固件缺这个字段时按 0 处理
+         * （否则 monitor_mouse_wheel 会一直读到脏值）。 */
+        ExtractJsonInt(innerJson, "wh", wh);
 
         EnterCriticalSection(&s_cs);
         s_mouse.buttons = b;
         s_mouse.x = x;
         s_mouse.y = y;
-        s_mouse.wheel = 0;
+        s_mouse.wheel = wh;
         s_mouse.valid = 1;
         LeaveCriticalSection(&s_cs);
     }
@@ -194,7 +255,7 @@ monitor_packet_t MonitorPush::BuildMonitorPacket() {
     pkt.mouse.buttons   = (uint8_t)m.buttons;
     pkt.mouse.x         = (int16_t)m.x;
     pkt.mouse.y         = (int16_t)m.y;
-    pkt.mouse.wheel     = 0;
+    pkt.mouse.wheel     = (int16_t)m.wheel;
 
     // 键盘字段：硬件期望 12 字节 keyboard_report_t（mod + 10 键）。
     // 固件侧最多给 6 个非修饰键码，其余位置留 0。
@@ -225,10 +286,17 @@ void MonitorPush::PushIfChanged() {
     if (s_csInit) LeaveCriticalSection(&s_cs);
 
     if (!changed) return;
-    if (!s_server->HasMonitorClient()) return;
 
-    monitor_packet_t pkt = BuildMonitorPacket();
-    s_server->SendMonitorData(pkt);
+    /* kmboxnet UDP 监控客户端：沿用旧行为（无客户端时空转） */
+    if (s_server && s_server->HasMonitorClient()) {
+        monitor_packet_t pkt = BuildMonitorPacket();
+        s_server->SendMonitorData(pkt);
+    }
+
+    /* Electron 前端：变化即推，替代前端每 100ms 轮询 get_monitor。
+     * 这里只叫醒推送线程（SetEvent ≈ 一次原子操作），真正的限速/合并/JSON
+     * 组装都在 UiPushThread 里做，绝不在串口读线程上做重活。 */
+    if (s_hUiWake) SetEvent(s_hUiWake);
 }
 
 void MonitorPush::ResetSide(int isKeyboard) {
@@ -261,4 +329,16 @@ void MonitorPush::SerializeKbdJson(char *out, int outSize) {
         n += snprintf(out + n, outSize - n, "%s%u", i ? "," : "", (unsigned)k.key[i]);
     if (n > 0 && n < outSize)
         snprintf(out + n, outSize - n, "]}");
+}
+
+/* monitor_data 的载荷：与 get_monitor 的应答逐字节同构
+ * （buttons/x/y/wheel + kbd 对象 + mouseValid），这样前端的同一个监听器
+ * 既能吃轮询应答、也能吃推送。 */
+void MonitorPush::SerializeUiJson(char *out, int outSize) {
+    MonitorState m = GetLatest();
+    char kbdPart[256];
+    SerializeKbdJson(kbdPart, sizeof(kbdPart));
+    snprintf(out, outSize,
+             "\"buttons\":%d,\"x\":%d,\"y\":%d,\"wheel\":%d,%s,\"mouseValid\":%d",
+             m.buttons, m.x, m.y, m.wheel, kbdPart, m.valid);
 }

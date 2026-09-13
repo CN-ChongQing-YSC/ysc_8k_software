@@ -70,6 +70,10 @@ export default {
     kbdMore: '等 {n} 键',
     noData: '无数据',
     live: '实时',
+    // 监控开关（标题栏）
+    monitoring: '监控中',
+    notMonitoring: '未监控',
+    count: '累计位移',
     btn: {
       left: '左键',
       right: '右键',
@@ -103,6 +107,10 @@ export default {
     upstream: '上游设备',
     upstreamUnknown: '未知',
     manualRole: '手动指定',
+    // 「接入 / 拔出」分段控件
+    reconnect: '重新接入',
+    needPort: '请先选择端口',
+    actions: '接入 / 拔出',
   },
   gamepad: {
     title: '手柄映射配置',
@@ -375,6 +383,12 @@ export default {
     downloadDone: '下载完成，开始升级',
     downloadFailed: '下载失败: {error}',
     unavailable: '无可下载固件（或网络不通）',
+    // 可用固件列表的收纳
+    expand: '展开全部',
+    collapse: '收起',
+    moreHidden: '另有 {n} 个历史版本已收起',
+    newestShort: '最新',
+    installedShort: '已安装',
   },
   firmwareStatus: {
     updating: '更新模式',

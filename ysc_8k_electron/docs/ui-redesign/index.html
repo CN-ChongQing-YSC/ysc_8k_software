@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>YSC 8K 驱动 ·「键鼠集火」界面优化 · 四套方案对比</title>
+<link rel="stylesheet" href="palette.css" />
+<link rel="stylesheet" href="app.css" />
+</head>
+<body>
+<div class="page">
+
+  <!-- ══════════════ 页头 ══════════════ -->
+  <header class="page-head">
+    <div class="page-kicker">YSC 8K 驱动 · v1.14.0 · Electron + Vue</div>
+    <h1 class="page-title">「键鼠集火」界面优化 · 四套方案</h1>
+    <p class="page-sub">
+      全部改动集中在<b>按钮的表达形式</b>与<b>信息布局</b>上：把「连接 / 断开」从两个长得差不多的低保真小按钮，
+      变成能一眼看出<b>哪个是主操作、哪个是危险操作、哪个当前可点</b>的控件；把监看区从三个等权重的数字格，
+      变成有主次、有状态语义的仪表。<b>配色一个像素都没动。</b>
+    </p>
+    <div class="lockbar">
+      <span class="lk-dot"></span>
+      <span>配色锁定为实机截图取值，四套方案共用 <code>palette.css</code>，禁止自造颜色</span>
+      <span class="swatches">
+        <span class="swatch" style="background:#4f6dff" title="#4f6dff 品牌蓝"></span>
+        <span class="swatch" style="background:#8b5cf6" title="#8b5cf6 品牌紫"></span>
+        <span class="swatch" style="background:#4ade80" title="#4ade80 已连接"></span>
+        <span class="swatch" style="background:#ffd45c" title="#ffd45c 进行中"></span>
+        <span class="swatch" style="background:#f0616d" title="#f0616d 断开"></span>
+        <span class="swatch" style="background:#1a212f" title="#1a212f 面板"></span>
+        <span class="swatch" style="background:#141a26" title="#141a26 画布"></span>
+      </span>
+    </div>
+  </header>
+
+  <!-- ══════════════ 方案切换 ══════════════ -->
+  <nav class="scheme-tabs" role="tablist">
+    <button class="scheme-tab active" data-scheme="0" role="tab">
+      <span class="st-id">对照</span>
+      <span class="st-name">现状（v1.14.0）</span>
+      <span class="st-tag">优化前的基准</span>
+    </button>
+    <button class="scheme-tab" data-scheme="1" role="tab">
+      <span class="st-id">方案 A</span>
+      <span class="st-name">状态块</span>
+      <span class="st-tag">最稳妥 · 直接可落地</span>
+    </button>
+    <button class="scheme-tab" data-scheme="2" role="tab">
+      <span class="st-id">方案 B</span>
+      <span class="st-name">分段控件</span>
+      <span class="st-tag">最省心 · 误操作最少</span>
+    </button>
+    <button class="scheme-tab" data-scheme="3" role="tab">
+      <span class="st-id">方案 C</span>
+      <span class="st-name">金属层叠</span>
+      <span class="st-tag">最高端 · 手感最强</span>
+    </button>
+    <button class="scheme-tab" data-scheme="4" role="tab">
+      <span class="st-id">方案 D</span>
+      <span class="st-name">控制台</span>
+      <span class="st-tag">最直观 · 排查最快</span>
+    </button>
+  </nav>
+
+  <!-- ══════════════════════════════════════════════════════════
+       方案 0 · 现状对照
+       ══════════════════════════════════════════════════════════ -->
+  <section class="scheme show" data-scheme="0">
+    <div class="brief">
+      <div class="brief-head">
+        <span class="brief-id">对照</span>
+        <span class="brief-name">现状 v1.14.0</span>
+        <span class="brief-oneliner">优化前长这样 —— 用当前仓库代码的真实取值复刻</span>
+      </div>
+      <div class="brief-cols">
+        <div class="brief-col">
+          <h4>现在的问题</h4>
+          <ul>
+            <li><b>两个按钮长得太像。</b>「连接」是实心蓝（26px 高），「断开」是描边红，高度一样、宽度各占一半 —— 主操作和危险操作在视觉权重上只差一个颜色。</li>
+            <li><b>按钮高度 26px。</b>鼠标目标偏小，且和左侧 select 下拉框一样高，缺乏「这是可点的操作」的暗示。</li>
+            <li><b>禁用态几乎看不见。</b><code>--border</code> 做底 + <code>--text-dim</code> 做字，对比度极低，用户不确定是「不能点」还是「坏了」。</li>
+            <li><b>监看三格等权重。</b>鼠标机、X、Y 三个卡片一样大、数字一样大，「无 / 1 / 0」在视觉上完全同权，看不出哪个是重点。</li>
+            <li><b>状态色只出现在文字上。</b>「未连接」灰色小字、「已连接」绿色小字 —— 颜色是唯一的状态载体，色弱用户无法区分。</li>
+          </ul>
+        </div>
+        <div class="brief-col">
+          <h4>这套方案不改什么</h4>
+          <ul>
+            <li>配色、字体、圆角、面板结构全部保留。</li>
+            <li>字段顺序保留（端口 → 波特率 → 角色），这是上个提交刚按操作顺序重排的。</li>
+            <li>没有新增交互概念，用户不需要重新学习。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-col">
+        <span class="stage-cap">设备面板</span>
+        <div class="now-panel">
+          <div class="now-head">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="1" y="4" width="6" height="8" rx="1"/><rect x="9" y="4" width="6" height="8" rx="1"/></svg>
+            <span>双设备（鼠标机 / 键盘机）</span>
+          </div>
+          <div class="now-body">
+            <div class="now-hint">一台上游插鼠标、一台插键盘。角色可自动识别，也可手动指定</div>
+            <div class="now-card">
+              <div class="now-row" style="margin-bottom:6px">
+                <span class="now-badge">未连接</span>
+                <span class="now-status">未连接</span>
+                <span class="now-port"></span>
+              </div>
+              <div class="now-row"><label>端口</label><select class="now-select"><option>-- 选择端口 --</option></select></div>
+              <div class="now-row"><label>波特率</label><select class="now-select"><option>0</option></select></div>
+              <div class="now-row"><label>角色</label><select class="now-select"><option>自动</option></select></div>
+              <div class="now-actions">
+                <button class="now-btn primary" disabled>连接</button>
+                <button class="now-btn outline">断开</button>
+              </div>
+              <div class="now-note">↑ 端口未选 → 连接禁用。此时两个按钮的高度、宽度、形状完全一致，仅靠颜色区分主次与危险。</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="stage-col grow">
+        <span class="stage-cap">监看面板</span>
+        <div class="now-mon">
+          <div class="now-head">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polyline points="1 12 4 7 7 9 10 4 15 4"/></svg>
+            <span>监控</span>
+            <button class="now-btn primary" style="margin-left:auto;flex:0 0 auto;padding:0 10px;height:22px;font-size:11px">开始监控</button>
+          </div>
+          <div class="now-mongrid">
+            <div class="now-moncell"><span class="now-monlabel">鼠标机</span><span class="now-monval">无</span></div>
+            <div class="now-moncell"><span class="now-monlabel">X</span><span class="now-monval">1</span></div>
+            <div class="now-moncell"><span class="now-monlabel">Y</span><span class="now-monval">0</span></div>
+          </div>
+          <div class="now-kbd" style="border-top:1px solid var(--border);padding:10px 12px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+              <span class="now-monlabel" style="margin:0">键盘机</span>
+              <span class="now-status">无数据</span>
+            </div>
+            <div class="now-mongrid" style="padding:0">
+              <div class="now-moncell" style="padding:12px 6px"><span class="now-monlabel">修饰键</span><span class="now-monval" style="font-size:16px">无</span></div>
+              <div class="now-moncell" style="padding:12px 6px"><span class="now-monlabel">按键</span><span class="now-monval" style="font-size:16px">无</span></div>
+            </div>
+          </div>
+          <div class="now-body" style="padding-top:0">
+            <div class="now-note" style="margin-top:0">↑「无 / 1 / 0」三个格子等大等重。归零的数据和有效数据视觉权重一样，扫一眼分不出哪个在动。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════
+       方案 A · 状态块
+       ══════════════════════════════════════════════════════════ -->
+  <section class="scheme" data-scheme="1">
+    <div class="brief">
+      <div class="brief-head">
+        <span class="brief-id">方案 A</span>
+        <span class="brief-name">状态块 Status Block</span>
+        <span class="brief-oneliner">按钮做成「左图标暗区 + 右文字」的整块命中区，连接状态变成卡片顶部的灯带</span>
+      </div>
+      <div class="brief-cols">
+        <div class="brief-col">
+          <h4>按钮怎么改</h4>
+          <ul>
+            <li><b>高度 26 → 38px</b>，命中面积翻倍；左端 40px 独立暗区放图标，即使不看文字也能靠图标区分「接入 / 拔出」。</li>
+            <li><b>主按钮加抬升投影</b>，hover 时 <code>translateY(-1px)</code> 上浮并发出蓝色辉光 —— 用动效而不是新颜色来表达「这个能点」。</li>
+            <li><b>禁用态做成「凹陷」</b>：底色降到 5% 白、去掉所有投影，配合 <span style="color:var(--text-ghost)">对比度明显更低的文字</span>，一眼看出是「条件不满足」而非故障。</li>
+            <li><b>危险操作克制化</b>：断开默认只是浅红底 + 红描边，只有 hover 才满血红。避免在静态界面里到处是红色警报。</li>
+          </ul>
+        </div>
+        <div class="brief-col">
+          <h4>状态怎么改</h4>
+          <ul>
+            <li><b>卡片顶部 3px 灯带</b>：灰 = 未连接，绿 = 已连接（带辉光），琥珀 = 切换中。<em>形状 + 颜色双通道</em>，色弱也能分辨。</li>
+            <li><b>端口号做成等宽 chip</b>，带底色和描边。已连接时不必再找，「COM7 @ 4000000」是一个可直接读的对象。</li>
+            <li><b>监看数字 20 → 26px 并启用 tabular-nums</b>，变化时数字不跳位；非零值才点亮蓝色辉光，归零自动变暗。</li>
+            <li><b>四角刻线</b>：纯 1px 描边装饰，营造仪表质感，零额外颜色。</li>
+          </ul>
+        </div>
+        <div class="brief-col">
+          <h4>取舍</h4>
+          <ul>
+            <li>最保守、改动最小，直接落在现有 <code>DevicePanel.vue</code> / <code>MonitorPanel.vue</code> 的 scoped style 里。</li>
+            <li>不改字段顺序、不改交互逻辑，纯视觉层升级。</li>
+            <li>灯带占 3px 垂直空间，两张卡片共多占 6px，可忽略。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-col">
+        <span class="stage-cap">设备面板</span>
+        <div class="state-bar">
+          <button class="state-btn active" data-set-state="idle">未连接</button>
+          <button class="state-btn" data-set-state="live">已连接</button>
+          <button class="state-btn" data-set-state="warn">切换中</button>
+        </div>
+        <div class="panel s1-dev">
+          <div class="panel-hd">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="6" height="8" rx="1"/><rect x="9" y="4" width="6" height="8" rx="1"/></svg>
+            <span>双设备（鼠标机 / 键盘机）</span>
+            <button class="s1-refresh">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9"/><path d="M13.5 2v3h-3"/></svg>
+              刷新
+            </button>
+          </div>
+          <div class="panel-bd">
+            <div class="s1-hint">一台上游插鼠标、一台插键盘。角色可自动识别，也可手动指定</div>
+
+            <!-- 鼠标机卡片 -->
+            <div class="s1-card" data-state="idle">
+              <div class="s1-inner">
+                <div class="s1-head">
+                  <span class="badge" data-role="mouse">鼠标机</span>
+                  <span class="s1-stat only-idle"><span class="dot"></span>未连接</span>
+                  <span class="s1-stat only-on"><span class="dot"></span>已连接</span>
+                  <span class="s1-stat only-live" style="color:var(--state-warn)"><span class="dot"></span>切换中</span>
+                  <span class="s1-port only-on">COM7 @ 4000000</span>
+                </div>
+                <div class="only-idle">
+                  <div class="s1-row"><label>端口</label><select class="s1-ctl"><option>-- 选择端口 --</option></select></div>
+                  <div class="s1-row"><label>波特率</label><select class="s1-ctl mono"><option>0（自动）</option></select></div>
+                  <div class="s1-row"><label>角色</label><select class="s1-ctl"><option>自动</option></select></div>
+                </div>
+                <div class="only-on">
+                  <div class="s1-row"><label>上游</label><span class="s1-ctl" style="background:none;border:none;padding:0;color:var(--text-secondary)">YSC 8K Mouse&nbsp;&nbsp;1D50:615E</span></div>
+                  <div class="s1-row"><label>波特率</label><select class="s1-ctl mono"><option>4000000</option></select></div>
+                  <div class="s1-row"><label>角色</label><select class="s1-ctl"><option>鼠标机</option></select></div>
+                </div>
+                <div class="only-live">
+                  <div class="s1-row"><label>波特率</label><select class="s1-ctl mono" disabled><option>4000000</option></select><span class="s1-tag">切换中</span></div>
+                  <div class="s1-row"><label>角色</label><select class="s1-ctl" disabled><option>鼠标机</option></select></div>
+                </div>
+                <div class="s1-actions">
+                  <button class="blk primary only-idle" disabled>
+                    <span class="blk-ico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h2.5"/><path d="M10.5 11 14 8l-3.5-3"/><path d="M14 8H6.5"/></svg></span>
+                    <span class="blk-txt">连接<span class="blk-kbd">Enter</span></span>
+                  </button>
+                  <button class="blk primary only-on">
+                    <span class="blk-ico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h2.5"/><path d="M10.5 11 14 8l-3.5-3"/><path d="M14 8H6.5"/></svg></span>
+                    <span class="blk-txt">重新连接</span>
+                  </button>
+                  <!-- 切换中：连接动作锁定，但断开必须始终可用 —— 否则用户被困在
+                       一个几百毫秒的过渡态里没有任何退路（实测发现的缺陷）。 -->
+                  <button class="blk danger only-live" disabled>
+                    <span class="blk-ico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 3H12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H9.5"/><path d="M5.5 5 2 8l3.5 3"/><path d="M2 8h7.5"/></svg></span>
+                    <span class="blk-txt">断开中…</span>
+                  </button>
+                  <button class="blk danger only-idle">
+                    <span class="blk-ico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 3H12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H9.5"/><path d="M5.5 5 2 8l3.5 3"/><path d="M2 8h7.5"/></svg></span>
+                    <span class="blk-txt">断开</span>
+                  </button>
+                  <button class="blk danger only-on">
+                    <span class="blk-ico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 3H12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H9.5"/><path d="M5.5 5 2 8l3.5 3"/><path d="M2 8h7.5"/></svg></span>
+                    <span class="blk-txt">断开</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 键盘机卡片 -->
+            <div class="s1-card" data-state="idle">
+              <div class="s1-inner">
+                <div class="s1-head">
+                  <span class="badge" data-role="kbd">键盘机</span>
+                  <span class="s1-stat only-idle"><span class="dot"></span>未连接</span>
+                  <span class="s1-stat only-on"><span class="dot"></span>已连接</span>
+                  <span class="s1-port only-on">COM9 @ 4000000</span>
+                </div>
+                <div class="only-idle">
+                  <div class="s1-row"><label>端口</label><select class="s1-ctl"><option>-- 选择端口 --</option></select></div>
+                  <div class="s1-row"><label>波特率</label><select class="s1-ctl mono"><option>0（自动）</option></select></div>
+                  <div class="s1-row"><label>角色</label><select class="s1-ctl"><option>自动</option></select></div>
+                </div>
+                <div class="only-on">
+                  <div class="s1-row"><label>上游</label><span class="s1-ctl" style="background:none;border:none;padding:0;color:var(--text-secondary)">YSC 8K Kbd&nbsp;&nbsp;1D50:615F</span></div>
+                  <div class="s1-row"><label>波特率</label><select class="s1-ctl mono"><option>4000000</option></select></div>
+                  <div class="s1-row"><label>角色</label><select class="s1-ctl"><option>键盘机</option></select></div>
+                </div>
+                <div class="s1-actions">
+                  <!-- 键盘机卡片：断开按钮常驻（不挂 only-idle），
+                       切换中它是唯一退路，因此任何状态都必须可见。 -->
+                  <button class="blk danger">
+                    <span class="blk-ico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 3H12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H9.5"/><path d="M5.5 5 2 8l3.5 3"/><path d="M2 8h7.5"/></svg></span>
+                    <span class="blk-txt">断开</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="stage-col grow">
+        <span class="stage-cap">监看面板</span>
+        <div class="panel s1-mon">
+          <div class="panel-hd">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 12 4 7 7 9 10 4 15 4"/></svg>
+            <span>监控</span>
+            <button class="s3-btn" aria-pressed="false" style="margin-left:auto">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 3.5 12.5 8 5 12.5z" fill="currentColor" stroke="none"/></svg>
+              开始监控
+            </button>
+          </div>
+          <div class="s1-mongrid">
+            <div class="s1-cell hot">
+              <span class="s1-lab">鼠标机</span>
+              <span class="s1-val" style="font-size:19px">左键</span>
+              <span class="s1-unit">BUTTON</span>
+            </div>
+            <div class="s1-cell hot">
+              <span class="s1-lab">X</span>
+              <span class="s1-val">1</span>
+              <span class="s1-unit">COUNT</span>
+            </div>
+            <div class="s1-cell">
+              <span class="s1-lab">Y</span>
+              <span class="s1-val">0</span>
+              <span class="s1-unit">COUNT</span>
+            </div>
+          </div>
+          <div class="s1-kbd">
+            <div class="s1-kbd-hd">
+              <span class="s1-lab" style="margin:0">键盘机</span>
+              <span class="s1-live"><span class="pulse"></span>实时</span>
+              <span class="s1-up">12 键无冲</span>
+            </div>
+            <div class="s1-mongrid" style="padding:0">
+              <div class="s1-cell" style="padding:12px 8px">
+                <span class="s1-lab">修饰键</span>
+                <span class="s1-val" style="font-size:17px">LShift</span>
+              </div>
+              <div class="s1-cell" style="grid-column:span 2;padding:12px 8px">
+                <span class="s1-lab">按键</span>
+                <span class="s1-val" style="font-size:17px">W + A</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════
+       方案 B · 分段控件
+       ══════════════════════════════════════════════════════════ -->
+  <section class="scheme" data-scheme="2">
+    <div class="brief">
+      <div class="brief-head">
+        <span class="brief-id">方案 B</span>
+        <span class="brief-name">分段控件 Segmented</span>
+        <span class="brief-oneliner">连接 / 断开合成一个二选一分段控件；监看变成大号开关；参数行去掉输入框边框</span>
+      </div>
+      <div class="brief-cols">
+        <div class="brief-col">
+          <h4>按钮怎么改</h4>
+          <ul>
+            <li><b>把「连接」和「断开」合并成一个分段控件。</b>这是本方案的核心：断开一个本来就没连上的设备是无意义操作，所以用 <code>disabled</code> 让它在未连接时不可选 —— 从界面结构上就<b>消灭了误点</b>。</li>
+            <li><b>选中态用实心填充</b>，未选中态是纯文字。当前处于哪种状态，扫一眼就知道，不需要读文字。</li>
+            <li>分段控件整体嵌在 3px 内凹的 <code>--bg-input</code> 凹槽里，像物理拨档开关，与面板表面形成明确的层次。</li>
+            <li>选中「断开」时填充危险红，选中「连接」时填充品牌蓝 —— <b>同一种控件承载两种语义</b>，比两个不同按钮更省认知。</li>
+          </ul>
+        </div>
+        <div class="brief-col">
+          <h4>布局怎么改</h4>
+          <ul>
+            <li><b>参数行去边框化。</b>端口、波特率、角色从「输入框」变成「标签 ← → 值 ⌄」的右对齐行，整行可点。视觉噪音大幅下降，界面从「表单」变成「设置项」。</li>
+            <li><b>监看开关放进面板标题栏右侧</b>，用 38×20px 的滑动开关 + 文字状态。「开始监控」这个动作从此有明确的 on/off 语义，而不是一个悬空的文本框按钮。</li>
+            <li><b>监看改成仪表盘</b>：X / Y 两个大数字卡并排（30px），鼠标机 / 键盘机状态作为整宽卡片。数字大小直接反映信息主次。</li>
+            <li><b>归零自动降级</b>：值为 0 时数字变暗变灰，不占据视觉焦点。<span style="color:var(--text-ghost)">0 不该和 1 一样醒目。</span></li>
+          </ul>
+        </div>
+        <div class="brief-col">
+          <h4>取舍</h4>
+          <ul>
+            <li>交互概念有变化（按钮 → 分段），用户需要看懂一次，但之后误操作率最低。</li>
+            <li>分段控件把「不可用」表达为 disabled 选项，必须配 <code>title</code> 说明原因，否则用户会困惑「为什么点不动」。</li>
+            <li>适合把这套用到整个软件的其它板块，统一成同一套控件语言。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-col">
+        <span class="stage-cap">设备面板</span>
+        <div class="state-bar">
+          <button class="state-btn active" data-set-state="idle">未连接</button>
+          <button class="state-btn" data-set-state="live">已连接</button>
+          <button class="state-btn" data-set-state="warn">切换中</button>
+        </div>
+        <div class="panel s2-dev">
+          <div class="panel-hd">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="6" height="8" rx="1"/><rect x="9" y="4" width="6" height="8" rx="1"/></svg>
+            <span>双设备（鼠标机 / 键盘机）</span>
+            <button class="s1-refresh">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9"/><path d="M13.5 2v3h-3"/></svg>
+              刷新
+            </button>
+          </div>
+          <div class="panel-bd">
+            <div class="s1-hint">一台上游插鼠标、一台插键盘。角色可自动识别，也可手动指定</div>
+
+            <div class="s2-card" data-state="idle">
+              <div class="s2-head">
+                <span class="badge" data-role="mouse">鼠标机</span>
+                <span class="s1-stat only-idle" style="color:var(--text-dim)"><span class="dot"></span>未连接</span>
+                <span class="s1-stat only-on" style="color:var(--state-on)"><span class="dot"></span>已连接</span>
+                <span class="s1-port only-on">COM7 @ 4000000</span>
+              </div>
+              <div class="s2-grid">
+                <div class="s2-row" data-clickable="true">
+                  <label>端口</label>
+                  <button class="s2-val only-idle dim">-- 选择端口 -- <span class="chev">▾</span></button>
+                  <button class="s2-val only-on mono" style="color:var(--state-on)">COM7 <span class="chev">▾</span></button>
+                </div>
+                <div class="s2-sep"></div>
+                <div class="s2-row" data-clickable="true">
+                  <label>波特率</label>
+                  <button class="s2-val only-idle dim">0（自动） <span class="chev">▾</span></button>
+                  <button class="s2-val only-on mono">4000000 <span class="chev">▾</span></button>
+                </div>
+                <div class="s2-sep"></div>
+                <div class="s2-row" data-clickable="true">
+                  <label>角色</label>
+                  <button class="s2-val">自动 <span class="chev">▾</span></button>
+                </div>
+              </div>
+              <div class="s2-seg">
+                <button class="s2-opt active only-idle" data-kind="on">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h2.5"/><path d="M10.5 11 14 8l-3.5-3"/><path d="M14 8H6.5"/></svg>
+                  接入
+                </button>
+                <button class="s2-opt only-idle" disabled data-kind="off" title="端口未选择，无法执行拔出">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 3H12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H9.5"/><path d="M5.5 5 2 8l3.5 3"/><path d="M2 8h7.5"/></svg>
+                  拔出
+                </button>
+                <!-- 切换中：两个选项都锁住，但控件本身保留 —— 用户看到的是
+                     「档位存在、暂时推不动」，而不是控件凭空消失。 -->
+                <button class="s2-opt only-live" data-kind="on" disabled>
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h2.5"/><path d="M10.5 11 14 8l-3.5-3"/><path d="M14 8H6.5"/></svg>
+                  接入
+                </button>
+                <button class="s2-opt active only-live" data-kind="off" disabled>
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 3H12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H9.5"/><path d="M5.5 5 2 8l3.5 3"/><path d="M2 8h7.5"/></svg>
+                  拔出中…
+                </button>
+                <button class="s2-opt only-on" data-kind="on">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h2.5"/><path d="M10.5 11 14 8l-3.5-3"/><path d="M14 8H6.5"/></svg>
+                  接入
+                </button>
+                <button class="s2-opt active only-on" data-kind="off">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 3H12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H9.5"/><path d="M5.5 5 2 8l3.5 3"/><path d="M2 8h7.5"/></svg>
+                  拔出
+                </button>
+              </div>
+            </div>
+
+            <div class="s2-card" data-state="idle">
+              <div class="s2-head">
+                <span class="badge" data-role="kbd">键盘机</span>
+                <span class="s1-stat only-idle" style="color:var(--text-dim)"><span class="dot"></span>未连接</span>
+                <span class="s1-stat only-on" style="color:var(--state-on)"><span class="dot"></span>已连接</span>
+                <span class="s1-port only-on">COM9 @ 4000000</span>
+              </div>
+              <div class="s2-grid">
+                <div class="s2-row" data-clickable="true"><label>端口</label><button class="s2-val dim">-- 选择端口 -- <span class="chev">▾</span></button></div>
+                <div class="s2-sep"></div>
+                <div class="s2-row" data-clickable="true"><label>波特率</label><button class="s2-val dim">0（自动） <span class="chev">▾</span></button></div>
+                <div class="s2-sep"></div>
+                <div class="s2-row" data-clickable="true"><label>角色</label><button class="s2-val">自动 <span class="chev">▾</span></button></div>
+              </div>
+              <div class="s2-seg">
+                <button class="s2-opt active" data-kind="on" disabled title="端口未选择">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h2.5"/><path d="M10.5 11 14 8l-3.5-3"/><path d="M14 8H6.5"/></svg>
+                  接入
+                </button>
+                <button class="s2-opt" data-kind="off" disabled>拔出</button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="stage-col grow">
+        <span class="stage-cap">监看面板（开启后）</span>
+        <div class="panel s2-mon">
+          <div class="panel-hd">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 12 4 7 7 9 10 4 15 4"/></svg>
+            <span>监控</span>
+            <button class="s2-switch" aria-pressed="true" onclick="this.setAttribute('aria-pressed', this.getAttribute('aria-pressed')==='true'?'false':'true')">
+              <span>监控中</span>
+              <span class="sw-track"><span class="sw-knob"></span></span>
+            </button>
+          </div>
+          <div class="s2-mongrid">
+            <div class="s2-dash">
+              <div class="s2-tile hot">
+                <span class="tl">X · COUNT</span>
+                <span class="tv">128</span>
+                <span class="ts">累计位移</span>
+              </div>
+              <div class="s2-tile" data-zero="true">
+                <span class="tl">Y · COUNT</span>
+                <span class="tv">0</span>
+                <span class="ts">累计位移</span>
+              </div>
+              <div class="s2-tile wide hot">
+                <span class="tl">MOUSE · BUTTONS</span>
+                <span class="tv">左键 + 右键</span>
+                <span class="ts">鼠标机</span>
+              </div>
+            </div>
+            <div class="s2-kbd">
+              <div class="s2-kv"><span class="k">键盘机</span><span class="v" style="color:var(--state-on)">实时</span></div>
+              <div class="s2-kv"><span class="k">修饰键</span><span class="v">LShift</span></div>
+              <div class="s2-kv"><span class="k">按键</span><span class="v">W + A</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════
+       方案 C · 金属层叠
+       ══════════════════════════════════════════════════════════ -->
+  <section class="scheme" data-scheme="3">
+    <div class="brief">
+      <div class="brief-head">
+        <span class="brief-id">方案 C</span>
+        <span class="brief-name">金属层叠 Tactile</span>
+        <span class="brief-oneliner">按钮做成有厚度、会下沉的实体按键；连接状态变成呼吸的环形灯</span>
+      </div>
+      <div class="brief-cols">
+        <div class="brief-col">
+          <h4>按钮怎么改</h4>
+          <ul>
+            <li><b>用光影而不是颜色做「高端感」。</b>主按钮叠了四层：顶部 1px 白色内高光、底部 2px 暗内阴影、外投影、hover 辉光。这是实体按键的物理特征，配色一个没加。</li>
+            <li><b>按下时真的会下沉。</b><code>translateY(2px)</code> + 内阴影加深，90ms 极短过渡 —— 手感来自位移，不来自变色。</li>
+            <li><b>危险键默认极度克制</b>：一层几乎看不见的红底 + 红描边。只有鼠标悬停时才整颗变红。静态界面里不再有刺眼的红色警报。</li>
+            <li>留了 <code>.ghost</code> 第三档实体键，用于「刷新」这类次要动作用同样的物理语言，三种权重同源。</li>
+          </ul>
+        </div>
+        <div class="brief-col">
+          <h4>状态怎么改</h4>
+          <ul>
+            <li><b>环形状态灯</b>替代文字状态：外圈 30px 环 + 内芯圆点。未连接 = 灰环 50% 透明；已连接 = 绿环 + 辉光 + 内芯呼吸；切换中 = 琥珀环 + 内芯旋转。</li>
+            <li><b>三重冗余</b>：环的形状（有/无辉光）、颜色、旁边的文字副标题，任何一种通道都能独立表达状态。</li>
+            <li><b>端口信息竖排右下角</b>，等宽字体，端口号和波特率分行 —— 已连接时它是最重要的信息，给它独立的位置。</li>
+            <li><b>监看用「表盘」</b>：径向渐变做钟表玻璃的反光，数字 28px + 蓝色辉光。三个表盘，有值的亮、无值的暗。</li>
+          </ul>
+        </div>
+        <div class="brief-col">
+          <h4>取舍</h4>
+          <ul>
+            <li>视觉最「贵」，与截图现有配色结合后整体质感提升最明显。</li>
+            <li>多层阴影 + 辉光在低端集显上略费一点 GPU，但都是 <code>box-shadow</code>/<code>transform</code>，可走合成层，实测无压力。</li>
+            <li>动画仅用 transform + opacity，且全部 &lt; 220ms，符合 400ms 反馈阈值。</li>
+            <li>需要同时提供 <code>prefers-reduced-motion</code> 降级分支。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-col">
+        <span class="stage-cap">设备面板</span>
+        <div class="state-bar">
+          <button class="state-btn active" data-set-state="idle">未连接</button>
+          <button class="state-btn" data-set-state="live">已连接</button>
+          <button class="state-btn" data-set-state="warn">切换中</button>
+        </div>
+        <div class="panel s3-dev">
+          <div class="panel-hd">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="6" height="8" rx="1"/><rect x="9" y="4" width="6" height="8" rx="1"/></svg>
+            <span>双设备（鼠标机 / 键盘机）</span>
+            <button class="tactile ghost" style="height:24px;padding:0 10px;font-size:var(--fs-body);margin-left:auto">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9"/><path d="M13.5 2v3h-3"/></svg>
+              刷新
+            </button>
+          </div>
+          <div class="panel-bd">
+            <div class="s1-hint">一台上游插鼠标、一台插键盘。角色可自动识别，也可手动指定</div>
+
+            <div class="s3-card" data-state="idle">
+              <div class="s3-head">
+                <span class="s3-ring"></span>
+                <span class="s3-title">
+                  <span class="s3-name">鼠标机</span>
+                  <span class="s3-sub only-idle">未连接 · 等待选择端口</span>
+                  <span class="s3-sub only-on" style="color:var(--state-on)">已连接 · 链路正常</span>
+                  <span class="s3-sub only-live" style="color:var(--state-warn)">正在切换波特率…</span>
+                </span>
+                <span class="s3-port only-on"><span class="p">COM7</span><span class="b">4000000</span></span>
+              </div>
+              <div class="only-idle">
+                <div class="s3-row"><label>端口</label><select class="s3-ctl"><option>-- 选择端口 --</option></select></div>
+                <div class="s3-row"><label>波特率</label><select class="s3-ctl mono"><option>0（自动）</option></select></div>
+                <div class="s3-row"><label>角色</label><select class="s3-ctl"><option>自动</option></select></div>
+              </div>
+              <div class="only-on">
+                <div class="s3-row"><label>上游</label><span class="s3-ctl" style="background:none;border:none;box-shadow:none;padding:0;color:var(--text-secondary);font-size:var(--fs-body)">YSC 8K Mouse · 1D50:615E</span></div>
+                <div class="s3-row"><label>波特率</label><select class="s3-ctl mono"><option>4000000</option></select></div>
+                <div class="s3-row"><label>角色</label><select class="s3-ctl"><option>鼠标机</option></select></div>
+              </div>
+              <div class="only-live">
+                <div class="s3-row"><label>波特率</label><select class="s3-ctl mono" disabled><option>4000000</option></select><span class="s1-tag">切换中</span></div>
+                <div class="s3-row"><label>角色</label><select class="s3-ctl" disabled><option>鼠标机</option></select></div>
+              </div>
+              <div class="s3-actions">
+                <button class="tactile go only-idle" disabled>
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h2.5"/><path d="M10.5 11 14 8l-3.5-3"/><path d="M14 8H6.5"/></svg>
+                  连接
+                </button>
+                <button class="tactile go only-on">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h2.5"/><path d="M10.5 11 14 8l-3.5-3"/><path d="M14 8H6.5"/></svg>
+                  重新连接
+                </button>
+                <button class="tactile stop only-idle">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 3H12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H9.5"/><path d="M5.5 5 2 8l3.5 3"/><path d="M2 8h7.5"/></svg>
+                  断开
+                </button>
+                <button class="tactile stop only-live" disabled>
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 3H12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H9.5"/><path d="M5.5 5 2 8l3.5 3"/><path d="M2 8h7.5"/></svg>
+                  断开中…
+                </button>
+                <button class="tactile stop only-on">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 3H12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H9.5"/><path d="M5.5 5 2 8l3.5 3"/><path d="M2 8h7.5"/></svg>
+                  断开
+                </button>
+              </div>
+            </div>
+
+            <div class="s3-card" data-state="idle">
+              <div class="s3-head">
+                <span class="s3-ring"></span>
+                <span class="s3-title">
+                  <span class="s3-name">键盘机</span>
+                  <span class="s3-sub only-idle">未连接 · 等待选择端口</span>
+                  <span class="s3-sub only-on" style="color:var(--state-on)">已连接 · 链路正常</span>
+                </span>
+                <span class="s3-port only-on"><span class="p">COM9</span><span class="b">4000000</span></span>
+              </div>
+              <div class="s3-row"><label>端口</label><select class="s3-ctl"><option>-- 选择端口 --</option></select></div>
+              <div class="s3-row"><label>波特率</label><select class="s3-ctl mono"><option>0（自动）</option></select></div>
+              <div class="s3-row"><label>角色</label><select class="s3-ctl"><option>自动</option></select></div>
+              <div class="s3-actions">
+                <button class="tactile stop only-idle">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 3H12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H9.5"/><path d="M5.5 5 2 8l3.5 3"/><path d="M2 8h7.5"/></svg>
+                  断开
+                </button>
+                <!-- 切换中：断开被锁住但也必须显示 —— 让用户知道「退路还在，只是要等」，
+                     而不是按钮凭空消失、让人以为界面卡死了。 -->
+                <button class="tactile stop only-live" disabled>
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 3H12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H9.5"/><path d="M5.5 5 2 8l3.5 3"/><path d="M2 8h7.5"/></svg>
+                  断开中…
+                </button>
+                <button class="tactile stop only-on">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 3H12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H9.5"/><path d="M5.5 5 2 8l3.5 3"/><path d="M2 8h7.5"/></svg>
+                  断开
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="stage-col grow">
+        <span class="stage-cap">监看面板</span>
+        <div class="panel s3-mon">
+          <div class="panel-hd">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 12 4 7 7 9 10 4 15 4"/></svg>
+            <span>监控</span>
+            <button class="s3-btn" aria-pressed="true" onclick="this.setAttribute('aria-pressed', this.getAttribute('aria-pressed')==='true'?'false':'true')">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4.5" y="4.5" width="7" height="7" rx="1" fill="currentColor" stroke="none"/></svg>
+              停止监控
+            </button>
+          </div>
+          <div class="s3-dial">
+            <div class="s3-gauge hot">
+              <span class="gl">X</span>
+              <span class="gv">128</span>
+            </div>
+            <div class="s3-gauge">
+              <span class="gl">Y</span>
+              <span class="gv">0</span>
+            </div>
+            <div class="s3-gauge hot">
+              <span class="gl">BTN</span>
+              <span class="gv" style="font-size:18px">左键</span>
+            </div>
+          </div>
+          <div class="s2-kbd">
+            <div class="s2-kv"><span class="k">键盘机</span><span class="v" style="color:var(--state-on)">● 实时</span></div>
+            <div class="s2-kv"><span class="k">修饰键</span><span class="v">LShift</span></div>
+            <div class="s2-kv"><span class="k">按键</span><span class="v">W + A</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════
+       方案 D · 控制台
+       ══════════════════════════════════════════════════════════ -->
+  <section class="scheme" data-scheme="4">
+    <div class="brief">
+      <div class="brief-head">
+        <span class="brief-id">方案 D</span>
+        <span class="brief-name">控制台 Console</span>
+        <span class="brief-oneliner">两台设备收进标签页，参数改成等宽表格，按钮做成左对齐的命令条</span>
+      </div>
+      <div class="brief-cols">
+        <div class="brief-col">
+          <h4>布局怎么改</h4>
+          <ul>
+            <li><b>两台设备改成标签页。</b>集火场景下用户绝大多数时间只关心<b>其中一台</b>（正在出问题的那台）。标签页让每次只看一台，另一台的连接状态由标签上的小圆点持续告知 —— 不丢失全局感知。</li>
+            <li><b>垂直空间立刻省下一半</b>，腾出来的位置可以放设备详情或日志，也为以后加第三台设备留了余地。</li>
+            <li><b>参数改成等宽表格</b>：左列 <code>PORT</code> / <code>BAUD</code> / <code>ROLE</code> 大写小字号，右列右对齐等宽值。所有值的起始位置在垂直方向严格对齐，<b>扫读一列值比扫读一堆输入框快得多</b>。</li>
+          </ul>
+        </div>
+        <div class="brief-col">
+          <h4>按钮怎么改</h4>
+          <ul>
+            <li><b>命令条形态</b>：33px 高，左对齐（不是居中的胶囊），左边缘一条 2px 强调色的「命令脊」，右侧带快捷键角标。</li>
+            <li><b>左对齐 + 图标</b>让按钮读起来像一条可执行的指令，而不是一个装饰块 —— 与整个界面的工程工具气质一致。</li>
+            <li><b>快捷键角标</b>是真实功能：<code>Enter</code> 连接、<code>Esc</code> 断开。集火调试时高频切换，键盘操作省掉精确瞄准小按钮的动作。</li>
+            <li>禁用态保留命令条的骨架（脊和角标还在），只降低整体对比度 —— 用户仍能看出「这里有个连接命令」，只是现在执行不了。</li>
+          </ul>
+        </div>
+        <div class="brief-col">
+          <h4>监看怎么改</h4>
+          <ul>
+            <li><b>日志式读数</b>：每行「键 ← → 值」，等宽右对齐，值域用 <code>tabular-nums</code>。数字变化时不会左右抖动。</li>
+            <li>X / Y 用 26px 大字单独成行，其余信息小字，<b>主次分明</b>。</li>
+            <li>状态行用 <code>●</code> + 等宽文字，与命令行提示符同构。</li>
+            <li>这套排版天生适合「截图发群里排查」，信息密度高且对齐整齐。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-col">
+        <span class="stage-cap">设备面板</span>
+        <div class="panel s4-dev">
+          <div class="panel-hd">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="6" height="8" rx="1"/><rect x="9" y="4" width="6" height="8" rx="1"/></svg>
+            <span>双设备（鼠标机 / 键盘机）</span>
+            <button class="cmd" style="flex:0 0 auto;height:22px;padding:0 9px;font-size:var(--fs-cell);margin-left:auto;border-radius:var(--r-sm)">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9"/><path d="M13.5 2v3h-3"/></svg>
+              刷新
+            </button>
+          </div>
+          <div class="panel-bd" style="padding:0">
+            <div class="s4-tabs">
+              <button class="s4-tab active" data-state="live"><span class="tdot"></span>鼠标机</button>
+              <button class="s4-tab" data-state="idle"><span class="tdot"></span>键盘机</button>
+            </div>
+            <div class="s4-body">
+              <table class="s4-tbl">
+                <tr><td class="k">PORT</td><td class="v"><select class="s4-field"><option>COM7</option></select></td></tr>
+                <tr><td class="k">BAUD</td><td class="v"><select class="s4-field"><option>4000000</option></select></td></tr>
+                <tr><td class="k">ROLE</td><td class="v"><select class="s4-field"><option>鼠标机</option></select></td></tr>
+                <tr><td class="k">UPSTREAM</td><td class="v"><span class="s4-txt">1D50:615E</span></td></tr>
+                <tr><td class="k">LINK</td><td class="v"><span class="s4-status" data-on="true"><span class="d"></span>已连接</span></td></tr>
+              </table>
+              <div class="s4-cmds">
+                <button class="cmd go">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h2.5"/><path d="M10.5 11 14 8l-3.5-3"/><path d="M14 8H6.5"/></svg>
+                  <span class="cmd-t">重新连接</span>
+                  <span class="cmd-k">Enter</span>
+                </button>
+                <button class="cmd stop">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 3H12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H9.5"/><path d="M5.5 5 2 8l3.5 3"/><path d="M2 8h7.5"/></svg>
+                  <span class="cmd-t">断开</span>
+                  <span class="cmd-k">Esc</span>
+                </button>
+              </div>
+              <div style="margin-top:14px">
+                <div style="font-size:var(--fs-cell);letter-spacing:.1em;color:var(--text-ghost);font-weight:700;margin-bottom:6px">未连接时的样子</div>
+                <table class="s4-tbl">
+                  <tr><td class="k">PORT</td><td class="v"><select class="s4-field" style="color:var(--text-dim)"><option>-- 选择端口 --</option></select></td></tr>
+                  <tr><td class="k">BAUD</td><td class="v"><select class="s4-field"><option>0（自动）</option></select></td></tr>
+                  <tr><td class="k">ROLE</td><td class="v"><select class="s4-field"><option>自动</option></select></td></tr>
+                  <tr><td class="k">LINK</td><td class="v"><span class="s4-status" data-on="false"><span class="d"></span>未连接</span></td></tr>
+                </table>
+                <div class="s4-cmds">
+                  <button class="cmd go" disabled>
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h2.5"/><path d="M10.5 11 14 8l-3.5-3"/><path d="M14 8H6.5"/></svg>
+                    <span class="cmd-t">连接</span>
+                    <span class="cmd-k">Enter</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="stage-col grow">
+        <span class="stage-cap">监看面板</span>
+        <div class="panel s4-mon">
+          <div class="panel-hd">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 12 4 7 7 9 10 4 15 4"/></svg>
+            <span>监控</span>
+            <button class="cmd go" style="flex:0 0 auto;height:24px;padding:0 10px;font-size:var(--fs-body);margin-left:auto;border-radius:var(--r-sm)">
+              <span class="cmd-t">开始监控</span>
+            </button>
+          </div>
+          <div class="s4-readout">
+            <div class="s4-line big"><span class="hk">X</span><span class="hv hot">128</span></div>
+            <div class="s4-line big"><span class="hk">Y</span><span class="hv zero">0</span></div>
+            <div class="s4-line"><span class="hk">BUTTON</span><span class="hv hot">左键</span></div>
+            <div class="s4-line"><span class="hk">KBD · MOD</span><span class="hv">LShift</span></div>
+            <div class="s4-line"><span class="hk">KBD · KEY</span><span class="hv">W + A</span></div>
+            <div class="s4-line"><span class="hk">KBD · LINK</span><span class="hv" style="color:var(--state-on)">● 实时</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="foot">
+    <p style="margin:0 0 10px;padding:12px 14px;background:rgba(74,222,128,.10);border:1px solid rgba(74,222,128,.35);border-radius:8px;color:var(--text-secondary);line-height:1.8">
+      <b style="color:var(--state-on)">✅ 已落地：方案 B（分段控件）</b><br />
+      实现位置：<code>ysc_8k_electron/src/renderer/components/DevicePanel.vue</code>、
+      <code>MonitorPanel.vue</code>，i18n 键已同步 <code>zh.js</code> / <code>en.js</code>。<br />
+      <b>注意：本页的方案 B 预览用了蓝/紫品牌色，但实际落地时按你的要求保留了原配色</b>
+      （强调色仍是 <code>#4ade80</code> 绿）。也就是说 —— 拿的是方案 B 的<b>结构、控件形态与交互</b>，
+      不是它的配色。<code>palette.css</code> 仅作为设计过程记录保留，未应用到产品代码。
+    </p>
+    <b>配色说明：</b>页面所有颜色均来自 <code>palette.css</code> 的变量，取自你实机截图（品牌蓝 #4f6dff / 品牌紫 #8b5cf6 / 已连接 #4ade80 / 进行中 #ffd45c / 断开 #f0616d）。
+    当前产品代码仍使用原有配色（<code>tokens.css</code> 未改动）。<br />
+    <b>无障碍：</b>四套方案的状态表达均采用「颜色 + 形状/图标 + 文字」三重通道，不依赖单一颜色；主按钮命中高度均 ≥ 34px；所有动画仅使用 <code>transform</code>/<code>opacity</code>，时长 ≤ 220ms。
+  </div>
+
+</div>
+
+<script>
+// ── 方案切换 ────────────────────────────────────────────────
+document.querySelectorAll('.scheme-tab').forEach(function (tab) {
+  tab.addEventListener('click', function () {
+    var id = tab.getAttribute('data-scheme');
+    document.querySelectorAll('.scheme-tab').forEach(function (t) { t.classList.remove('active'); });
+    document.querySelectorAll('.scheme').forEach(function (s) { s.classList.remove('show'); });
+    tab.classList.add('active');
+    document.querySelector('.scheme[data-scheme="' + id + '"]').classList.add('show');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+});
+
+// ── 设备状态切换（每个 stage 的 state-bar 控制同列卡片）──────
+document.querySelectorAll('.state-bar').forEach(function (bar) {
+  var col = bar.parentElement;
+  bar.querySelectorAll('.state-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var st = btn.getAttribute('data-set-state');
+      bar.querySelectorAll('.state-btn').forEach(function (b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      col.querySelectorAll('[data-state]').forEach(function (el) {
+        if (el.classList.contains('s4-tab')) return; // 标签页自身状态不由这里控制
+        el.setAttribute('data-state', st);
+      });
+    });
+  });
+});
+</script>
+</body>
+</html>

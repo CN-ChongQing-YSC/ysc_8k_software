@@ -21,7 +21,19 @@ public:
     static bool SendMouseMove(int32_t x, int32_t y, int steps, DeviceRole role);
     static bool SendMoveTow(int32_t x, int32_t y, int steps, DeviceRole role);
     static bool SendMouseButton(uint8_t button_mask, bool pressed, DeviceRole role);
-    static bool SendMouseWheel(int32_t wheel);
+    /* 整份按键位图覆盖（固件 cmd 61）：kmboxnet 的 mouse_left/right/middle/
+     * side1/side2/mouse_all 都是"全量状态"语义，用它一次下发最省事也最稳
+     * （不必在驱动里维护影子状态，也就不会出现粘键）。 */
+    static bool SendMouseButtonMask(uint8_t button_mask, DeviceRole role);
+    /* 一次性滚轮（固件 cmd 42，下一帧报告带一次后清零）。kmboxnet 的
+     * kmNet_mouse_wheel()/mouse_all() 是"一次滚 N 格"，不能用 cmd 35 的 hold
+     * （hold 会按回报率重复发，8K 下一毫秒就是 8 格）。 */
+    static bool SendMouseWheel(int32_t wheel, DeviceRole role);
+    /* 物理屏蔽位图（固件 cmd 60）：bit0..4 按键，bit5 X，bit6 Y，bit7 滚轮；
+     * mask=0 解除全部。kmboxnet 的 mask_mouse_* / unmask_all 落到这里。 */
+    static bool SendMouseMask(uint8_t mask, DeviceRole role);
+    /* 盒子软重启（固件 cmd 57）。kmboxnet 的 kmNet_reboot()。 */
+    static bool SendReboot(DeviceRole role);
     /* kmboxnet 的 CMD_KEYBOARD_ALL 是"整份键盘状态"语义，内部做状态差分后
      * 转成固件 cmd 45 的单键按下/释放。 */
     static bool SendKeyboard(uint8_t ctrl, const uint8_t keys[10]);

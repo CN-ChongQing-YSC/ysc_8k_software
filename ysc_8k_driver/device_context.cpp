@@ -292,11 +292,18 @@ int DeviceContext::SlotByRole(int role) {
         for (int i = 0; i < DEV_MAX_SLOTS; i++)
             if (s_slots[i].connected && s_slots[i].role == role) return i;
     }
-    // 单设备兼容：没有任何设备声明该角色时退回第一个已连接设备，
-    // 这样"只有一台设备、命令不带设备维度"的旧用法行为完全不变。
-    for (int i = 0; i < DEV_MAX_SLOTS; i++)
-        if (s_slots[i].connected) return i;
-    return -1;
+    /* 单设备兼容 / 未指定角色：解析到"第一个已连接设备"。
+     *   role == DEV_ROLE_NONE —— 调用方本来就没有设备偏好（如 UI 的 raw 命令），
+     *   沿用旧行为；
+     *   两台都连着、且**明确要的角色**又没被指定 —— 返回 -1 拒绝，绝不退回 slot 0：
+     *   那会把键盘命令静默发到鼠标盒（固件回 404 no_keyboard，调用方却看到成功）。
+     *   集火场景下角色由用户在设备面板里指定（device_set_role → SetRole）。 */
+    int only = -1, n = 0;
+    for (int i = 0; i < DEV_MAX_SLOTS; i++) {
+        if (s_slots[i].connected) { n++; only = i; }
+    }
+    if (role == DEV_ROLE_NONE) return only;
+    return (n == 1) ? only : -1;
 }
 
 SerialPort *DeviceContext::SerialForRole(int role) {

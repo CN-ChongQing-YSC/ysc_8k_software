@@ -1,0 +1,125 @@
+/* ════════════════════════════════════════════════════════════════
+ * palette.css —— 配色基线（四套方案共用，锁定不变）
+ *
+ * 用途：这是从用户实机截图 YSC 8K 驱动 v1.14.0 提取的蓝/紫配色。
+ *       四套布局方案全部只能引用这里的变量，不得自造颜色。
+ *       落地到 Vue 时，本文件的内容原样并回
+ *       packages/ysc-core/src/ui/tokens.css 即可。
+ *
+ * 与当前仓库 tokens.css 的差异（重要）：
+ *   仓库现值是 Wooting 墨绿 #4ADE80 + 琥珀 #FFD45C，注释明确「无蓝色品牌色」。
+ *   本基线按用户截图改回蓝/紫，属于一次有意的配色回退，需要同步修改
+ *   tokens.css 中 --accent / --accent-blue / --btn-primary-bg 等取值。
+ * ════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── 背景层级（由深到浅）──────────────────────────────────
+     画布带轻微蓝调，面板比画布更深 —— 与截图一致。 */
+  --bg-deepest: #0f1420;   /* 最底：导航空槽 / 下沉凹槽 */
+  --bg-canvas: #141a26;    /* 主画布 body */
+  --bg-panel: #1a212f;     /* 面板 / 卡片 */
+  --bg-elevated: #212837;  /* 抬升：面板标题条 / hover */
+  --bg-input: #0d121c;     /* 输入框 / 凹槽（最深） */
+  --bg-inset: rgba(0, 0, 0, 0.28);
+
+  /* ── 文字 ──────────────────────────────────────────────────
+     中性色阶全部按 WCAG AA 实测校准（对三种表面取最差值）：
+       表面 panel #1a212f / input #0d121c / elevated #212837
+     规则（单一真相源，符号文本必须按此选 token）：
+
+       token            用途                        对 elevated 对比度
+       --text-secondary 正文 / 主要可读值               8.24  ✓
+       --text-muted     次要标签、字段名                4.89  ✓
+       --text-dim       三级标注、单位、辅助说明         4.53  ✓
+       --text-disabled  锁定/禁用控件                   4.07  （WCAG 1.4.3 豁免）
+       --text-ghost     纯装饰（刻度、占位符）——         1.79  ✗ 不承载信息
+
+     ⚠ --text-ghost 只允许用于零信息量的装饰。任何用户需要
+       读到的文字，最低用 --text-dim。原先误用 ghost 的地方已全部改掉。 */
+  --text-primary: rgba(255, 255, 255, 0.94);
+  --text-heading: #e9edf5;
+  --text-secondary: #b9c2d4;
+  --text-muted: #8b95a8;
+  --text-dim: #949eb2;
+  /* 禁用控件文字：WCAG 1.4.3 豁免非活动控件，但豁免不等于该看不见。
+     实测旧值对禁用底仅 1.70:1 —— 按钮会整块消失。
+     #8b96ab 对四种实际合成底为 5.16 / 5.41 / 6.29 / 4.77，全部 ≥4.5，
+     与可用按钮同一可读档位，仅靠亮度差 + 虚线描边表达「不可用」。 */
+  --text-disabled: #8b96ab;
+  --text-ghost: #5a6373;
+
+  /* ── 边框（半透明白细线 —— 与现仓库手法一致）───────────── */
+  --border: rgba(255, 255, 255, 0.10);
+  --border-soft: rgba(255, 255, 255, 0.06);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --border-focus: rgba(110, 140, 255, 0.55);
+
+  /* ── 品牌色：蓝 → 紫（截图导航渐变）─────────────────────── */
+  --brand-blue: #4f6dff;
+  --brand-blue-hi: #6b86ff;   /* 渐变亮端 / hover 填充 —— 只用于底，不用于文字 */
+  --brand-blue-lo: #3d55d6;   /* pressed */
+  --brand-violet: #8b5cf6;
+  --brand-ink: #eef0ff;       /* 蓝底上的文字 */
+
+  /* 品牌色的「文字版」：用于深色底上的彩色文字与图标。
+     原色 #4f6dff / #8b5cf6 在深底上只有 3.2~4.1:1，达不到 AA。
+     浅化后保持同一色相（视觉上仍是那个蓝/紫），只提亮度：
+       --brand-blue-text #7d97ff → 对面板 6.68 / 对徽标底 4.94
+       --brand-violet-text #b9a3ff → 对面板 6.14 / 对徽标底 6.24 */
+  --brand-blue-text: #7d97ff;
+  --brand-violet-text: #b9a3ff;
+
+  --grad-brand: linear-gradient(135deg, var(--brand-blue) 0%, var(--brand-violet) 100%);
+  --grad-brand-soft: linear-gradient(180deg, rgba(79, 109, 255, 0.18), rgba(139, 92, 246, 0.10));
+
+  /* ── 语义色（截图里的绿 / 琥珀 / 红，保持不变）──────────── */
+  --state-on: #4ade80;        /* 已连接 / 成功 */
+  --state-on-ink: #0b2016;
+  --state-warn: #ffd45c;      /* 进行中 / 注意 */
+  --state-warn-ink: #241c05;
+  --state-danger: #f0616d;    /* 断开 / 危险 */
+  --state-idle: #6b7688;      /* 未连接 / 空闲 */
+
+  /* 语义色低饱和底（用于药丸、灯带） */
+  --on-bg: rgba(74, 222, 128, 0.14);
+  --warn-bg: rgba(255, 212, 92, 0.14);
+  --danger-bg: rgba(240, 97, 109, 0.14);
+  --idle-bg: rgba(255, 255, 255, 0.05);
+
+  /* ── 导航渐变（左侧栏 / 激活态）─────────────────────────── */
+  --rail-bg: linear-gradient(170deg, #4a5cf0 0%, #5548e8 42%, #3d2f9e 100%);
+  --rail-icon: rgba(255, 255, 255, 0.62);
+  --rail-icon-active: #ffffff;
+  --rail-active-bg: rgba(255, 255, 255, 0.18);
+
+  /* ── 圆角 / 间距 / 字体 ──────────────────────────────────── */
+  --r-panel: 8px;
+  --r-btn: 6px;
+  --r-sm: 4px;
+  --r-pill: 999px;
+
+  --font-ui: "Nunito Sans", ui-sans-serif, system-ui, -apple-system,
+             "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI",
+             "PingFang SC", Roboto, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", "JetBrains Mono",
+               "Source Code Pro", Consolas, monospace;
+
+  /* 字号阶梯：base 13px / 比率 1.25（Major Third）
+     13 → 16 → 20 向上，13 → 10.5 向下。每屏最多 4 档。 */
+  --fs-cell: 10.5px;   /* ms(-1) 角标 / 单位 */
+  --fs-label: 11px;    /* ms(-0.5) 次要标签 */
+  --fs-body: 12px;     /* ms(0)-  控件内文字 */
+  --fs-body-l: 13px;   /* ms(0)  正文 */
+  --fs-title: 13px;    /* 面板标题 */
+  --fs-num: 20px;      /* ms(2)  仪表数字 */
+
+  /* ── 阴影（层级感靠它，不靠新颜色）─────────────────────── */
+  --shadow-panel: 0 8px 24px -12px rgba(0, 0, 0, 0.75);
+  --shadow-raised: 0 2px 6px rgba(0, 0, 0, 0.45);
+  --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --glow-blue: 0 0 0 1px rgba(79, 109, 255, 0.45), 0 6px 18px -6px rgba(79, 109, 255, 0.55);
+  --glow-on: 0 0 0 1px rgba(74, 222, 128, 0.45), 0 6px 18px -6px rgba(74, 222, 128, 0.5);
+
+  --t-fast: 150ms ease;
+  --t-base: 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}

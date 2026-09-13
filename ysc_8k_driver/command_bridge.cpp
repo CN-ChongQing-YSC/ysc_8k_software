@@ -16,13 +16,21 @@ void CommandBridge::Init(SerialPort *serial) {
 /* 按"命令属于哪台设备"解析目标串口。优先级：
  *   1) DeviceContext 里按角色匹配且已连接的设备 —— 双设备场景的正解
  *      （鼠标命令发鼠标机、键盘命令发键盘机，调用方无需知道设备存在）；
- *   2) DeviceContext 中第一个已连接设备 —— 单设备/角色未知时的兜底；
- *   3) s_serial 遗留单例 —— 尚未走 DeviceContext 的旧路径。
- * 这样单设备用法行为完全不变，双设备时自动分流。 */
+ *   2) DeviceContext 里**只有一台**已连接设备时，任何角色都解析到它 ——
+ *      单设备/角色未指定时的旧用法零回归；
+ *   3) s_serial 遗留单例 —— 仅当 DeviceContext 一台都没连（老 UI 的串口直连）。
+ * 注意 2) 只在"只有一台"时成立：两台都连着而角色又没指定时**必须返回 nullptr**，
+ * 否则键盘命令会静默发到鼠标盒（固件回 404 no_keyboard，调用方却以为成功）。 */
 SerialPort *CommandBridge::Resolve(DeviceRole role) {
     SerialPort *sp = DeviceContext::SerialForRole((int)role);
     if (sp && sp->IsConnected()) return sp;
-    if (s_serial && s_serial->IsConnected()) return s_serial;
+
+    int connected = 0;
+    for (int i = 0; i < DEV_MAX_SLOTS; i++) {
+        DeviceSlot *d = DeviceContext::Get(i);
+        if (d && d->connected) connected++;
+    }
+    if (connected == 0 && s_serial && s_serial->IsConnected()) return s_serial;
     return nullptr;
 }
 
@@ -56,10 +64,45 @@ bool CommandBridge::SendMouseButton(uint8_t button_mask, bool pressed, DeviceRol
     return sp->SendJsonCommand(json);
 }
 
-bool CommandBridge::SendMouseWheel(int32_t wheel) {
-    // Firmware has no dedicated wheel command; acknowledge silently
-    (void)wheel;
-    return true;
+bool CommandBridge::SendMouseButtonMask(uint8_t button_mask, DeviceRole __role) {
+    SerialPort *sp = Resolve(__role); if (!sp) return false;
+    char json[48];
+    snprintf(json, sizeof(json), "{\"cmd\":61,\"b\":%u}", (unsigned)button_mask);
+    DebugLog("TX serial: %s", json);
+    DebugLogger::Log("TX serial: %s", json);
+    return sp->SendJsonCommand(json);
+}
+
+bool CommandBridge::SendMouseWheel(int32_t wheel, DeviceRole __role) {
+    SerialPort *sp = Resolve(__role); if (!sp) return false;
+    /* 固件 cmd 42：一次性滚轮（下一帧 HID 报告带一次后清零）。HID 滚轮字段是
+     * int8，超范围先夹住。wheel==0 不发（省一次串口往返）。 */
+    if (wheel > 127) wheel = 127;
+    else if (wheel < -127) wheel = -127;
+    if (wheel == 0) return true;
+    char json[48];
+    snprintf(json, sizeof(json), "{\"cmd\":42,\"w\":%d}", (int)wheel);
+    DebugLog("TX serial: %s", json);
+    DebugLogger::Log("TX serial: %s", json);
+    return sp->SendJsonCommand(json);
+}
+
+bool CommandBridge::SendMouseMask(uint8_t mask, DeviceRole __role) {
+    SerialPort *sp = Resolve(__role); if (!sp) return false;
+    /* 固件 cmd 60：物理屏蔽位图，mask=0 即解除全部。
+     * bit0..4 = 左/右/中/侧1/侧2，bit5 = X，bit6 = Y，bit7 = 滚轮。 */
+    char json[48];
+    snprintf(json, sizeof(json), "{\"cmd\":60,\"m\":%u}", (unsigned)mask);
+    DebugLog("TX serial: %s", json);
+    DebugLogger::Log("TX serial: %s", json);
+    return sp->SendJsonCommand(json);
+}
+
+bool CommandBridge::SendReboot(DeviceRole __role) {
+    SerialPort *sp = Resolve(__role); if (!sp) return false;
+    DebugLog("TX serial: {\"cmd\":57}");
+    DebugLogger::Log("TX serial: {\"cmd\":57}");
+    return sp->SendJsonCommand("{\"cmd\":57}");
 }
 
 bool CommandBridge::SendKeyboard(uint8_t ctrl, const uint8_t keys[10]) {

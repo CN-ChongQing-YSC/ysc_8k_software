@@ -619,17 +619,10 @@ static void OnPipeCommand(const char *json, void *userData) {
         g_pipeServer.SendEvent("version", "\"version\":\"1.14.0\"");
     }
     else if (type == "get_monitor") {
-        // 鼠标侧字段保持原样（旧前端不变），另附键盘物理状态
-        auto m = MonitorPush::GetLatest();
-        char mousePart[128];
-        snprintf(mousePart, sizeof(mousePart),
-                 "\"buttons\":%d,\"x\":%d,\"y\":%d,\"wheel\":%d",
-                 m.buttons, m.x, m.y, m.wheel);
-        char kbdPart[256];
-        MonitorPush::SerializeKbdJson(kbdPart, sizeof(kbdPart));
+        // 鼠标 + 键盘一处合成（与"变化即推"共用同一份载荷）。前端现在默认靠
+        // monitor_data 推送更新，这里只作为初始快照 / 推送失灵时的兜底。
         char body[448];
-        snprintf(body, sizeof(body), "%s,%s,\"mouseValid\":%d",
-                 mousePart, kbdPart, m.valid);
+        MonitorPush::SerializeUiJson(body, sizeof(body));
         g_pipeServer.SendEvent("monitor_data", body);
     }
     else if (type == "get_kbd_state") {
@@ -1069,6 +1062,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR, int) {
     }
 
     // Cleanup
+    MonitorPush::Shutdown();   // 先停 UI 推送线程，再关管道（避免线程写已关闭的句柄）
     g_pipeServer.Stop();
     DebugLogger::Shutdown();
     g_kmServer.Stop();

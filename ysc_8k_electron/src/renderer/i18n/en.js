@@ -70,6 +70,10 @@ export default {
     kbdMore: '+{n} more',
     noData: 'No data',
     live: 'Live',
+    // Monitor switch (panel title bar)
+    monitoring: 'Monitoring',
+    notMonitoring: 'Off',
+    count: 'delta count',
     btn: {
       left: 'Left',
       right: 'Right',
@@ -103,6 +107,10 @@ export default {
     upstream: 'Upstream',
     upstreamUnknown: 'Unknown',
     manualRole: 'Set manually',
+    // "Attach / Detach" segmented control
+    reconnect: 'Re-attach',
+    needPort: 'Select a port first',
+    actions: 'Attach / Detach',
   },
   gamepad: {
     title: 'Gamepad Mapping',
@@ -375,6 +383,12 @@ export default {
     downloadDone: 'Downloaded — flashing',
     downloadFailed: 'Download failed: {error}',
     unavailable: 'No downloadable firmware (or network error)',
+    // Available-firmware list collapsing
+    expand: 'Show all',
+    collapse: 'Collapse',
+    moreHidden: '{n} older versions hidden',
+    newestShort: 'Newest',
+    installedShort: 'Installed',
   },
   firmwareStatus: {
     updating: 'Updating',

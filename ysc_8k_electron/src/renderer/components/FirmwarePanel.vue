@@ -42,34 +42,58 @@
           <div class="fw-version-list-head">
             <span class="fw-list-title">{{ t('firmwareUpdate.availableTitle') }}</span>
             <span class="fw-list-count">{{ versions.length }} {{ t('firmwareUpdate.versionsUnit') }}</span>
+            <span class="fw-list-summary" v-if="!listExpanded">{{ collapseSummary }}</span>
+            <!-- 收纳开关：17 个版本平铺会把面板撑到几千 px，用户看不到下方的
+                 本地文件 / 波特率 / 操作按钮。默认只显示「最新」与「已安装」两项。 -->
+            <button
+              v-if="versions.length > 1"
+              type="button"
+              class="fw-list-toggle"
+              :aria-expanded="listExpanded"
+              :title="listExpanded ? t('firmwareUpdate.collapse') : t('firmwareUpdate.expand')"
+              @click="listExpanded = !listExpanded"
+            >
+              {{ listExpanded ? t('firmwareUpdate.collapse') : t('firmwareUpdate.expand') }}
+              <svg class="fw-list-chev" :class="{ up: listExpanded }" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 6.5 8 10.5 12 6.5" />
+              </svg>
+            </button>
           </div>
-          <div v-for="v in versions" :key="v.version" class="fw-version-row"
-               :class="{ 'is-latest': v.isLatest, 'is-installed': v.isInstalled, 'is-downloading': downloadingVer === v.version, 'is-quiet': !v.isLatest && !v.isInstalled }">
-            <div class="fw-version-ident">
-              <span class="fw-version-num">v{{ v.version }}</span>
-              <div class="fw-version-badges">
-                <span v-if="v.isLatest" class="fw-version-badge latest">{{ t('firmwareUpdate.badgeLatest') }}</span>
-                <span v-if="v.isInstalled" class="fw-version-badge installed">{{ t('firmwareUpdate.badgeInstalled') }}</span>
-              </div>
-            </div>
-            <div class="fw-version-body">
-              <div class="fw-version-meta">
-                <span>{{ (v.size / 1024).toFixed(1) }} KB</span>
-                <span class="fw-meta-sep">·</span>
-                <span v-if="v.releaseDate">{{ t('firmwareUpdate.released', { date: v.releaseDate }) }}</span>
-              </div>
-              <div class="fw-version-notes" v-if="v.releaseNotes">{{ v.releaseNotes }}</div>
-            </div>
-            <div class="fw-version-action">
-              <div class="fw-update-progress" v-if="downloadingVer === v.version">
-                <div class="fw-update-progress-bar">
-                  <div class="fw-update-progress-fill" :style="{ width: dlPercent + '%' }"></div>
+
+          <div class="fw-version-scroll" ref="listScrollEl" :class="{ expanded: listExpanded }">
+            <div v-for="v in visibleVersions" :key="v.version" class="fw-version-row"
+                 :class="{ 'is-latest': v.isLatest, 'is-installed': v.isInstalled, 'is-downloading': downloadingVer === v.version, 'is-quiet': !v.isLatest && !v.isInstalled }">
+              <div class="fw-version-ident">
+                <span class="fw-version-num">v{{ v.version }}</span>
+                <div class="fw-version-badges">
+                  <span v-if="v.isLatest" class="fw-version-badge latest">{{ t('firmwareUpdate.badgeLatest') }}</span>
+                  <span v-if="v.isInstalled" class="fw-version-badge installed">{{ t('firmwareUpdate.badgeInstalled') }}</span>
                 </div>
-                <div class="fw-update-progress-text">{{ dlPercent }}%</div>
               </div>
-              <button v-else-if="v.isInstalled" class="fw-version-cta-quiet" @click="downloadAndUpgrade(v)" :disabled="state === 'upgrading' || autoMode">{{ t('firmwareUpdate.reinstall') }}</button>
-              <button v-else-if="v.isLatest" class="fw-update-cta" @click="downloadAndUpgrade(v)" :disabled="state === 'upgrading' || autoMode">{{ t('firmwareUpdate.cta') }}</button>
-              <button v-else class="fw-version-cta-quiet" @click="downloadAndUpgrade(v)" :disabled="state === 'upgrading' || autoMode">{{ t('firmwareUpdate.cta') }}</button>
+              <div class="fw-version-body">
+                <div class="fw-version-meta">
+                  <span>{{ (v.size / 1024).toFixed(1) }} KB</span>
+                  <span class="fw-meta-sep">·</span>
+                  <span v-if="v.releaseDate">{{ t('firmwareUpdate.released', { date: v.releaseDate }) }}</span>
+                </div>
+                <div class="fw-version-notes" v-if="v.releaseNotes" :title="v.releaseNotes">{{ v.releaseNotes }}</div>
+              </div>
+              <div class="fw-version-action">
+                <div class="fw-update-progress" v-if="downloadingVer === v.version">
+                  <div class="fw-update-progress-bar">
+                    <div class="fw-update-progress-fill" :style="{ width: dlPercent + '%' }"></div>
+                  </div>
+                  <div class="fw-update-progress-text">{{ dlPercent }}%</div>
+                </div>
+                <button v-else-if="v.isInstalled" class="fw-version-cta-quiet" @click="downloadAndUpgrade(v)" :disabled="state === 'upgrading' || autoMode">{{ t('firmwareUpdate.reinstall') }}</button>
+                <button v-else-if="v.isLatest" class="fw-update-cta" @click="downloadAndUpgrade(v)" :disabled="state === 'upgrading' || autoMode">{{ t('firmwareUpdate.cta') }}</button>
+                <button v-else class="fw-version-cta-quiet" @click="downloadAndUpgrade(v)" :disabled="state === 'upgrading' || autoMode">{{ t('firmwareUpdate.cta') }}</button>
+              </div>
+            </div>
+
+            <!-- 折叠时被收起的版本数：给用户一个明确的「还有多少」的交代 -->
+            <div v-if="!listExpanded && hiddenCount > 0" class="fw-version-more">
+              {{ t('firmwareUpdate.moreHidden', { n: hiddenCount }) }}
             </div>
           </div>
         </div>
@@ -147,7 +171,7 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted, onUnmounted, toRaw } from 'vue';
+import { ref, computed, nextTick, onMounted, onUnmounted, toRaw, watch } from 'vue';
 import { useI18n } from '../i18n/index.js';
 import FirmwareStatusLed from './FirmwareStatusLed.vue';
 
@@ -176,6 +200,44 @@ const versions = ref([]);        // ListedVersion[]
 const errorMsg = ref('');
 const downloadingVer = ref('');  // version string currently downloading
 const dlPercent = ref(0);
+
+/* ============ 可用固件列表的收纳 ============
+ * 目录里通常有十几个历史版本，全部平铺会把面板撑到几千 px：用户滚过版本列表
+ * 才能看到下方的本地文件 / 波特率 / 操作按钮，等于看不到别的地方。
+ * 因此默认折叠为「最新 + 已安装」两项，展开后也限定高度、在列表内部滚动，
+ * 面板其余部分的位置始终稳定。 */
+const listExpanded = ref(false);
+const listScrollEl = ref(null);
+
+/** 折叠时保留的版本：最新的那个，外加「已安装」的那个（若不同）。 */
+const visibleVersions = computed(() => {
+  if (listExpanded.value) return versions.value;
+  const keep = [];
+  const latest = versions.value.find((v) => v.isLatest) || versions.value[0];
+  if (latest) keep.push(latest);
+  const installed = versions.value.find((v) => v.isInstalled);
+  if (installed && !keep.includes(installed)) keep.push(installed);
+  return keep;
+});
+
+const hiddenCount = computed(() => Math.max(0, versions.value.length - visibleVersions.value.length));
+
+/** 折叠状态下的摘要：「最新 v3.1 · 已安装 v2.0」 */
+const collapseSummary = computed(() => {
+  const latest = versions.value.find((v) => v.isLatest);
+  const installed = versions.value.find((v) => v.isInstalled);
+  const parts = [];
+  if (latest) parts.push(t('firmwareUpdate.newestShort') + ' v' + latest.version);
+  if (installed) parts.push(t('firmwareUpdate.installedShort') + ' v' + installed.version);
+  return parts.join(' · ');
+});
+
+// 展开后把滚动位置拉回顶部：新固件在列表最前，展开时用户要看的就是它
+watch(listExpanded, async (open) => {
+  if (!open) return;
+  await nextTick();
+  if (listScrollEl.value) listScrollEl.value.scrollTop = 0;
+});
 
 const DEVICE_TYPE = 'ysc_v2_8k_mouse';
 let autoUpgradeOnDone = false;

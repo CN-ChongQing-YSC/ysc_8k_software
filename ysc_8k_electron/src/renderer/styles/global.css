@@ -14,6 +14,11 @@ html, body {
   font-size: 13px;
   line-height: var(--leading-normal);
   -webkit-font-smoothing: antialiased;
+  /* Chromium 的原生控件弹层（<select> 列表、滚动条等）按此选配色。
+     tokens.css 里只在 :root 声明了 color-scheme，而 html/body 各自设了
+     background，弹层会退回浅色方案 —— 深色界面里弹出白色列表就是这个原因。
+     显式声明在 html 上，保证原生弹层与输入控件跟随深色主题。 */
+  color-scheme: dark;
 }
 
 #app {
@@ -523,14 +528,17 @@ html, body {
   font-weight: 600;
 }
 
-.btn-accent:hover {
+.btn-accent:hover:not(:disabled) {
   background: #62d0fa;
 }
 
 .btn-accent:disabled {
-  background: var(--border);
+  /* 控件样式优化：不再是「暗到看不见」，而是「凹陷 + 虚线描边」。
+     底色 / 字色 / 边框全部沿用原有 token，没有引入任何新颜色。 */
+  background: var(--bg-tertiary);
   color: var(--text-dim);
-  cursor: default;
+  border: 1px dashed var(--border);
+  cursor: not-allowed;
 }
 
 .btn-outline {
@@ -539,7 +547,7 @@ html, body {
   color: var(--text-muted);
 }
 
-.btn-outline:hover {
+.btn-outline:hover:not(:disabled) {
   border-color: var(--text-muted);
   color: var(--text-primary);
 }
@@ -554,7 +562,7 @@ html, body {
   color: var(--accent-red);
 }
 
-.btn-outline.red:hover {
+.btn-outline.red:hover:not(:disabled) {
   background: var(--accent-red);
   color: white;
 }
@@ -570,7 +578,7 @@ html, body {
   color: var(--text-dim);
 }
 
-.btn-ghost:hover {
+.btn-ghost:hover:not(:disabled) {
   border-color: var(--accent-blue);
   color: var(--accent-blue);
 }
@@ -582,7 +590,7 @@ html, body {
   flex: 1;
 }
 
-.btn-toggle:hover {
+.btn-toggle:hover:not(:disabled) {
   border-color: var(--accent-green);
   color: var(--accent-green);
 }
@@ -604,7 +612,7 @@ html, body {
   cursor: pointer;
 }
 
-.btn-xs:hover {
+.btn-xs:hover:not(:disabled) {
   border-color: var(--accent-blue);
   color: var(--accent-blue);
 }
@@ -996,7 +1004,9 @@ html, body {
   border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--bg-input);
-  color: var(--text);
+  /* 原先写 var(--text)，但 tokens.css 未定义该变量 → 整条 color 声明失效、
+     字色回落到继承值。按本文件既有约定改成带 fallback 的写法，取值不变。 */
+  color: var(--text-primary, #e6e9f0);
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
@@ -1561,6 +1571,69 @@ html, body {
   font-style: italic;
 }
 
+/* 折叠状态下的摘要：「最新 v3.1 · 已安装 v2.0」 */
+.fw-version-list-head .fw-list-summary {
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 收纳开关：右对齐的小号文字按钮 + 旋转箭头。
+   箭头旋转（形状）+ aria-expanded 一起表达开合状态，不依赖颜色。 */
+.fw-list-toggle {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 9px;
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+.fw-list-toggle:hover { color: var(--text-primary); border-color: var(--border-hover); }
+.fw-list-toggle:focus-visible { outline: none; box-shadow: var(--ring-focus); }
+.fw-list-chev {
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+  transition: transform var(--transition-fast);
+}
+.fw-list-chev.up { transform: rotate(180deg); }
+
+/* 折叠：不限高，只显示保留的那几行。
+   展开：限定高度，列表自己在内部滚动 —— 这样无论目录里有多少个版本，
+   下方「本地文件 / 波特率 / 操作按钮」的位置都不会被推走。 */
+.fw-version-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.fw-version-scroll.expanded {
+  max-height: 340px;
+  overflow-y: auto;
+  /* 滚动时行不贴边，留出滚动条的呼吸空间 */
+  padding-right: 2px;
+}
+
+/* 被收起的版本数提示 */
+.fw-version-more {
+  padding: 7px 10px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: center;
+}
+
 .fw-version-row {
   display: flex;
   align-items: center;
@@ -1672,6 +1745,13 @@ html, body {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   white-space: pre-wrap;
+}
+
+/* 展开态：备注收成一行。十几个版本每行都摊两行备注会让列表过长，
+   完整文案仍可通过 title 悬停查看。 */
+.fw-version-scroll.expanded .fw-version-notes {
+  -webkit-line-clamp: 1;
+  white-space: nowrap;
 }
 
 .fw-version-action {

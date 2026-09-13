@@ -65,6 +65,11 @@ struct monitor_packet_t {
 #define CMD_MOUSE_AUTOMOVE 0xaede7346
 #define CMD_BAZER_MOVE     0xa238455a
 #define CMD_REBOOT         0xaa8855aa
+/* 物理键鼠屏蔽（官方 kmNet_mask_mouse_* / kmNet_unmask_all）：
+ * 位图放在 header.rand 里 —— bit0..4 = 左/右/中/侧1/侧2，bit5 = X，bit6 = Y，
+ * bit7 = 滚轮；kmNet_unmask_all 的 rand = 客户端累积的 flag（0 = 全部解除）。 */
+#define CMD_MASK_MOUSE     0x23234343
+#define CMD_UNMASK_ALL     0x23344343
 
 // Default device MAC
 #define DEFAULT_MAC        0x00000001

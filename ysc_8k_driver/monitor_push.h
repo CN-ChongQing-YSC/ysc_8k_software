@@ -37,6 +37,9 @@ class MonitorPush {
 public:
     static void Init(KmboxnetServer *server);
 
+    // 停掉 UI 推送线程（进程退出前调用，避免线程在 PipeServer 析构后再写管道）
+    static void Shutdown();
+
     // Called from serial read thread when framed data arrives
     static void OnSerialResponse(const uint8_t *data, int len, void *userData);
 
@@ -58,6 +61,10 @@ public:
     // 供管道事件使用的 JSON 片段（不含外层大括号）
     static void SerializeMouseJson(char *out, int outSize);
     static void SerializeKbdJson(char *out, int outSize);
+
+    // 前端 monitor_data 事件的载荷（鼠标 + 键盘一处合成）。get_monitor 的应答
+    // 与"变化即推"共用同一份，保证两种来源格式完全一致。
+    static void SerializeUiJson(char *out, int outSize);
 };
 
 #endif // MONITOR_PUSH_H

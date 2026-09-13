@@ -641,10 +641,13 @@ onMounted(function() {
     }
   });
 
+  /* monitor_data 现在由驱动"变化即推"（≤~125Hz 合并），不再是 100ms 轮询的应答。
+   * 同一个载荷里带着键盘物理状态，顺手一起更新，省掉一次单独往返。 */
   listen('monitor_data', function(data) {
     monitorButtons.value = data.buttons;
     monitorX.value = data.x;
     monitorY.value = data.y;
+    if (data.kbd && typeof data.kbd === 'object') kbdState.value = data.kbd;
   });
 
   listen('debug_response', function(data) {
@@ -780,14 +783,16 @@ onMounted(function() {
 
   window.addEventListener('focus', onWindowFocus);
 
+  /* 监控状态改为驱动侧"变化即推"（monitor_data / kbd_state 事件），这里的
+   * 轮询只作兜底：启动/重连/推送漏帧时保证界面最终一致，1s 一次开销可忽略。 */
   monitorTimer = setInterval(function() {
     api.send('get_monitor');
-  }, 100);
+  }, 1000);
 
   // 键盘物理状态 + 设备槽位（角色可能被驱动自动识别后变化）——低频轮询即可
   kbdTimer = setInterval(function() {
     api.send('get_kbd_state');
-  }, 200);
+  }, 1000);
   deviceTimer = setInterval(function() {
     api.send('device_list');
   }, 1000);
