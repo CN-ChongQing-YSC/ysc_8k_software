@@ -65,6 +65,21 @@
             <label>{{ t('device.upstream') }}</label>
             <span class="d-upstream">{{ upstreamText(slot) }}</span>
           </div>
+          <!-- 已连接后的波特率切换：串口两端都要改，驱动会先让固件切、再重开
+               主机侧句柄。用于连上后升到高速率（透传吞吐/低延迟）。 -->
+          <div class="d-row">
+            <label>{{ t('device.switchBaud') }}</label>
+            <select
+              class="input-select"
+              :value="String(slot.baud || '')"
+              :disabled="baudBusy[slot.dev]"
+              @change="onSwitchBaud(slot, $event)"
+            >
+              <option v-if="slot.baud" :value="String(slot.baud)">{{ slot.baud }}</option>
+              <option v-for="b in BAUDS" :key="b" :value="String(b)">{{ b }}</option>
+            </select>
+            <span v-if="baudBusy[slot.dev]" class="d-auto-tag warn">{{ t('device.switching') }}</span>
+          </div>
           <div class="d-actions">
             <button class="btn btn-outline red" @click="onDisconnect(slot)">
               {{ t('device.disconnect') }}
@@ -89,13 +104,21 @@ const props = defineProps({
   ports: { type: Array, default: () => [] },
 });
 
-const emit = defineEmits(['connect', 'disconnect', 'set-role', 'refresh']);
+const emit = defineEmits(['connect', 'disconnect', 'set-role', 'set-baud', 'refresh']);
 
 // 每个槽位的待连接端口/波特率
 const pick = reactive({
   0: { port: '', baud: '0' },
   1: { port: '', baud: '0' },
 });
+
+/* 已连接后可切换的波特率。与驱动/固件的有效表对齐（固件 USART1 支持到这档），
+ * 600k/1M/1.5M/2M/3M 都是可用于高速透传的档位。 */
+const BAUDS = [115200, 230400, 460800, 921600, 1000000, 1500000, 2000000, 3000000];
+
+// 切换进行中标记：切换要关端口重开，需要几百毫秒，期间禁用下拉避免重复触发
+const baudBusy = reactive({ 0: false, 1: false });
+let baudBusyTimer = null;
 
 function roleKey(slot) {
   if (!slot.connected) return 'none';
@@ -130,6 +153,16 @@ function onDisconnect(slot) {
 function onRoleChange(slot, e) {
   // auto = 交回驱动自动识别（置为 none，驱动会重新探测）
   emit('set-role', slot.dev, e.target.value === 'auto' ? 'none' : e.target.value);
+}
+
+function onSwitchBaud(slot, e) {
+  const baud = parseInt(e.target.value);
+  if (!baud || baud === slot.baud) return;
+  baudBusy[slot.dev] = true;
+  emit('set-baud', slot.dev, baud);
+  // 切换含关端口/重开/重探角色，给足时间；驱动成功或失败都会刷 device_list
+  if (baudBusyTimer) clearTimeout(baudBusyTimer);
+  baudBusyTimer = setTimeout(function () { baudBusy[slot.dev] = false; }, 3000);
 }
 </script>
 

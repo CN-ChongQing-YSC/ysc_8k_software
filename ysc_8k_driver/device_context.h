@@ -95,6 +95,14 @@ public:
     // 会重新发起一轮探测（用户从下拉里选「自动」就是这个语义）。
     static bool SetRole(int slot, int role);
 
+    /* 已连接设备切换波特率。
+     * 串口两端都要改：SerialPort::SwitchBaudrate 先发 {"cmd":133,"baud":N} 让固件
+     * 改 USART，再关掉重开主机侧句柄；随后必须重启读线程（切换过程停掉了它），
+     * 否则设备显示"已连接"却再也收不到数据。放在 DeviceContext 内部做是因为
+     * 数据回调（OnSerialDataForSlot）是本文件的私有静态函数，重挂回调需要它。
+     * 成功后槽位 baud 更新、角色重新探测。 */
+    static bool SwitchBaud(int slot, DWORD baud);
+
     // 串口数据回调：区分是哪个槽来的
     typedef void (*DataCallback)(int slot, const uint8_t *data, int len, void *userData);
     static void SetDataCallback(DataCallback cb, void *userData);

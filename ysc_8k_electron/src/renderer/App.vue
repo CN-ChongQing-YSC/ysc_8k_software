@@ -35,6 +35,7 @@
               @connect="onDeviceConnect"
               @disconnect="onDeviceDisconnect"
               @set-role="onDeviceSetRole"
+              @set-baud="onDeviceSetBaud"
               @refresh="onRefreshPorts"
             />
             <SerialPanel
@@ -497,6 +498,13 @@ function onDeviceDisconnect(dev) {
 
 function onDeviceSetRole(dev, role) {
   api.send('device_set_role', { dev: dev, role: role });
+}
+
+/* 已连接设备切换波特率（鼠标机 / 键盘机通用）。串口两端都要改，驱动会先让
+ * 固件切 USART 再重开主机侧句柄；结果由 baudrate_switched / baudrate_failed
+ * 事件 + device_list 回推。 */
+function onDeviceSetBaud(dev, baud) {
+  api.send('device_set_baud', { dev: dev, baud: baud });
 }
 
 function refreshPortsThrottled() {

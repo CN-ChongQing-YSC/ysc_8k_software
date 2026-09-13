@@ -97,6 +97,8 @@ export default {
     portPlaceholder: '-- 选择端口 --',
     baud: '波特率',
     baudHint: '0=自动',
+    switchBaud: '切换波特率',
+    switching: '切换中…',
     roleLabel: '角色',
     upstream: '上游设备',
     upstreamUnknown: '未知',

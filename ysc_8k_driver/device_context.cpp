@@ -309,6 +309,29 @@ SerialPort *DeviceContext::SerialForSlot(int slot) {
     return d ? d->serial : nullptr;
 }
 
+bool DeviceContext::SwitchBaud(int slot, DWORD baud) {
+    DeviceSlot *d = Get(slot);
+    if (!d || !d->serial || !d->connected || baud == 0) return false;
+    if (d->baud == baud) return true;          /* 已是目标速率，无需切换 */
+
+    if (!d->serial->SwitchBaudrate(baud)) return false;
+
+    /* 切换过程停掉了读线程，必须重挂回调并重启，否则设备显示"已连接"但收不到数据 */
+    d->serial->SetResponseCallback(OnSerialDataForSlot, (void *)(intptr_t)slot);
+    d->serial->StartReadThread(g_app.hStopEvent);
+
+    d->baud = baud;
+    d->connected = true;
+    /* 新速率下重新探一轮角色（切换后固件侧 USART 也变了，旧探测结果不可信） */
+    d->probeState = 0;
+    d->probeDone = 0;
+    d->probeGotInfo = 0;
+    d->probeGotCfg = 0;
+    d->probeDeadline = GetTickCount() + 5000;
+    s_probeStage[slot] = 0;
+    return true;
+}
+
 bool DeviceContext::SetRole(int slot, int role) {
     DeviceSlot *d = Get(slot);
     if (!d) return false;

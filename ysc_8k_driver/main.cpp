@@ -392,6 +392,54 @@ static void OnPipeCommand(const char *json, void *userData) {
         DeviceContext::SetRole(dev, role);
         SendDeviceList();
     }
+    /* 已连接设备切换波特率（单设备/双设备通用）。
+     *
+     * 为什么必须走固件配合：串口两端都要改。SerialPort::SwitchBaudrate 先发
+     * {"cmd":133,"baud":N} 让固件改自己的 USART，再关掉重开主机侧句柄 ——
+     * 只改主机侧会立刻失联。切完必须重启读线程（SwitchBaudrate 内部停掉了它），
+     * 否则设备看起来"已连接"却再也收不到数据。 */
+    else if (type == "device_set_baud") {
+        int dev = ExtractJsonInt(json, "dev");
+        int baudReq = ExtractJsonInt(json, "baud");
+        if (dev < 0 || dev >= DEV_MAX_SLOTS) dev = 0;
+
+        DeviceSlot *d = DeviceContext::Get(dev);
+        if (d == nullptr || d->serial == nullptr || !d->connected) {
+            g_pipeServer.SendEvent("baudrate_failed",
+                "\"dev\":0,\"message\":\"device not connected\"");
+            return;
+        }
+        bool valid = false;
+        for (int i = 0; i < SUPPORTED_BAUD_COUNT; i++)
+            if (SUPPORTED_BAUDS[i] == (DWORD)baudReq) { valid = true; break; }
+        if (!valid) {
+            g_pipeServer.SendEvent("baudrate_failed",
+                "\"message\":\"invalid baudrate\"");
+            return;
+        }
+
+        uint32_t newBaud = (uint32_t)baudReq;
+        if (newBaud == d->baud) {
+            char body[64];
+            snprintf(body, sizeof(body), "\"dev\":%d,\"baud\":%u", dev, newBaud);
+            g_pipeServer.SendEvent("baudrate_switched", body);
+            return;
+        }
+
+        DebugLogger::Log("DEVICE slot=%d switch baud %u -> %u", dev,
+                         (unsigned)d->baud, (unsigned)newBaud);
+        if (DeviceContext::SwitchBaud(dev, newBaud)) {
+            char body[64];
+            snprintf(body, sizeof(body), "\"dev\":%d,\"baud\":%u", dev, newBaud);
+            g_pipeServer.SendEvent("baudrate_switched", body);
+            SendDeviceList();
+        } else {
+            char body[64];
+            snprintf(body, sizeof(body), "\"dev\":%d", dev);
+            g_pipeServer.SendEvent("baudrate_failed", body);
+            SendDeviceList();
+        }
+    }
     // 键盘状态查询（物理按键，不含注入键）
     else if (type == "get_kbd_state") {
         char body[256];

@@ -97,6 +97,8 @@ export default {
     portPlaceholder: '-- Select port --',
     baud: 'Baud',
     baudHint: '0=auto',
+    switchBaud: 'Baudrate',
+    switching: 'Switching…',
     roleLabel: 'Role',
     upstream: 'Upstream',
     upstreamUnknown: 'Unknown',
