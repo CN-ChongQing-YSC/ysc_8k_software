@@ -70,6 +70,14 @@ private:
     LONG    m_startedGen;        // 本次 reader 启动时的代际（供 ReadLoop 入口读取）
     volatile LONG m_disconnecting; // 1=正在/已经断开：Disconnect 互斥 + 读线程仅在 0 时上报
 
+    /* 收数看门狗：最后一次收到数据的 tick。
+     * 为什么需要：串口被**其它程序**打开/占用时（例如用 xcom 抓同一个 COM 口），
+     * 驱动这个句柄会静默停止收数 —— ReadFile 既不报错也不返回，读线程就一直
+     * 阻塞着，于是既不上报 WM_SERIAL_LOST，也不断开。界面于是永远显示"已连接"
+     * 却一帧都收不到，排查时极易被误判成"固件没数据"。
+     * 看门狗在长时间零收数时用 ClearCommError 探活，确认句柄失效就主动上报。 */
+    volatile DWORD m_lastRxTick;
+
     // RX framing state machine
     enum RxState { RX_IDLE, RX_HEADER, RX_PAYLOAD };
     RxState m_rxState;

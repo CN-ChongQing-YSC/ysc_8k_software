@@ -63,7 +63,8 @@ SerialPort::SerialPort()
     , m_hNotifyWnd(NULL)
     , m_readerGen(0)
     , m_startedGen(0)
-    , m_disconnecting(0) {
+    , m_disconnecting(0)
+    , m_lastRxTick(0) {
     InitializeCriticalSection(&m_csWrite);
     InitializeCriticalSection(&m_csQueue);
     InitializeConditionVariable(&m_cvNotEmpty);
@@ -341,6 +342,7 @@ bool SerialPort::StartReadThread(HANDLE hStopEvent) {
     // 新一代 reader：自增代际，并记下本次启动的代际供 ReadLoop 入口读取。
     // 读线程异常退出上报时用它判断"我是否仍是当前 reader"（期间是否已重连）。
     m_startedGen = InterlockedIncrement(&m_readerGen);
+    m_lastRxTick = GetTickCount();   // 看门狗从启动时刻起算，避免立刻误判
     InterlockedExchange(&m_disconnecting, 0); // 新 reader 上线：清除"断开中"标记
 
     if (!StartWriteThread()) return false;
@@ -500,10 +502,31 @@ void SerialPort::ReadLoop() {
             DWORD err = GetLastError();
             if (err != ERROR_IO_PENDING) break;
 
+            /* 收数看门狗：正常固件每秒都有心跳，长时间零收数一定是异常
+             * （最典型的是串口被另一个程序抢走 —— 此时 ReadFile 既不报错也
+             * 不返回，读线程会永远阻塞，既不断开也不告警，界面显示"已连接"
+             * 却永远收不到数据）。等到 4 秒零收数就探一次活：ClearCommError
+             * 失败说明句柄已失效，直接 break 走正常的上报路径。 */
+            const DWORD kRxWatchdogMs = 4000;
+            DWORD waitMs = INFINITE;
+            DWORD elapsed = GetTickCount() - m_lastRxTick;
+            if (elapsed > kRxWatchdogMs) waitMs = 500;
+
             HANDLE handles[2] = { m_hReadOL, m_hStopEvent };
             DWORD wait = WaitForMultipleObjects(
-                m_hStopEvent ? 2 : 1, handles, FALSE, INFINITE);
+                m_hStopEvent ? 2 : 1, handles, FALSE, waitMs);
 
+            if (wait == WAIT_TIMEOUT) {
+                if (GetTickCount() - m_lastRxTick > kRxWatchdogMs) {
+                    DWORD comErr = 0;
+                    COMSTAT comStat = {};
+                    if (!ClearCommError(m_hPort, &comErr, &comStat)) {
+                        CancelIo(m_hPort);
+                        break;              // 句柄失效 / 端口被抢 → 走上报路径
+                    }
+                }
+                continue;                    // 端口仍有效：继续等这一笔 I/O
+            }
             if (m_hStopEvent && wait == WAIT_OBJECT_0 + 1) {
                 CancelIo(m_hPort);
                 break;
@@ -517,6 +540,8 @@ void SerialPort::ReadLoop() {
         }
 
         if (bytesRead == 0) continue;
+
+        m_lastRxTick = GetTickCount();   // 看门狗喂狗：有数据就刷新
 
         // Periodically check for serial buffer overflow (every 200 reads)
         if (++errorCheckCounter >= 200) {
