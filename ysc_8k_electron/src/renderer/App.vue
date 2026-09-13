@@ -29,6 +29,14 @@
       <template v-if="currentView === 'home'">
         <div class="main-content">
           <div class="left-col">
+            <DevicePanel
+              :slots="deviceSlots"
+              :ports="ports"
+              @connect="onDeviceConnect"
+              @disconnect="onDeviceDisconnect"
+              @set-role="onDeviceSetRole"
+              @refresh="onRefreshPorts"
+            />
             <SerialPanel
               :connected="serialConnected"
               :connected-port="serialPort"
@@ -55,6 +63,7 @@
               :buttons="monitorButtons"
               :x="monitorX"
               :y="monitorY"
+              :kbd="kbdState"
               :connected="serialConnected"
               @toggle-upload="onToggleUpload"
             />
@@ -119,6 +128,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import TitleBar from './components/TitleBar.vue';
 import StatusBar from './components/StatusBar.vue';
 import SerialPanel from './components/SerialPanel.vue';
+import DevicePanel from './components/DevicePanel.vue';
 import KmnetPanel from './components/KmnetPanel.vue';
 import MonitorPanel from './components/MonitorPanel.vue';
 import MacroPanel from './components/MacroPanel.vue';
@@ -155,6 +165,15 @@ const netIp = ref('');
 const netMac = ref('');
 const version = ref('');
 const ports = ref([]);
+
+// ── 双设备（一鼠标机 + 一键盘机）──
+// 驱动把两台设备抽象成两个槽位；角色可自动识别（探测上游是鼠标还是键盘），
+// 也可由用户手动指定。这里的状态全部来自驱动的 device_list / kbd_state 事件。
+const deviceSlots = ref([
+  { dev: 0, role: 'none', auto: false, connected: false, port: '', baud: 0, vid: -1, pid: -1, product: '', ifaceMask: 0 },
+  { dev: 1, role: 'none', auto: false, connected: false, port: '', baud: 0, vid: -1, pid: -1, product: '', ifaceMask: 0 },
+]);
+const kbdState = ref({ valid: 0, mod: 0, count: 0, overflow: 0, keys: [] });
 
 const firmwareFilePath = ref('');
 const firmwareFileInfo = ref('');
@@ -455,7 +474,22 @@ function onSnClear() {
 }
 
 let monitorTimer = null;
+let kbdTimer = null;      // 键盘物理状态轮询
+let deviceTimer = null;   // 设备槽位/角色轮询
 let portsRefreshAt = 0;
+
+// ── 双设备操作 ──
+function onDeviceConnect(dev, port, baud) {
+  api.send('device_attach', { dev: dev, port: port, baud: baud || 0 });
+}
+
+function onDeviceDisconnect(dev) {
+  api.send('device_detach', { dev: dev });
+}
+
+function onDeviceSetRole(dev, role) {
+  api.send('device_set_role', { dev: dev, role: role });
+}
 
 function refreshPortsThrottled() {
   if (serialConnected.value) return;
@@ -648,6 +682,31 @@ onMounted(function() {
     serialBaud.value = data.serialBaud;
     netRunning.value = data.netRunning;
     netPort.value = data.netPort;
+    // 键盘物理状态也随状态包回来，避免额外往返
+    if (data.kbd) kbdState.value = data.kbd;
+  });
+
+  // ── 双设备事件 ──
+  listen('device_list', function(data) {
+    if (!data || !Array.isArray(data.devices)) return;
+    var next = deviceSlots.value.slice();
+    data.devices.forEach(function(d) {
+      if (d.dev != null && d.dev >= 0 && d.dev < next.length) next[d.dev] = d;
+    });
+    deviceSlots.value = next;
+  });
+
+  listen('device_attached', function() { api.send('device_list'); });
+  listen('device_detached', function() { api.send('device_list'); });
+  listen('device_lost', function() { api.send('device_list'); });
+
+  listen('kbd_state', function(data) {
+    if (data && typeof data === 'object') kbdState.value = data;
+  });
+
+  listen('kbd_result', function() {
+    // 键盘命令回执（成功/失败都刷一次状态，失败时 kbd 侧 valid 会反映出来）
+    api.send('get_kbd_state');
   });
 
   listen('ch343_driver_status', function(data) {
@@ -662,6 +721,8 @@ onMounted(function() {
   });
 
   api.send('get_state');
+  api.send('device_list');   // 双设备槽位初始状态
+  api.send('get_kbd_state'); // 键盘物理状态初始快照
   // 状态栏版本：直接取应用自身版本（app.getVersion）。
   // 原先只靠主进程启动时一次性的 driver 'version' 事件，回包常早于 renderer
   // 加载完成而丢失，界面永远停在写死的默认值（1.12.0）。
@@ -677,11 +738,21 @@ onMounted(function() {
   monitorTimer = setInterval(function() {
     api.send('get_monitor');
   }, 100);
+
+  // 键盘物理状态 + 设备槽位（角色可能被驱动自动识别后变化）——低频轮询即可
+  kbdTimer = setInterval(function() {
+    api.send('get_kbd_state');
+  }, 200);
+  deviceTimer = setInterval(function() {
+    api.send('device_list');
+  }, 1000);
 });
 
 onUnmounted(function() {
   for (var i = 0; i < cleanups.length; i++) cleanups[i]();
   if (monitorTimer) clearInterval(monitorTimer);
+  if (kbdTimer) clearInterval(kbdTimer);
+  if (deviceTimer) clearInterval(deviceTimer);
   selfCheckCleanupTimers();
   clearTimeout(snLoadingTimer);
   window.removeEventListener('focus', onWindowFocus);

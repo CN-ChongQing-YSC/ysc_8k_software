@@ -3,6 +3,44 @@ import { EventEmitter } from 'events';
 
 const PIPE_PATH = '\\\\.\\pipe\\ysc_8k_driver';
 
+/**
+ * 设备角色：双设备场景下一台透传鼠标、一台透传键盘。
+ * 驱动按角色路由命令（鼠标命令发鼠标机、键盘命令发键盘机），
+ * 前端只需按角色读取状态。单设备时驱动会退回"第一个已连接设备"。
+ */
+export type DeviceRoleStr = 'mouse' | 'kbd' | 'none';
+
+/** 一个设备槽位（驱动侧 DeviceSlot 的镜像） */
+export interface DeviceSlotInfo {
+  dev: number;            // 槽位下标 0/1
+  role: DeviceRoleStr;
+  auto: boolean;          // 角色是自动识别(true)还是人工指定(false)
+  connected: boolean;
+  port: string;
+  baud: number;
+  vid: number;            // 上游设备 VID（-1 = 未知）
+  pid: number;
+  product: string;        // 上游设备产品名
+  ifaceMask: number;      // bit0=见到键盘接口, bit1=见到鼠标接口
+}
+
+/** 鼠标物理状态快照 */
+export interface MonitorState {
+  valid: number;
+  buttons: number;
+  x: number;
+  y: number;
+}
+
+/** 键盘物理状态快照（只含物理按键，不含上位机注入的键） */
+export interface KbdState {
+  valid: number;
+  mod: number;            // 修饰键位图：bit0..7 = HID 0xE0..0xE7
+  count: number;          // keys[] 有效项数
+  overflow: number;       // 超出 6 个未列出的键数
+  keys: number[];         // 非修饰 HID 键码，升序
+}
+
 export interface DriverEvents {
   ready: void;
   ports_list: { ports: string[] };
@@ -16,7 +54,11 @@ export interface DriverEvents {
   kmnet_error: { message: string };
   kmnet_stopped: void;
   upload_status: { enable: boolean };
-  monitor_data: { buttons: number; x: number; y: number; wheel: number };
+  monitor_data: {
+    buttons: number; x: number; y: number; wheel: number;
+    mouseValid?: number;          // 鼠标侧是否收到过数据
+    kbd?: KbdState;               // 键盘侧物理状态（新增）
+  };
   log: { level: string; message: string };
   local_ip: { ip: string };
   version: { version: string };
@@ -26,10 +68,19 @@ export interface DriverEvents {
     serialBaud: number;
     netRunning: boolean;
     netPort: number;
+    mouse?: MonitorState;         // 新增
+    kbd?: KbdState;               // 新增
   };
   disconnected: void;
   connected: void;
   error: Error;
+  // ── 双设备（一鼠标机 + 一键盘机）──
+  device_list: { devices: DeviceSlotInfo[] };
+  device_attached: { dev: number; port: string; baud: number };
+  device_detached: { dev: number };
+  device_lost: { dev: number; role: DeviceRoleStr; message: string };
+  kbd_state: KbdState;
+  kbd_result: { ok: boolean };
   debug_cmd_result: {
     cmd: 'enter' | 'exit' | 'status' | 'dev_descr' | 'cfg_descr' |
          'rep_descr' | 'report' | 'clear' | 'device_info';
@@ -149,6 +200,30 @@ export class DriverPipe extends EventEmitter {
   getLocalIp() { this.send('get_local_ip'); }
   getVersion() { this.send('get_version'); }
   getState() { this.send('get_state'); }
+
+  // ── 双设备（一鼠标机 + 一键盘机）──
+  /** 列设备槽位（结果经 device_list 事件回推） */
+  deviceList() { this.send('device_list'); }
+  /** 把设备挂到槽位。role 省略=驱动自动识别（探测上游是鼠标还是键盘） */
+  deviceAttach(dev: number, port: string, baud = 0, role?: DeviceRoleStr) {
+    const params: Record<string, unknown> = { dev, port, baud };
+    if (role && role !== 'none') params.role = role;
+    this.send('device_attach', params);
+  }
+  deviceDetach(dev: number) { this.send('device_detach', { dev }); }
+  /** 人工指定角色（优先于自动识别） */
+  deviceSetRole(dev: number, role: DeviceRoleStr) {
+    this.send('device_set_role', { dev, role });
+  }
+  /** 键盘物理状态查询（结果经 kbd_state 事件回推） */
+  getKbdState() { this.send('get_kbd_state'); }
+  /** 键盘单键注入：kc 为 HID 键码 0x04-0xE7（修饰键 0xE0-0xE7） */
+  kbdKey(kc: number, down: boolean) {
+    this.send('kbd_key', { kc, down: down ? 1 : 0 });
+  }
+  /** 逐字符打字符串（≤128 字节），固件自动处理大小写与 CapsLock */
+  kbdTypeString(s: string) { this.send('kbd_type_string', { s }); }
+  kbdReleaseAll() { this.send('kbd_release_all'); }
 
   // Debug capture (sends command; responses come back via 'debug_response' event)
   debugEnter()                    { this.send('debug_enter'); }

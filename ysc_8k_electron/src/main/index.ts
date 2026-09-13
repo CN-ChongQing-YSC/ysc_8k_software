@@ -213,6 +213,9 @@ function setupDriverEvents(): void {
     'iap2_log', 'iap2_progress', 'iap2_done',
     'ch343_driver_status',
     'debug_cmd_result', 'debug_response',
+    // 双设备（一鼠标机 + 一键盘机）
+    'device_list', 'device_attached', 'device_detached', 'device_lost',
+    'kbd_state', 'kbd_result',
   ];
 
   for (const evt of forwardEvents) {

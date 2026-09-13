@@ -10,6 +10,7 @@
 #include "kmboxnet_server.h"
 #include "command_bridge.h"
 #include "monitor_push.h"
+#include "device_context.h"
 #include "debug_logger.h"
 #include "pipe_server.h"
 #include "iap_upgrader.h"
@@ -229,6 +230,60 @@ static void OnSerialResponseCombo(const uint8_t *data, int len, void *userData) 
     ForwardDebugResponse(data, len);
 }
 
+// 多设备数据入口：DeviceContext 回调带上 slot，先广播监控状态，再走原逻辑。
+// 两个槽都会走到这里 —— 鼠标机发 "mouse"、键盘机发 "kbd"，MonitorPush 内部
+// 按 message 分流，因此 UI / kmboxnet 能同时看到两台设备的真实物理状态。
+static void OnDeviceData(int slot, const uint8_t *data, int len, void *userData) {
+    (void)slot;
+    OnSerialResponseCombo(data, len, userData);
+}
+
+static void OnDeviceLost(int slot, void *userData) {
+    (void)userData;
+    DeviceSlot *d = DeviceContext::Get(slot);
+    const char *roleStr = "none";
+    if (d) {
+        if (d->role == DEV_ROLE_MOUSE) roleStr = "mouse";
+        else if (d->role == DEV_ROLE_KBD) roleStr = "kbd";
+    }
+    // 该侧状态清零，并通知前端
+    bool isKbd = (d && d->role == DEV_ROLE_KBD);
+    MonitorPush::ResetSide(isKbd ? 1 : 0);
+    char body[256];
+    snprintf(body, sizeof(body),
+             "\"dev\":%d,\"role\":\"%s\",\"message\":\"设备已断开\"",
+             slot, roleStr);
+    g_pipeServer.SendEvent("device_lost", body);
+    DebugLogger::Log("DEVICE slot=%d role=%s lost", slot, roleStr);
+}
+
+// 设备槽位列表（UI 显示两台设备的角色/端口/连接态/上游身份）
+static void SendDeviceList() {
+    char body[1024];
+    int n = snprintf(body, sizeof(body), "\"devices\":[");
+    for (int i = 0; i < DEV_MAX_SLOTS; i++) {
+        DeviceSlot *d = DeviceContext::Get(i);
+        if (!d) continue;
+        const char *roleStr = "none";
+        if (d->role == DEV_ROLE_MOUSE) roleStr = "mouse";
+        else if (d->role == DEV_ROLE_KBD) roleStr = "kbd";
+        char portU8[32] = {};
+        if (d->port[0])
+            WideCharToMultiByte(CP_UTF8, 0, d->port, -1, portU8, sizeof(portU8), nullptr, nullptr);
+        n += snprintf(body + n, sizeof(body) - n,
+                      "%s{\"dev\":%d,\"role\":\"%s\",\"auto\":%s,\"connected\":%s,"
+                      "\"port\":\"%s\",\"baud\":%lu,\"vid\":%d,\"pid\":%d,\"product\":\"%s\","
+                      "\"ifaceMask\":%d}",
+                      i ? "," : "", i, roleStr, d->autoDetected ? "true" : "false",
+                      d->connected ? "true" : "false", portU8, d->baud,
+                      d->vid, d->pid, d->product, d->ifaceMask);
+        if (n < 0 || n >= (int)sizeof(body)) break;
+    }
+    if (n > 0 && n < (int)sizeof(body) - 2)
+        snprintf(body + n, sizeof(body) - n, "]");
+    g_pipeServer.SendEvent("device_list", body);
+}
+
 static void OnPipeCommand(const char *json, void *userData) {
     std::string type = ExtractJsonString(json, "type");
     if (type.empty()) return;
@@ -243,6 +298,112 @@ static void OnPipeCommand(const char *json, void *userData) {
         }
         body += "]";
         g_pipeServer.SendEvent("ports_list", body.c_str());
+    }
+    else if (type == "device_list") {
+        SendDeviceList();
+    }
+    // 多设备：把某台设备挂到指定槽位。dev 可省略（默认槽 0，兼容旧前端）。
+    // role 可省略（"auto" 让驱动探测；或显式 "mouse"/"kbd"）。
+    else if (type == "device_attach") {
+        std::string port = ExtractJsonString(json, "port");
+        int dev = ExtractJsonInt(json, "dev");
+        int baudReq = ExtractJsonInt(json, "baud");
+        std::string roleStr = ExtractJsonString(json, "role");
+        if (port.empty()) {
+            g_pipeServer.SendEvent("serial_error", "\"message\":\"No port specified\"");
+            return;
+        }
+        if (dev < 0 || dev >= DEV_MAX_SLOTS) dev = 0;
+
+        // 同一 COM 口不能挂两个槽（串口独占）
+        for (int i = 0; i < DEV_MAX_SLOTS; i++) {
+            DeviceSlot *other = DeviceContext::Get(i);
+            if (i != dev && other && other->connected) {
+                std::string op(other->port, other->port + wcslen(other->port));
+                if (op == port) {
+                    g_pipeServer.SendEvent("serial_error",
+                        "\"message\":\"该串口已挂在另一个设备槽位\"");
+                    return;
+                }
+            }
+        }
+
+        uint32_t baud = 0;
+        if (baudReq > 0) {
+            for (int i = 0; i < SUPPORTED_BAUD_COUNT; i++)
+                if (SUPPORTED_BAUDS[i] == (DWORD)baudReq) { baud = (uint32_t)baudReq; break; }
+            if (baud == 0) {
+                g_pipeServer.SendEvent("serial_error", "\"message\":\"Invalid baudrate\"");
+                return;
+            }
+        } else {
+            baud = SerialPort::DetectBaudrate(std::wstring(port.begin(), port.end()).c_str());
+            if (baud == 0) {
+                g_pipeServer.SendEvent("serial_error", "\"message\":\"无法检测到设备\"");
+                return;
+            }
+        }
+
+        DeviceContext::Detach(dev);
+        if (DeviceContext::Attach(dev, std::wstring(port.begin(), port.end()).c_str(), baud) < 0) {
+            g_pipeServer.SendEvent("serial_error", "\"message\":\"无法打开串口\"");
+            return;
+        }
+        if (roleStr == "mouse")      DeviceContext::SetRole(dev, DEV_ROLE_MOUSE);
+        else if (roleStr == "kbd")   DeviceContext::SetRole(dev, DEV_ROLE_KBD);
+
+        char body[192];
+        snprintf(body, sizeof(body), "\"dev\":%d,\"port\":\"%s\",\"baud\":%u",
+                 dev, port.c_str(), baud);
+        g_pipeServer.SendEvent("device_attached", body);
+        DebugLogger::Log("DEVICE attach slot=%d port=%s baud=%u", dev, port.c_str(), baud);
+        SendDeviceList();
+    }
+    else if (type == "device_detach") {
+        int dev = ExtractJsonInt(json, "dev");
+        if (dev < 0 || dev >= DEV_MAX_SLOTS) dev = 0;
+        DeviceContext::Detach(dev);
+        char body[64];
+        snprintf(body, sizeof(body), "\"dev\":%d", dev);
+        g_pipeServer.SendEvent("device_detached", body);
+        SendDeviceList();
+    }
+    else if (type == "device_set_role") {
+        int dev = ExtractJsonInt(json, "dev");
+        std::string roleStr = ExtractJsonString(json, "role");
+        if (dev < 0 || dev >= DEV_MAX_SLOTS) dev = 0;
+        int role = DEV_ROLE_NONE;
+        if (roleStr == "mouse")    role = DEV_ROLE_MOUSE;
+        else if (roleStr == "kbd") role = DEV_ROLE_KBD;
+        DeviceContext::SetRole(dev, role);
+        SendDeviceList();
+    }
+    // 键盘状态查询（物理按键，不含注入键）
+    else if (type == "get_kbd_state") {
+        char body[256];
+        MonitorPush::SerializeKbdJson(body, sizeof(body));
+        g_pipeServer.SendEvent("kbd_state", body);
+    }
+    // 键盘命令（按键 / 打字符串 / 全释放），路由到键盘设备
+    else if (type == "kbd_key") {
+        int kc = ExtractJsonInt(json, "kc");
+        int down = ExtractJsonInt(json, "down");
+        bool ok = CommandBridge::SendKeyboardKey((uint8_t)kc, down != 0, (DeviceRole)DEV_ROLE_KBD);
+        char body[96];
+        snprintf(body, sizeof(body), "\"ok\":%s,\"kc\":%d,\"down\":%d",
+                 ok ? "true" : "false", kc, down);
+        g_pipeServer.SendEvent("kbd_result", body);
+    }
+    else if (type == "kbd_type_string") {
+        std::string s = ExtractJsonString(json, "s");
+        bool ok = CommandBridge::SendKeyboardTypeString(s.c_str(), (DeviceRole)DEV_ROLE_KBD);
+        char body[96];
+        snprintf(body, sizeof(body), "\"ok\":%s", ok ? "true" : "false");
+        g_pipeServer.SendEvent("kbd_result", body);
+    }
+    else if (type == "kbd_release_all") {
+        bool ok = CommandBridge::SendKeyboardReleaseAll((DeviceRole)DEV_ROLE_KBD);
+        g_pipeServer.SendEvent("kbd_result", ok ? "\"ok\":true" : "\"ok\":false");
     }
     else if (type == "serial_connect") {
         std::string port = ExtractJsonString(json, "port");
@@ -283,10 +444,15 @@ static void OnPipeCommand(const char *json, void *userData) {
             g_app.serialBaudRate = baud;
             g_app.serialConnected = true;
             g_serial.StartReadThread(g_app.hStopEvent);
+            // 旧接口也登记进多设备层（槽 0），这样单设备 UI 与双设备 UI 共用
+            // 同一套连接状态，DeviceContext 的角色解析也能找到它。
+            DeviceContext::Detach(0);
+            DeviceContext::Attach(0, wport.c_str(), baud);
             UpdateTrayTip();
             char body[128];
             snprintf(body, sizeof(body), "\"port\":\"%s\",\"baud\":%u", port.c_str(), baud);
             g_pipeServer.SendEvent("serial_connected", body);
+            SendDeviceList();
         } else {
             g_pipeServer.SendEvent("serial_error", "\"message\":\"无法打开串口\"");
         }
@@ -346,13 +512,13 @@ static void OnPipeCommand(const char *json, void *userData) {
     }
     else if (type == "upload_enable") {
         bool enable = ExtractJsonBool(json, "enable");
-        CommandBridge::SendUploadStatus(enable);
+        CommandBridge::SendUploadStatus(enable, (DeviceRole)DEV_ROLE_MOUSE);
         char body[32];
         snprintf(body, sizeof(body), "\"enable\":%s", enable ? "true" : "false");
         g_pipeServer.SendEvent("upload_status", body);
     }
     else if (type == "jump_iap") {
-        CommandBridge::SendJumpIAP();
+        CommandBridge::SendJumpIAP((DeviceRole)DEV_ROLE_NONE);
     }
     else if (type == "get_local_ip") {
         std::string ip = GetLocalIP();
@@ -364,25 +530,41 @@ static void OnPipeCommand(const char *json, void *userData) {
         g_pipeServer.SendEvent("version", "\"version\":\"1.14.0\"");
     }
     else if (type == "get_monitor") {
+        // 鼠标侧字段保持原样（旧前端不变），另附键盘物理状态
         auto m = MonitorPush::GetLatest();
-        char body[128];
-        snprintf(body, sizeof(body), "\"buttons\":%d,\"x\":%d,\"y\":%d,\"wheel\":%d",
+        char mousePart[128];
+        snprintf(mousePart, sizeof(mousePart),
+                 "\"buttons\":%d,\"x\":%d,\"y\":%d,\"wheel\":%d",
                  m.buttons, m.x, m.y, m.wheel);
+        char kbdPart[256];
+        MonitorPush::SerializeKbdJson(kbdPart, sizeof(kbdPart));
+        char body[448];
+        snprintf(body, sizeof(body), "%s,%s,\"mouseValid\":%d",
+                 mousePart, kbdPart, m.valid);
         g_pipeServer.SendEvent("monitor_data", body);
     }
+    else if (type == "get_kbd_state") {
+        char body[256];
+        MonitorPush::SerializeKbdJson(body, sizeof(body));
+        g_pipeServer.SendEvent("kbd_state", body);
+    }
     else if (type == "get_state") {
-        char body[512];
+        char body[768];
         std::string serialPort;
         if (g_app.serialConnected)
             serialPort = std::string(g_app.serialPortName, g_app.serialPortName + wcslen(g_app.serialPortName));
+        char mousePart[128], kbdPart[256];
+        MonitorPush::SerializeMouseJson(mousePart, sizeof(mousePart));
+        MonitorPush::SerializeKbdJson(kbdPart, sizeof(kbdPart));
         snprintf(body, sizeof(body),
             "\"serialConnected\":%s,\"serialPort\":\"%s\",\"serialBaud\":%lu,"
-            "\"netRunning\":%s,\"netPort\":%u",
+            "\"netRunning\":%s,\"netPort\":%u,%s,%s",
             g_app.serialConnected ? "true" : "false",
             serialPort.c_str(),
             g_app.serialBaudRate,
             g_app.netServerRunning ? "true" : "false",
-            g_app.netPort);
+            g_app.netPort,
+            mousePart, kbdPart);
         g_pipeServer.SendEvent("state", body);
     }
     else if (type == "send_ysc") {
@@ -392,7 +574,7 @@ static void OnPipeCommand(const char *json, void *userData) {
         } else if (!g_app.serialConnected) {
             g_pipeServer.SendEvent("send_result", "\"ok\":false,\"error\":\"未连接设备\"");
         } else {
-            bool ok = CommandBridge::SendRawYsc(cmd.c_str());
+            bool ok = CommandBridge::SendRawYsc(cmd.c_str(), (DeviceRole)DEV_ROLE_NONE);
             char body[256];
             snprintf(body, sizeof(body), "\"ok\":%s,\"dir\":\"tx\",\"proto\":\"ysc\",\"cmd\":\"%s\"",
                      ok ? "true" : "false", cmd.c_str());
@@ -407,7 +589,7 @@ static void OnPipeCommand(const char *json, void *userData) {
         else if (cfg.empty())
             g_pipeServer.SendEvent("send_result", "\"ok\":false,\"error\":\"empty data\"");
         else {
-            bool ok = CommandBridge::SendGamepadConfig(cfg.c_str());
+            bool ok = CommandBridge::SendGamepadConfig(cfg.c_str(), (DeviceRole)DEV_ROLE_MOUSE);
             g_pipeServer.SendEvent("send_result", ok ? "\"ok\":true,\"cmd\":\"gmap_set\"" : "\"ok\":false");
         }
     }
@@ -416,7 +598,7 @@ static void OnPipeCommand(const char *json, void *userData) {
             g_pipeServer.SendEvent("send_result", "\"ok\":false,\"error\":\"未连接设备\"");
         else {
             // response arrives asynchronously as code 101 via ForwardDebugResponse
-            bool ok = CommandBridge::SendGetGamepadConfig();
+            bool ok = CommandBridge::SendGetGamepadConfig((DeviceRole)DEV_ROLE_MOUSE);
             g_pipeServer.SendEvent("send_result", ok ? "\"ok\":true,\"cmd\":\"gmap_get\"" : "\"ok\":false");
         }
     }
@@ -425,7 +607,7 @@ static void OnPipeCommand(const char *json, void *userData) {
         if (!g_app.serialConnected)
             g_pipeServer.SendEvent("send_result", "\"ok\":false,\"error\":\"未连接设备\"");
         else {
-            bool ok = CommandBridge::SendGamepadEnable(on != 0);
+            bool ok = CommandBridge::SendGamepadEnable(on != 0, (DeviceRole)DEV_ROLE_MOUSE);
             g_pipeServer.SendEvent("send_result", ok ? "\"ok\":true,\"cmd\":\"gmap_enable\"" : "\"ok\":false");
         }
     }
@@ -433,7 +615,7 @@ static void OnPipeCommand(const char *json, void *userData) {
         if (!g_app.serialConnected)
             g_pipeServer.SendEvent("send_result", "\"ok\":false,\"error\":\"未连接设备\"");
         else {
-            bool ok = CommandBridge::SendGamepadReset();
+            bool ok = CommandBridge::SendGamepadReset((DeviceRole)DEV_ROLE_MOUSE);
             g_pipeServer.SendEvent("send_result", ok ? "\"ok\":true,\"cmd\":\"gmap_reset\"" : "\"ok\":false");
         }
     }
@@ -446,7 +628,7 @@ static void OnPipeCommand(const char *json, void *userData) {
         if (!g_app.serialConnected)
             g_pipeServer.SendEvent("send_result", "\"ok\":false,\"error\":\"未连接设备\"");
         else {
-            bool ok = CommandBridge::SendInterpSet(enable, profile, window, maxw);
+            bool ok = CommandBridge::SendInterpSet(enable, profile, window, maxw, (DeviceRole)DEV_ROLE_MOUSE);
             g_pipeServer.SendEvent("send_result", ok ? "\"ok\":true,\"cmd\":\"interp_set\"" : "\"ok\":false");
         }
     }
@@ -455,7 +637,7 @@ static void OnPipeCommand(const char *json, void *userData) {
             g_pipeServer.SendEvent("send_result", "\"ok\":false,\"error\":\"未连接设备\"");
         else {
             // response arrives asynchronously as debug_response(message="interp") via ForwardDebugResponse
-            bool ok = CommandBridge::SendInterpGet();
+            bool ok = CommandBridge::SendInterpGet((DeviceRole)DEV_ROLE_MOUSE);
             g_pipeServer.SendEvent("send_result", ok ? "\"ok\":true,\"cmd\":\"interp_get\"" : "\"ok\":false");
         }
     }
@@ -463,7 +645,7 @@ static void OnPipeCommand(const char *json, void *userData) {
         if (!g_app.serialConnected)
             g_pipeServer.SendEvent("send_result", "\"ok\":false,\"error\":\"未连接设备\"");
         else {
-            bool ok = CommandBridge::SendInterpReset();
+            bool ok = CommandBridge::SendInterpReset((DeviceRole)DEV_ROLE_MOUSE);
             g_pipeServer.SendEvent("send_result", ok ? "\"ok\":true,\"cmd\":\"interp_reset\"" : "\"ok\":false");
         }
     }
@@ -474,7 +656,7 @@ static void OnPipeCommand(const char *json, void *userData) {
         } else if (!g_app.serialConnected) {
             g_pipeServer.SendEvent("send_result", "\"ok\":false,\"error\":\"未连接设备\"");
         } else {
-            bool ok = CommandBridge::SendRawMakcu(cmd.c_str());
+            bool ok = CommandBridge::SendRawMakcu(cmd.c_str(), (DeviceRole)DEV_ROLE_NONE);
             char body[256];
             snprintf(body, sizeof(body), "\"ok\":%s,\"dir\":\"tx\",\"proto\":\"makcu\",\"cmd\":\"%s\"",
                      ok ? "true" : "false", cmd.c_str());
@@ -486,7 +668,7 @@ static void OnPipeCommand(const char *json, void *userData) {
             g_pipeServer.SendEvent("iap_log", "\"message\":\"设备未连接\",\"cls\":\"err\"");
             return;
         }
-        CommandBridge::SendJumpIAP();
+        CommandBridge::SendJumpIAP((DeviceRole)DEV_ROLE_NONE);
         Sleep(200);
         g_pipeServer.SendEvent("iap_log", "\"message\":\"已进入下载模式\",\"cls\":\"info\"");
     }
@@ -634,31 +816,31 @@ static void OnPipeCommand(const char *json, void *userData) {
         TowmcuIAPUpgrader::Cancel();
     }
     else if (type == "debug_enter") {
-        bool ok = g_app.serialConnected && CommandBridge::DebugEnter();
+        bool ok = g_app.serialConnected && CommandBridge::DebugEnter((DeviceRole)DEV_ROLE_MOUSE);
         g_pipeServer.SendEvent("debug_cmd_result",
             ok ? "\"cmd\":\"enter\",\"ok\":true"
                : "\"cmd\":\"enter\",\"ok\":false,\"error\":\"未连接设备\"");
     }
     else if (type == "debug_exit") {
-        bool ok = g_app.serialConnected && CommandBridge::DebugExit();
+        bool ok = g_app.serialConnected && CommandBridge::DebugExit((DeviceRole)DEV_ROLE_MOUSE);
         g_pipeServer.SendEvent("debug_cmd_result",
             ok ? "\"cmd\":\"exit\",\"ok\":true"
                : "\"cmd\":\"exit\",\"ok\":false,\"error\":\"未连接设备\"");
     }
     else if (type == "debug_status") {
-        bool ok = g_app.serialConnected && CommandBridge::DebugStatus();
+        bool ok = g_app.serialConnected && CommandBridge::DebugStatus((DeviceRole)DEV_ROLE_MOUSE);
         if (!ok)
             g_pipeServer.SendEvent("debug_cmd_result",
                 "\"cmd\":\"status\",\"ok\":false,\"error\":\"未连接设备\"");
     }
     else if (type == "debug_get_dev_descr") {
-        bool ok = g_app.serialConnected && CommandBridge::DebugGetDevDescr();
+        bool ok = g_app.serialConnected && CommandBridge::DebugGetDevDescr((DeviceRole)DEV_ROLE_MOUSE);
         if (!ok)
             g_pipeServer.SendEvent("debug_cmd_result",
                 "\"cmd\":\"dev_descr\",\"ok\":false,\"error\":\"未连接设备\"");
     }
     else if (type == "debug_get_cfg_descr") {
-        bool ok = g_app.serialConnected && CommandBridge::DebugGetCfgDescr();
+        bool ok = g_app.serialConnected && CommandBridge::DebugGetCfgDescr((DeviceRole)DEV_ROLE_MOUSE);
         if (!ok)
             g_pipeServer.SendEvent("debug_cmd_result",
                 "\"cmd\":\"cfg_descr\",\"ok\":false,\"error\":\"未连接设备\"");
@@ -668,26 +850,26 @@ static void OnPipeCommand(const char *json, void *userData) {
         int maxBytes = ExtractJsonInt(json, "max");
         if (maxBytes <= 0) maxBytes = 200;
         bool ok = g_app.serialConnected &&
-                  CommandBridge::DebugGetReportDescr((uint16_t)offset, (uint16_t)maxBytes);
+                  CommandBridge::DebugGetReportDescr((uint16_t)offset, (uint16_t)maxBytes, (DeviceRole)DEV_ROLE_MOUSE);
         if (!ok)
             g_pipeServer.SendEvent("debug_cmd_result",
                 "\"cmd\":\"rep_descr\",\"ok\":false,\"error\":\"未连接设备\"");
     }
     else if (type == "debug_get_report") {
         int idx = ExtractJsonInt(json, "idx");
-        bool ok = g_app.serialConnected && CommandBridge::DebugGetReport((uint8_t)idx);
+        bool ok = g_app.serialConnected && CommandBridge::DebugGetReport((uint8_t)idx, (DeviceRole)DEV_ROLE_MOUSE);
         if (!ok)
             g_pipeServer.SendEvent("debug_cmd_result",
                 "\"cmd\":\"report\",\"ok\":false,\"error\":\"未连接设备\"");
     }
     else if (type == "debug_clear_reports") {
-        bool ok = g_app.serialConnected && CommandBridge::DebugClearReports();
+        bool ok = g_app.serialConnected && CommandBridge::DebugClearReports((DeviceRole)DEV_ROLE_MOUSE);
         g_pipeServer.SendEvent("debug_cmd_result",
             ok ? "\"cmd\":\"clear\",\"ok\":true"
                : "\"cmd\":\"clear\",\"ok\":false,\"error\":\"未连接设备\"");
     }
     else if (type == "debug_get_device_info") {
-        bool ok = g_app.serialConnected && CommandBridge::DebugGetDeviceInfo();
+        bool ok = g_app.serialConnected && CommandBridge::DebugGetDeviceInfo((DeviceRole)DEV_ROLE_MOUSE);
         if (!ok)
             g_pipeServer.SendEvent("debug_cmd_result",
                 "\"cmd\":\"device_info\",\"ok\":false,\"error\":\"未连接设备\"");
@@ -757,6 +939,11 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR, int) {
     // 读线程异常退出（串口物理断开/IO 错误）时，通过此窗口 PostMessage 通知主线程清理。
     g_serial.SetNotifyWindow(g_app.hwndMain);
 
+    // 多设备层：两路串口的数据/掉线都从这里回到主逻辑。
+    // 未连接任何设备时下面这些回调不会被触发，单设备路径（g_serial）行为不变。
+    DeviceContext::SetDataCallback(OnDeviceData, nullptr);
+    DeviceContext::SetLostCallback(OnDeviceLost, nullptr);
+
     // 注册 COM 口设备接口变更通知 —— 让隐藏窗口收到 WM_DEVICECHANGE（插拔即时推送）。
     // 仅限 GUID_DEVINTERFACE_COMPORT，避免 U 盘/HID 等无关设备刷屏。
     // 失败不致命：窗口聚焦刷新 enum_ports 仍是兜底。
@@ -787,6 +974,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR, int) {
     while (GetMessage(&msg, NULL, 0, 0)) {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
+        // 双设备角色自动识别：对已连接但角色未知的槽位发 cmd 715/711 探测
+        // 上游插的是鼠标还是键盘。内部有 100ms 节流 + 超时放弃，无设备时空转。
+        DeviceContext::ProbeTick();
     }
 
     // Cleanup
@@ -890,6 +1080,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     }
     return 0;
 }
+
 
 // ========== Menu Command Handler ==========
 void HandleMenuCommand(UINT cmdId) {

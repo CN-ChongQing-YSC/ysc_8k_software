@@ -157,6 +157,7 @@
     <ClCompile Include="kmboxnet_server.cpp" />
     <ClCompile Include="command_bridge.cpp" />
     <ClCompile Include="monitor_push.cpp" />
+    <ClCompile Include="device_context.cpp" />
     <ClCompile Include="debug_logger.cpp" />
     <ClCompile Include="pipe_server.cpp" />
     <ClCompile Include="iap_upgrader.cpp" />
@@ -171,6 +172,7 @@
     <ClInclude Include="kmboxnet_server.h" />
     <ClInclude Include="command_bridge.h" />
     <ClInclude Include="monitor_push.h" />
+    <ClInclude Include="device_context.h" />
     <ClInclude Include="debug_logger.h" />
     <ClInclude Include="pipe_server.h" />
     <ClInclude Include="iap_upgrader.h" />

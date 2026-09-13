@@ -1,4 +1,5 @@
 #include "kmboxnet_server.h"
+#include "device_context.h"
 #include "command_bridge.h"
 #include "main.h"
 #include "debug_logger.h"
@@ -136,7 +137,7 @@ void KmboxnetServer::HandlePacket(const uint8_t *data, int len,
         soft_mouse_t mouse;
         memcpy(&mouse, data + sizeof(kmboxnet_header_t), sizeof(mouse));
         DebugLogger::Log("UDP CMD_MOUSE_MOVE x=%d y=%d", mouse.x, mouse.y);
-        CommandBridge::SendMouseMove(mouse.x, mouse.y);
+        CommandBridge::SendMouseMove(mouse.x, mouse.y, 1, (DeviceRole)DEV_ROLE_MOUSE);
         SendResponse(fromAddr, hdr);
         break;
     }
@@ -150,7 +151,7 @@ void KmboxnetServer::HandlePacket(const uint8_t *data, int len,
         if (steps < 1) steps = 1;
         if (steps > 1000) steps = 1000;
         DebugLogger::Log("UDP CMD_MOUSE_AUTOMOVE x=%d y=%d steps=%d", mouse.x, mouse.y, steps);
-        CommandBridge::SendMouseMove(mouse.x, mouse.y, steps);
+        CommandBridge::SendMouseMove(mouse.x, mouse.y, steps, (DeviceRole)DEV_ROLE_MOUSE);
         SendResponse(fromAddr, hdr);
         break;
     }
@@ -163,7 +164,7 @@ void KmboxnetServer::HandlePacket(const uint8_t *data, int len,
         if (steps < 1) steps = 1;
         if (steps > 1000) steps = 1000;
         DebugLogger::Log("UDP CMD_BAZER_MOVE x=%d y=%d steps=%d", mouse.x, mouse.y, steps);
-        CommandBridge::SendMoveTow(mouse.x, mouse.y, steps);
+        CommandBridge::SendMoveTow(mouse.x, mouse.y, steps, (DeviceRole)DEV_ROLE_MOUSE);
         SendResponse(fromAddr, hdr);
         break;
     }
@@ -192,7 +193,7 @@ void KmboxnetServer::HandlePacket(const uint8_t *data, int len,
             btnName = "MIDDLE";
         }
         DebugLogger::Log("UDP CMD_MOUSE_%s pressed=%d btn=0x%08X", btnName, (int)pressed, mouse.button);
-        CommandBridge::SendMouseButton(btnMask, pressed);
+        CommandBridge::SendMouseButton(btnMask, pressed, (DeviceRole)DEV_ROLE_MOUSE);
         SendResponse(fromAddr, hdr);
         break;
     }
@@ -223,12 +224,12 @@ void KmboxnetServer::HandlePacket(const uint8_t *data, int len,
         EnterCriticalSection(&m_csMonitor);
         if (clientPort == 0) {
             m_hasMonitorClient = false;
-            CommandBridge::SendUploadStatus(false);
+            CommandBridge::SendUploadStatus(false, (DeviceRole)DEV_ROLE_MOUSE);
         } else {
             m_monitorClient = fromAddr;
             m_monitorClient.sin_port = htons(clientPort);
             m_hasMonitorClient = true;
-            CommandBridge::SendUploadStatus(true);
+            CommandBridge::SendUploadStatus(true, (DeviceRole)DEV_ROLE_MOUSE);
         }
         LeaveCriticalSection(&m_csMonitor);
         SendResponse(fromAddr, hdr);
