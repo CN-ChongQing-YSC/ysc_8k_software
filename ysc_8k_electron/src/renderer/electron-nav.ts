@@ -10,7 +10,10 @@ export const ELECTRON_NAV: NavGroup[] = [
     key: 'device',
     label: '设备',
     icon: 'device',
-    items: [{ key: 'home', label: '主页 / 串口', icon: 'device', desc: '连接设备串口、KmNet 与实时监控' }],
+    items: [
+      { key: 'home', label: '主页 / 串口', icon: 'device', desc: '连接设备串口、KmNet 与实时监控' },
+      { key: 'km-focus', label: '键鼠集火', icon: 'dualchip', desc: '双设备同时透传：一台上游插鼠标、一台插键盘' },
+    ],
   },
   {
     key: 'input',

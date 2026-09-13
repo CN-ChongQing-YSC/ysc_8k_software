@@ -26,8 +26,9 @@
         </div>
       </div>
 
-      <!-- 键盘机物理状态：显示用户真实按下的键（不含上位机注入的键） -->
-      <div class="kbd-block">
+      <!-- 键盘机物理状态：显示用户真实按下的键（不含上位机注入的键）。
+           仅在「键鼠集火」板块显示（showKbd）；主页是单串口路径，没有键盘机概念。 -->
+      <div v-if="showKbd" class="kbd-block">
         <div class="kbd-head">
           <span class="mon-label">{{ t('monitor.kbdDev') }}</span>
           <span v-if="!kbd || !kbd.valid" class="mon-sub">{{ t('monitor.noData') }}</span>
@@ -61,6 +62,8 @@ const props = defineProps({
   connected: { type: Boolean, default: false },
   /** 键盘物理状态快照 {valid, mod, count, overflow, keys[]} */
   kbd: { type: Object, default: null },
+  /** 是否显示键盘机区块（双设备「键鼠集火」板块才需要） */
+  showKbd: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['toggle-upload']);

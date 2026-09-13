@@ -29,15 +29,6 @@
       <template v-if="currentView === 'home'">
         <div class="main-content">
           <div class="left-col">
-            <DevicePanel
-              :slots="deviceSlots"
-              :ports="ports"
-              @connect="onDeviceConnect"
-              @disconnect="onDeviceDisconnect"
-              @set-role="onDeviceSetRole"
-              @set-baud="onDeviceSetBaud"
-              @refresh="onRefreshPorts"
-            />
             <SerialPanel
               :connected="serialConnected"
               :connected-port="serialPort"
@@ -64,8 +55,7 @@
               :buttons="monitorButtons"
               :x="monitorX"
               :y="monitorY"
-              :kbd="kbdState"
-              :connected="anyDeviceConnected"
+              :connected="serialConnected"
               @toggle-upload="onToggleUpload"
             />
           </div>
@@ -79,6 +69,36 @@
           @clear="onSnClear"
           @refresh="loadSerialNumber"
         />
+      </template>
+
+      <!-- 键鼠集火：双设备同时透传 —— 一台上游插鼠标、一台插键盘。
+           两台各自独占一路串口，驱动按角色路由命令、按数据分流监控。
+           与主页的单串口路径完全独立，互不影响。 -->
+      <template v-else-if="currentView === 'km-focus'">
+        <div class="main-content">
+          <div class="left-col">
+            <DevicePanel
+              :slots="deviceSlots"
+              :ports="ports"
+              @connect="onDeviceConnect"
+              @disconnect="onDeviceDisconnect"
+              @set-role="onDeviceSetRole"
+              @set-baud="onDeviceSetBaud"
+              @refresh="onRefreshPorts"
+            />
+          </div>
+          <div class="right-col">
+            <MonitorPanel
+              :buttons="monitorButtons"
+              :x="monitorX"
+              :y="monitorY"
+              :kbd="kbdState"
+              :connected="anyDeviceConnected"
+              :show-kbd="true"
+              @toggle-upload="onToggleUpload"
+            />
+          </div>
+        </div>
       </template>
       <div v-else-if="currentView === 'macro'" class="main-content">
         <MacroPanel
@@ -150,7 +170,7 @@ import { ELECTRON_NAV } from './electron-nav';
 const api = window.driverApi;
 const { t } = useI18n();
 
-const VALID_VIEWS = ['home', 'docs', 'macro', 'jitter', 'mouse-curve', 'mouse-interp', 'gamepad', 'firmware', 'towmcu-firmware', 'debug'];
+const VALID_VIEWS = ['home', 'km-focus', 'docs', 'macro', 'jitter', 'mouse-curve', 'mouse-interp', 'gamepad', 'firmware', 'towmcu-firmware', 'debug'];
 
 // 共享核心 ui-store 驱动导航视图（与 @ysc/core NavRail 共用 activeView，持久化由 store 负责）
 const ui = useUiStore();
