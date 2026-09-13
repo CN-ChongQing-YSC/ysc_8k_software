@@ -229,8 +229,74 @@ static void ForwardDebugResponse(const uint8_t *data, int len) {
     g_pipeServer.SendEvent("debug_response", body);
 }
 
+/*=============================================================================
+ * 串口原始帧旁路（排障用）
+ * "界面上看不到键盘数据" 这类问题有两个完全不同的原因，从界面无法区分：
+ *   (a) 固件根本没发键盘帧（没按键数据 / 状态没变化）；
+ *   (b) 固件发了但被驱动/前端某一层吃掉了。
+ * 这里把**驱动实际收到的每一帧**原样送出去：C++ 侧写 stdout（从命令行启动时
+ * 直接可见），同时经管道推 serial_raw 事件给 Electron → 渲染进程 console +
+ * 监控面板的实时列表。看到帧就是 (b)，看不到就是 (a)，一眼区分。
+ *
+ * 心跳（kbdhb）每秒一条且很长，全量推送会把界面刷爆，故按 3 秒节流；
+ * kbd（真实按键状态）一条不漏。
+ *===========================================================================*/
+static void TapSerialFrame(const uint8_t *data, int len) {
+    static uint32_t s_lastHbTick = 0;
+    if (!data || len <= 0 || len > 1024) return;
+
+    char text[1025];
+    memcpy(text, data, len);
+    text[len] = '\0';
+
+    /* 提取 "message":"xxx" */
+    char kind[24] = "";
+    const char *mk = "\"message\":\"";
+    const char *p = strstr(text, mk);
+    if (p) {
+        p += strlen(mk);
+        int i = 0;
+        while (*p && *p != '"' && i < (int)sizeof(kind) - 1) kind[i++] = *p++;
+        kind[i] = '\0';
+    }
+
+    bool isKbd = (strcmp(kind, "kbd") == 0);
+    bool isHb  = (strcmp(kind, "kbdhb") == 0);
+    if (isHb) {
+        uint32_t now = GetTickCount();
+        if (now - s_lastHbTick < 3000) return;
+        s_lastHbTick = now;
+    }
+
+    /* stdout：从命令行/终端启动驱动时可直接看到 */
+    printf("[SERIAL %s] %s\n", kind[0] ? kind : "?", text);
+    fflush(stdout);
+
+    /* 管道：转义成 JSON 字符串体 */
+    static char body[4096];
+    int n = snprintf(body, sizeof(body), "\"kind\":\"%s\",\"len\":%d,\"text\":\"",
+                     kind, len);
+    if (n <= 0 || n >= (int)sizeof(body)) return;
+    for (int i = 0; i < len && n < (int)sizeof(body) - 8; i++) {
+        unsigned char c = (unsigned char)text[i];
+        if (c == '"' || c == '\\')      { body[n++] = '\\'; body[n++] = (char)c; }
+        else if (c == '\r')             { body[n++] = '\\'; body[n++] = 'r'; }
+        else if (c == '\n')             { body[n++] = '\\'; body[n++] = 'n'; }
+        else if (c < 0x20)              { n += snprintf(body + n, sizeof(body) - n, "\\u%04x", c); }
+        else                            { body[n++] = (char)c; }
+    }
+    n += snprintf(body + n, sizeof(body) - n, "\"}");
+    if (n > 0 && n < (int)sizeof(body))
+        g_pipeServer.SendEvent("serial_raw", body);
+
+    (void)isKbd;
+}
+
 // Combined serial response handler: existing monitor push + debug forwarding.
+// 放在 TapSerialFrame 之后 —— 原始帧旁路挂在最外层，保证"驱动收到的每一帧"
+// 都会被看到（不管它随后被哪一层消费或丢弃）。
 static void OnSerialResponseCombo(const uint8_t *data, int len, void *userData) {
+    TapSerialFrame(data, len);
     MonitorPush::OnSerialResponse(data, len, userData);
     ForwardDebugResponse(data, len);
 }

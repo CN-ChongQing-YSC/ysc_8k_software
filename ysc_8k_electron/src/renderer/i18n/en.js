@@ -70,6 +70,10 @@ export default {
     kbdMore: '+{n} more',
     noData: 'No data',
     live: 'Live',
+    rawTitle: 'Raw serial frames (as received by driver)',
+    rawClear: 'Clear',
+    rawEmpty: 'No frames — if still empty while pressing keys, the firmware is not reporting keyboard frames',
+    rawCount: 'key frames',
     btn: {
       left: 'Left',
       right: 'Right',

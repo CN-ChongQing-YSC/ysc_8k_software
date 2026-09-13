@@ -70,6 +70,10 @@ export default {
     kbdMore: '等 {n} 键',
     noData: '无数据',
     live: '实时',
+    rawTitle: '串口原始帧（驱动实收）',
+    rawClear: '清空',
+    rawEmpty: '暂无数据 —— 若按键后这里仍为空，说明固件侧没有上报键盘帧',
+    rawCount: '按键帧',
     btn: {
       left: '左键',
       right: '右键',

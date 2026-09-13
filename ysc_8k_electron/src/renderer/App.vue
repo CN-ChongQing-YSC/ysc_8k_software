@@ -64,8 +64,10 @@
               :x="monitorX"
               :y="monitorY"
               :kbd="kbdState"
+              :raw-frames="rawFrames"
               :connected="anyDeviceConnected"
               @toggle-upload="onToggleUpload"
+              @clear-raw="rawFrames = []"
             />
           </div>
         </div>
@@ -174,6 +176,9 @@ const deviceSlots = ref([
   { dev: 1, role: 'none', auto: false, connected: false, port: '', baud: 0, vid: -1, pid: -1, product: '', ifaceMask: 0 },
 ]);
 const kbdState = ref({ valid: 0, mod: 0, count: 0, overflow: 0, keys: [] });
+/* 驱动实际收到的串口原始帧（排障用）：{t,kind,len,text}，最多保留 40 条。
+ * serial_raw 事件由驱动的 TapSerialFrame 推送（心跳按 3 秒节流，kbd 帧全量）。 */
+const rawFrames = ref([]);
 
 /* 是否已连上任意设备。双设备面板连的设备不算在 serialConnected 里
  * （那是旧单串口路径的状态），所以监控开关/面板的可用性要用这个综合判断，
@@ -715,6 +720,27 @@ onMounted(function() {
   listen('kbd_result', function() {
     // 键盘命令回执（成功/失败都刷一次状态，失败时 kbd 侧 valid 会反映出来）
     api.send('get_kbd_state');
+  });
+
+  /* 串口原始帧旁路：把驱动**实际收到**的每一帧打进 console 和监控面板列表。
+   * 排障价值：界面上"看不到键盘数据"可能是固件没发，也可能是被某一层吃掉了，
+   * 看这里有没有 {"message":"kbd"} 就能一眼区分。 */
+  listen('serial_raw', function(data) {
+    if (!data || !data.text) return;
+    var rec = {
+      t: new Date().toLocaleTimeString('zh-CN', { hour12: false }),
+      kind: data.kind || '?',
+      len: data.len || 0,
+      text: String(data.text),
+    };
+    rawFrames.value.push(rec);
+    if (rawFrames.value.length > 40) rawFrames.value.splice(0, rawFrames.value.length - 40);
+    if (rec.kind === 'kbd' || rec.kind === 'kbd_raw') {
+      // 真实按键帧：加重打印，方便在 DevTools 里过滤
+      console.log('%c[YSC KBD] ' + rec.text, 'color:#3fb950;font-weight:bold');
+    } else {
+      console.log('[YSC RAW ' + rec.kind + '] ' + rec.text);
+    }
   });
 
   listen('ch343_driver_status', function(data) {
