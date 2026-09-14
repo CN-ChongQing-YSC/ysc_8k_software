@@ -35,6 +35,7 @@
           v-for="(opt, i) in options"
           :id="optionId(i)"
           :key="String(opt.value)"
+          :data-idx="i"
           type="button"
           class="asel-opt"
           role="option"
@@ -137,14 +138,24 @@ function openPanel(): void {
   );
   open.value = true;
   nextTick(positionPanel);
-  window.addEventListener('scroll', close, true);
+  window.addEventListener('scroll', onWindowScroll, true);
   window.addEventListener('resize', close);
+}
+
+/** 页面 / 面板滚动时才收起：位置基准变了，继续挂着会飘。
+ *  必须排除弹层自身的滚动 —— 否则用户在选项列表里滚滚轮看更多档位，
+ *  事件冒泡到 window 被这个捕获监听接住，弹层会当场消失。
+ *  重定位同样要排除自身滚动：弹层自己滚不会改变它的 fixed 位置。 */
+function onWindowScroll(e: Event): void {
+  const t = e.target as Node | null;
+  if (t && (panelRef.value?.contains(t) || triggerRef.value?.contains(t))) return;
+  close();
 }
 
 function close(): void {
   if (!open.value) return;
   open.value = false;
-  window.removeEventListener('scroll', close, true);
+  window.removeEventListener('scroll', onWindowScroll, true);
   window.removeEventListener('resize', close);
 }
 
@@ -214,6 +225,17 @@ function onKeydown(e: KeyboardEvent): void {
   }
 }
 
+// 关闭后若滚动位置变了，重新打开时先把高亮项滚进视野
+watch(activeIndex, async (i) => {
+  if (!open.value || i < 0) return;
+  await nextTick();
+  const el = panelRef.value?.querySelector('[data-idx="' + i + '"]');
+  // 列表本身可滚动，键盘移动高亮时若不跟随，会选到看不见的项
+  if (el && typeof el.scrollIntoView === 'function') {
+    el.scrollIntoView({ block: 'nearest' });
+  }
+});
+
 // 打开时点面板以外的地方 → 关闭
 function onDocPointerDown(e: PointerEvent): void {
   const t = e.target as Node | null;
@@ -228,7 +250,7 @@ watch(open, (v) => {
 
 onBeforeUnmount(() => {
   document.removeEventListener('pointerdown', onDocPointerDown, true);
-  window.removeEventListener('scroll', close, true);
+  window.removeEventListener('scroll', onWindowScroll, true);
   window.removeEventListener('resize', close);
 });
 </script>
