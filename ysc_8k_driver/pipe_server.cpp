@@ -176,7 +176,10 @@ void PipeServer::ServerLoop() {
         // Client disconnected
         m_hasClient = false;
         m_hPipe = INVALID_HANDLE_VALUE;
-        FlushFileBuffers(hPipe);
+        /* 这里**不能**调 FlushFileBuffers：客户端异常退出（或被杀）时管道里还
+         * 有没读走的数据，FlushFileBuffers 会永久阻塞，整个管道服务就卡死在
+         * 这里 —— 之后任何客户端 open(pipe) 都会一直等不到实例（实测踩过：
+         * 客户端被 kill 后驱动再也连不上，只能重启驱动）。字节流管道不需要它。 */
         DisconnectNamedPipe(hPipe);
         CloseHandle(hPipe);
     }

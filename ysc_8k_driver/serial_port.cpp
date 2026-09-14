@@ -122,6 +122,38 @@ bool SerialPort::Connect(const wchar_t *portName, uint32_t baudRate) {
     return true;
 }
 
+bool SerialPort::PingOnce(uint32_t timeoutMs) {
+    if (!m_hPort) return false;
+    uint8_t frame[64];
+    int len = BuildVersionFrame(frame);
+    PurgeComm(m_hPort, PURGE_RXCLEAR | PURGE_TXCLEAR);
+
+    DWORD written = 0;
+    if (!WriteFile(m_hPort, frame, (DWORD)len, &written, NULL)) return false;
+
+    /* 句柄是 FILE_FLAG_OVERLAPPED，所以这里用一次手动 overlapped 读。
+     * 必须在 StartReadThread 之前调用，否则两个读者会抢数据。 */
+    OVERLAPPED ol = {};
+    ol.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+    if (!ol.hEvent) return false;
+    uint8_t buf[256];
+    DWORD got = 0;
+    bool valid = false;
+    BOOL ok = ReadFile(m_hPort, buf, sizeof(buf), &got, &ol);
+    if (!ok && GetLastError() == ERROR_IO_PENDING) {
+        if (WaitForSingleObject(ol.hEvent, timeoutMs) == WAIT_OBJECT_0) {
+            if (GetOverlappedResult(m_hPort, &ol, &got, FALSE) && got > 0)
+                valid = HasValidResponse(buf, (int)got);
+        } else {
+            CancelIo(m_hPort);
+        }
+    } else if (ok && got > 0) {
+        valid = HasValidResponse(buf, (int)got);
+    }
+    CloseHandle(ol.hEvent);
+    return valid;
+}
+
 void SerialPort::Disconnect() {
     // 互斥：防止多线程并发 Disconnect（主线程 WM_SERIAL_LOST 处理 vs 管道线程主动断开）
     // 造成重复 CloseHandle。已在断开则直接返回；StartReadThread 复位为 0。

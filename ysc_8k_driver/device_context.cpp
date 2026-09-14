@@ -239,6 +239,34 @@ int DeviceContext::Attach(int slot, const wchar_t *port, DWORD baud) {
         return -1;
     }
 
+    /* 连上 ≠ 通得上。固件刚刷完/刚复位时 USART1 回到默认 115200，而用户上次
+     * 选的是 4M：句柄能打开、界面显示"已连接"，但一条回包都收不到 —— 表现为
+     * 监控、按键、NET 全部"毫无反应"，且看不出错在哪。所以显式波特率下先握手
+     * 一次；失败就退回自动探测，用探测到的真实速率建立连接（界面显示的速率也
+     * 会跟着更新，用户想提速再用「切换波特率」显式切）。 */
+    if (baud != 0 && !d.serial->PingOnce()) {
+        DebugLogger::Log("DEVICE attach slot=%d %ls baud=%u 无应答，改自动探测",
+                         slot, port, (unsigned)baud);
+        d.serial->Disconnect();
+        delete d.serial;
+        d.serial = nullptr;
+
+        uint32_t detected = SerialPort::DetectBaudrate(port);
+        if (detected == 0) {
+            DebugLogger::Log("DEVICE attach slot=%d %ls 自动探测也失败", slot, port);
+            return -1;
+        }
+        d.serial = new SerialPort();
+        if (!d.serial->Connect(port, detected)) {
+            delete d.serial;
+            d.serial = nullptr;
+            return -1;
+        }
+        DebugLogger::Log("DEVICE attach slot=%d %ls 实际速率=%u（请求 %u）",
+                         slot, port, (unsigned)detected, (unsigned)baud);
+        baud = detected;
+    }
+
     d.serial->SetResponseCallback(OnSerialDataForSlot, (void *)(intptr_t)slot);
     d.serial->StartReadThread(g_app.hStopEvent);
 

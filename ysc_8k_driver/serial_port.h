@@ -16,6 +16,11 @@ public:
     ~SerialPort();
 
     bool Connect(const wchar_t *portName, uint32_t baudRate);
+    /* 握手一次（发 {"cmd":132} 版本查询，等 200 回包）。用于"句柄打开成功但
+     * 波特率不对"的场景：固件刚刷完/刚复位时 USART1 回到默认 115200，而上次
+     * 用户选的是 4M —— 打开句柄不报错，但一个回包都收不到。
+     * 必须在 StartReadThread 之前调用（内部用一次 overlapped 读）。 */
+    bool PingOnce(uint32_t timeoutMs = 400);
     void Disconnect();
     bool IsConnected() const;
     uint32_t GetBaudRate() const;

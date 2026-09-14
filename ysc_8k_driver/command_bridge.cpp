@@ -40,7 +40,7 @@ bool CommandBridge::SendMouseMove(int32_t x, int32_t y, int steps, DeviceRole __
     snprintf(json, sizeof(json), "{\"cmd\":30,\"x\":%d,\"y\":%d,\"c\":%d}",
              (int)x, (int)y, steps);
     DebugLog("TX serial: %s", json);
-    DebugLogger::Log("TX serial: %s", json);
+    DebugLogger::Log("TX[%ls] %s", sp->GetPortName(), json);
     return sp->SendJsonCommand(json);
 }
 
@@ -50,7 +50,7 @@ bool CommandBridge::SendMoveTow(int32_t x, int32_t y, int steps, DeviceRole __ro
     snprintf(json, sizeof(json), "{\"cmd\":31,\"x\":%d,\"y\":%d,\"c\":%d}",
              (int)x, (int)y, steps);
     DebugLog("TX serial: %s", json);
-    DebugLogger::Log("TX serial: %s", json);
+    DebugLogger::Log("TX[%ls] %s", sp->GetPortName(), json);
     return sp->SendJsonCommand(json);
 }
 
@@ -60,7 +60,7 @@ bool CommandBridge::SendMouseButton(uint8_t button_mask, bool pressed, DeviceRol
     snprintf(json, sizeof(json), "{\"cmd\":33,\"b\":%u,\"s\":%u}",
              (unsigned)button_mask, pressed ? 1 : 0);
     DebugLog("TX serial: %s", json);
-    DebugLogger::Log("TX serial: %s", json);
+    DebugLogger::Log("TX[%ls] %s", sp->GetPortName(), json);
     return sp->SendJsonCommand(json);
 }
 
@@ -69,7 +69,7 @@ bool CommandBridge::SendMouseButtonMask(uint8_t button_mask, DeviceRole __role) 
     char json[48];
     snprintf(json, sizeof(json), "{\"cmd\":61,\"b\":%u}", (unsigned)button_mask);
     DebugLog("TX serial: %s", json);
-    DebugLogger::Log("TX serial: %s", json);
+    DebugLogger::Log("TX[%ls] %s", sp->GetPortName(), json);
     return sp->SendJsonCommand(json);
 }
 
@@ -83,7 +83,7 @@ bool CommandBridge::SendMouseWheel(int32_t wheel, DeviceRole __role) {
     char json[48];
     snprintf(json, sizeof(json), "{\"cmd\":42,\"w\":%d}", (int)wheel);
     DebugLog("TX serial: %s", json);
-    DebugLogger::Log("TX serial: %s", json);
+    DebugLogger::Log("TX[%ls] %s", sp->GetPortName(), json);
     return sp->SendJsonCommand(json);
 }
 
@@ -94,7 +94,7 @@ bool CommandBridge::SendMouseMask(uint8_t mask, DeviceRole __role) {
     char json[48];
     snprintf(json, sizeof(json), "{\"cmd\":60,\"m\":%u}", (unsigned)mask);
     DebugLog("TX serial: %s", json);
-    DebugLogger::Log("TX serial: %s", json);
+    DebugLogger::Log("TX[%ls] %s", sp->GetPortName(), json);
     return sp->SendJsonCommand(json);
 }
 
@@ -148,7 +148,7 @@ bool CommandBridge::SendKeyboardKey(uint8_t kc, bool down, DeviceRole __role) {
     snprintf(json, sizeof(json), "{\"cmd\":45,\"kc\":%u,\"down\":%u}",
              (unsigned)kc, down ? 1 : 0);
     DebugLog("TX serial: %s", json);
-    DebugLogger::Log("TX serial: %s", json);
+    DebugLogger::Log("TX[%ls] %s", sp->GetPortName(), json);
     return sp->SendJsonCommand(json);
 }
 
@@ -194,7 +194,7 @@ bool CommandBridge::SendUploadStatus(bool enable, DeviceRole __role) {
     char json[64];
     snprintf(json, sizeof(json), "{\"cmd\":34,\"status\":%d}", enable ? 1 : 0);
     DebugLog("TX serial: %s", json);
-    DebugLogger::Log("TX serial: %s", json);
+    DebugLogger::Log("TX[%ls] %s", sp->GetPortName(), json);
     return sp->SendJsonCommand(json);
 }
 

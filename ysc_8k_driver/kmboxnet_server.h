@@ -21,6 +21,10 @@ public:
 
     bool HasMonitorClient() const;
 
+    // 供 UI 预览：客户端连接信息 + 命令调用统计 + 最近若干条调用记录。
+    // 返回写入 out 的字符数（不含结尾 NUL）。线程安全。
+    int  GetStatJson(char *out, int outSize) const;
+
 private:
     static DWORD WINAPI RecvThreadProc(LPVOID param);
     void RecvLoop();

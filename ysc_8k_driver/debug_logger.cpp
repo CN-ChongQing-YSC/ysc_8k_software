@@ -85,28 +85,12 @@ void DebugLogger::Log(const char *fmt, ...) {
     s_lineCount++;
     MaybeFlush();
 
-    // Push to Electron via named pipe
-    if (g_app.pipeServer) {
-        char logMsg[1024];
-        va_list args2;
-        va_start(args2, fmt);
-        vsnprintf(logMsg, sizeof(logMsg), fmt, args2);
-        va_end(args2);
-
-        char escaped[2048];
-        int ei = 0;
-        for (int i = 0; logMsg[i] && ei < (int)sizeof(escaped) - 2; i++) {
-            if (logMsg[i] == '"' || logMsg[i] == '\\')
-                escaped[ei++] = '\\';
-            escaped[ei++] = logMsg[i];
-        }
-        escaped[ei] = '\0';
-
-        char evt[2100];
-        snprintf(evt, sizeof(evt), "\"level\":\"info\",\"message\":\"%s\"", escaped);
-        static_cast<PipeServer*>(g_app.pipeServer)->SendEvent("log", evt);
-    }
-
+    /* 注意：这里**不再**把日志逐行推给 Electron 管道。原因有两条：
+     *   1) 前端没有任何消费者 —— main.js 的 forwardEvents 里没有 'log'，
+     *      推过去只会被解析后丢掉；
+     *   2) 更严重的是性能/稳定性：逐行推送是从串口读线程发起的（每收一帧就
+     *      几条日志），客户端一慢就会阻塞串口读线程；客户端异常退出时管道里
+     *      的积压还会让断连清理卡住。日志留在文件里（实时可读）就够了。 */
     LeaveCriticalSection(&s_cs);
 }
 

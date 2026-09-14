@@ -574,6 +574,14 @@ static void OnPipeCommand(const char *json, void *userData) {
             }
         }
     }
+    else if (type == "get_kmnet_stat") {
+        /* 「键鼠集火」的 NET 预览：客户端连接信息 + 命令调用计数 + 最近若干条
+         * 调用记录。事件 kmnet_stat 是同一份载荷（驱动侧变化时限速推送），这里是
+         * 主动拉取，用于首屏/漏推/重连后对齐。 */
+        char body[1536];
+        if (g_kmServer.GetStatJson(body, sizeof(body)) > 0)
+            g_pipeServer.SendEvent("kmnet_stat", body);
+    }
     else if (type == "kmnet_start") {
         int port = ExtractJsonInt(json, "port");
         if (port <= 0) port = KMBOXNET_DEFAULT_PORT;
@@ -640,12 +648,15 @@ static void OnPipeCommand(const char *json, void *userData) {
         MonitorPush::SerializeKbdJson(kbdPart, sizeof(kbdPart));
         snprintf(body, sizeof(body),
             "\"serialConnected\":%s,\"serialPort\":\"%s\",\"serialBaud\":%lu,"
-            "\"netRunning\":%s,\"netPort\":%u,%s,%s",
+            "\"netRunning\":%s,\"netPort\":%u,\"netIp\":\"%s\",%s,%s",
             g_app.serialConnected ? "true" : "false",
             serialPort.c_str(),
             g_app.serialBaudRate,
             g_app.netServerRunning ? "true" : "false",
             g_app.netPort,
+            /* NET 服务的对外地址：服务已在跑但前端是新开的（或刚重连）时，
+             * kmnet_started 事件早就过去了，靠这里补上显示用的 IP。 */
+            g_app.netServerRunning ? GetLocalIP().c_str() : "",
             mousePart, kbdPart);
         g_pipeServer.SendEvent("state", body);
     }
