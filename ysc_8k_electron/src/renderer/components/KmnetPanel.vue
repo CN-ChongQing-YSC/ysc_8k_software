@@ -49,6 +49,33 @@
         </div>
         <div v-if="selfCheck.message" class="kmnet-selfcheck-msg">{{ selfCheck.message }}</div>
       </div>
+
+      <!-- ── NET API 活动预览（键鼠集火用；主页不传 showActivity 就不显示）──
+           能看到：是否被连上、累计调用分类计数、最近若干条调用（含"有没有真的
+           转到盒子上"）。数据来自驱动的 kmnet_stat 事件 + get_kmnet_stat 拉取。 -->
+      <div v-if="showActivity" class="kmnet-act">
+        <div class="kmnet-act-head">
+          <span class="kmnet-act-label">{{ t('kmnet.act.title') }}</span>
+          <span class="kmnet-act-dot" :class="{ on: clientActive }" />
+          <span class="kmnet-act-who">{{ clientLabel }}</span>
+        </div>
+        <div v-if="total > 0" class="kmnet-act-counts">
+          <span class="pill m">{{ t('kmnet.act.cMouse') }} {{ counts.mouse }}</span>
+          <span class="pill k">{{ t('kmnet.act.cKbd') }} {{ counts.kbd }}</span>
+          <span class="pill c">{{ t('kmnet.act.cCtrl') }} {{ counts.ctrl }}</span>
+          <span v-if="counts.other" class="pill u">{{ t('kmnet.act.cOther') }} {{ counts.other }}</span>
+        </div>
+        <div class="kmnet-act-list">
+          <div v-if="!ring.length" class="kmnet-act-empty">{{ t('kmnet.act.empty') }}</div>
+          <div v-for="r in ring" :key="r.i" class="kmnet-act-row">
+            <span class="kmnet-act-t">{{ atLabel(r.ms) }}</span>
+            <span class="kmnet-act-n" :class="'k' + r.k">{{ r.n }}</span>
+            <span class="kmnet-act-d">{{ r.d }}</span>
+            <span class="kmnet-act-ok" :class="{ bad: !r.ok, dash: r.k === 2 }">{{ targetLabel(r) }}</span>
+          </div>
+        </div>
+        <div v-if="running" class="kmnet-hint">{{ t('kmnet.act.hint') }}</div>
+      </div>
     </div>
   </div>
 </template>
@@ -71,6 +98,15 @@ const props = defineProps({
     },
   },
   serialConnected: { type: Boolean, default: false },
+  /** 驱动侧 NET 活动快照 {total,c:{mouse,kbd,ctrl,other},client:{...},ring:[...]} */
+  stat: {
+    type: Object,
+    default: function() {
+      return { total: 0, c: {}, client: {}, ring: [] };
+    },
+  },
+  /** 是否显示 API 活动预览（键鼠集火面板才需要） */
+  showActivity: { type: Boolean, default: false },
 });
 
 defineEmits(['start', 'stop']);
@@ -98,4 +134,114 @@ const selfCheckClass = computed(function() {
   if (props.selfCheck.result === 'failed') return 'is-failed';
   return '';
 });
+
+/* ── API 活动预览 ── */
+const total = computed(() => (props.stat && props.stat.total) || 0);
+const counts = computed(() => (props.stat && props.stat.c) || {});
+const ring = computed(() => (props.stat && props.stat.ring) || []);
+const clientActive = computed(() => !!(props.stat && props.stat.client && props.stat.client.active));
+
+const clientLabel = computed(function() {
+  const c = (props.stat && props.stat.client) || {};
+  if (!c.ip) return t('kmnet.act.noClient');
+  let s = t('kmnet.act.client', { ip: c.ip, port: c.port });
+  if (c.sessions > 1) s += ' · ' + t('kmnet.act.sessions', { n: c.sessions });
+  if (c.seenMs) s += ' · ' + t('kmnet.act.seen', { n: Math.round(c.seenMs / 1000) });
+  return s;
+});
+
+/** 距 NET 服务启动的时间，秒（一位小数）——比绝对时间更适合"最近调用"预览 */
+function atLabel(ms) {
+  if (ms == null) return '';
+  return (ms / 1000).toFixed(1) + 's';
+}
+
+/** 命令落到哪台盒子；k=2 是控制类（连接/监控/屏蔽/重启），没有目标设备 */
+function targetLabel(r) {
+  if (!r.ok) return t('kmnet.act.notRouted');
+  if (r.k === 0) return t('kmnet.act.tMouse');
+  if (r.k === 1) return t('kmnet.act.tKbd');
+  if (r.k === 2) return t('kmnet.act.tDash');
+  return t('kmnet.act.tUnsupported');
+}
 </script>
+
+<style scoped>
+.kmnet-act {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border, #444);
+}
+.kmnet-act-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+.kmnet-act-label { opacity: 0.75; }
+.kmnet-act-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #666; flex: none;
+}
+.kmnet-act-dot.on { background: var(--accent, #4a9); box-shadow: 0 0 6px var(--accent, #4a9); }
+.kmnet-act-who {
+  opacity: 0.8;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kmnet-act-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.kmnet-act-counts .pill {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--border, #444);
+  opacity: 0.9;
+}
+.pill.m { border-color: #4a9; }
+.pill.k { border-color: #c96; }
+.pill.c { border-color: #69c; }
+.pill.u { border-color: #c66; color: #e88; }
+.kmnet-act-list {
+  max-height: 148px;
+  overflow-y: auto;
+  border: 1px solid var(--border, #333);
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.15);
+}
+.kmnet-act-empty { font-size: 11px; opacity: 0.5; padding: 6px 8px; }
+.kmnet-act-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-family: ui-monospace, Consolas, monospace;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.kmnet-act-row:last-child { border-bottom: none; }
+.kmnet-act-t { opacity: 0.45; width: 42px; flex: none; text-align: right; }
+.kmnet-act-n { width: 66px; flex: none; }
+.kmnet-act-n.k0 { color: #6cb; }
+.kmnet-act-n.k1 { color: #dba; }
+.kmnet-act-n.k2 { color: #9cf; }
+.kmnet-act-n.k3 { color: #e88; }
+.kmnet-act-d {
+  flex: 1;
+  opacity: 0.7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kmnet-act-ok { flex: none; opacity: 0.7; }
+.kmnet-act-ok.dash { opacity: 0.35; }
+.kmnet-act-ok.bad { color: #e88; opacity: 1; }
+</style>

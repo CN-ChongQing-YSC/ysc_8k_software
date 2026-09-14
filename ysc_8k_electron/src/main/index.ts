@@ -218,11 +218,24 @@ function setupDriverEvents(): void {
     // 双设备（一鼠标机 + 一键盘机）
     'device_list', 'device_attached', 'device_detached', 'device_lost',
     'kbd_state', 'kbd_result',
+    // NET API 活动预览（键鼠集火面板）：客户端连接/调用命令的统计与最近记录
+    'kmnet_stat',
   ];
 
   for (const evt of forwardEvents) {
     driver.on(evt, (data: any) => sendToRenderer(evt, data));
   }
+
+  /* 兜底：任何**不在白名单里的**驱动事件也转发给渲染进程。
+   * 白名单是漏一个就静默丢（驱动加了新事件、前端永远收不到，且没有任何报错），
+   * 实测吃过这个亏（kmnet_stat）。这里保留白名单只为显式表达"已知事件"，
+   * 真正生效的是这条 catch-all。 */
+  const forwarded = new Set(forwardEvents);
+  driver.on('*', (msg: any) => {
+    const t = msg && msg.type;
+    if (!t || forwarded.has(t) || t === 'log' || t === 'connected') return;
+    sendToRenderer(t, msg);
+  });
 
   driver.on('disconnected', () => sendToRenderer('disconnected'));
 }

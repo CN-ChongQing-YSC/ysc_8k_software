@@ -209,6 +209,10 @@ export class DriverPipe extends EventEmitter {
       const msg = JSON.parse(line);
       if (msg.type) {
         this.emit(msg.type, msg);
+        // 通配事件：让主进程能"默认转发所有驱动事件"。
+        // 之前只转发白名单里的事件，结果驱动新增一类事件（如 kmnet_stat）时
+        // 忘了同步白名单就会**静默丢弃**，界面永远空白且毫无线索。
+        this.emit('*', msg);
       }
     } catch {
       // Ignore non-JSON lines

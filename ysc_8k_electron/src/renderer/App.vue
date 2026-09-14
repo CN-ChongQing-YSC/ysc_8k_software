@@ -86,6 +86,20 @@
               @set-baud="onDeviceSetBaud"
               @refresh="onRefreshPorts"
             />
+            <!-- NET API 服务：第三方(kmboxnet API)连的就是这里。集火模式下
+                 命令按类型自动分流（鼠标类→鼠标盒、键盘类→键盘盒），下面的
+                 活动预览能看到"谁连着 / 调了什么 / 有没有真的转到盒子"。 -->
+            <KmnetPanel
+              :running="netRunning"
+              :ip="netIp"
+              :mac="netMac"
+              :port="netPort"
+              :serial-connected="anyDeviceConnected"
+              :stat="kmnetStat"
+              :show-activity="true"
+              @start="onKmnetStartDual"
+              @stop="onKmnetStop"
+            />
           </div>
           <div class="right-col">
             <MonitorPanel
@@ -184,6 +198,9 @@ const netRunning = ref(false);
 const netPort = ref(5251);
 const netIp = ref('');
 const netMac = ref('');
+/* NET API 活动快照（键鼠集火面板预览用）：驱动 kmnet_stat 事件推送 +
+ * get_kmnet_stat 定时拉取兜底。结构见 KmnetPanel 的 stat prop。 */
+const kmnetStat = ref({ total: 0, c: {}, client: {}, ring: [] });
 const version = ref('');
 const ports = ref([]);
 
@@ -380,6 +397,14 @@ function onKmnetStop() {
   api.send('kmnet_stop');
 }
 
+/* 集火模式的启动：单串口那条路径不需要连，只要能连上盒子就能起服务
+ * （命令最终要落到盒子上；没有设备也允许起，预览里会显示"未转接"，
+ * 这样"只插键盘测 NET 转接"这种场景也能直接试）。 */
+function onKmnetStartDual(port) {
+  kmnetStat.value = { total: 0, c: {}, client: {}, ring: [] };
+  api.send('kmnet_start', { port: port });
+}
+
 function onMacroSaveAll(allSlots) {
   macros.value = allSlots;
   for (var i = 0; i < allSlots.length; i++) {
@@ -505,6 +530,7 @@ function onSnClear() {
 let monitorTimer = null;
 let kbdTimer = null;      // 键盘物理状态轮询
 let deviceTimer = null;   // 设备槽位/角色轮询
+let kmnetStatTimer = null; // NET API 活动预览（低频拉取，推送为主）
 let portsRefreshAt = 0;
 
 // ── 双设备操作 ──
@@ -636,9 +662,21 @@ onMounted(function() {
 
   listen('kmnet_stopped', function() {
     netRunning.value = false;
+    kmnetStat.value = { total: 0, c: {}, client: {}, ring: [] };
     if (kmnetSelfCheck.value.active) {
       selfCheckFail('KmNet 服务已停止,自检中断');
     }
+  });
+
+  /* NET API 活动预览：驱动在客户端连接/调用命令时限速推送，前端只负责显示。
+   * 载荷 = {total, c:{mouse,kbd,ctrl,other}, client:{ip,port,sessions,seenMs,active},
+   *         ring:[{i,ms,k,ok,n,d}, ...]}（ring 新的在前）。 */
+  listen('kmnet_stat', function(data) {
+    if (!data || typeof data !== 'object') return;
+    if (!Array.isArray(data.ring)) data.ring = [];
+    if (!data.c) data.c = {};
+    if (!data.client) data.client = {};
+    kmnetStat.value = data;
   });
 
   /* monitor_data 现在由驱动"变化即推"（≤~125Hz 合并），不再是 100ms 轮询的应答。
@@ -723,6 +761,9 @@ onMounted(function() {
     serialBaud.value = data.serialBaud;
     netRunning.value = data.netRunning;
     netPort.value = data.netPort;
+    // NET 服务已在跑但前端刚起来（kmnet_started 事件早过去了）：用状态包里的
+    // 地址补齐，否则面板上的"通讯地址"永远是空的。
+    if (data.netIp) netIp.value = data.netIp;
     // 键盘物理状态也随状态包回来，避免额外往返
     if (data.kbd) kbdState.value = data.kbd;
   });
@@ -796,6 +837,13 @@ onMounted(function() {
   deviceTimer = setInterval(function() {
     api.send('device_list');
   }, 1000);
+
+  /* NET API 活动：推送为主，这里 1s 拉一次兜底（首屏、漏推、重连后对齐）。
+   * 只显示"最近调用"这种简单预览，1s 粒度足够，也不必让驱动推得更勤。 */
+  api.send('get_kmnet_stat');
+  kmnetStatTimer = setInterval(function() {
+    if (netRunning.value) api.send('get_kmnet_stat');
+  }, 1000);
 });
 
 onUnmounted(function() {
@@ -803,6 +851,7 @@ onUnmounted(function() {
   if (monitorTimer) clearInterval(monitorTimer);
   if (kbdTimer) clearInterval(kbdTimer);
   if (deviceTimer) clearInterval(deviceTimer);
+  if (kmnetStatTimer) clearInterval(kmnetStatTimer);
   selfCheckCleanupTimers();
   clearTimeout(snLoadingTimer);
   window.removeEventListener('focus', onWindowFocus);
