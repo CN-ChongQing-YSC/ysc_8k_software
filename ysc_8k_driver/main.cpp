@@ -624,7 +624,7 @@ static void OnPipeCommand(const char *json, void *userData) {
         g_pipeServer.SendEvent("local_ip", body);
     }
     else if (type == "get_version") {
-        g_pipeServer.SendEvent("version", "\"version\":\"1.14.0\"");
+        g_pipeServer.SendEvent("version", "\"version\":\"1.15.0\"");
     }
     else if (type == "get_monitor") {
         // 鼠标 + 键盘一处合成（与"变化即推"共用同一份载荷）。前端现在默认靠

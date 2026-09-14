@@ -7,6 +7,10 @@ YSC 8K 上位机软件发布记录。版本号同时存在于 `ysc_8k_electron/p
 
 ## 未发布（Unreleased）
 
+（暂无）
+
+## v1.15.0 — 2026-09-14
+
 ### 新增功能
 
 - **设备序列号自定义（透传鼠标 USB iSerialNumber）**
