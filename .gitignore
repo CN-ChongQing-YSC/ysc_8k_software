@@ -13,6 +13,8 @@
 # ysc_8k_electron (Node / Electron)
 /ysc_8k_electron/node_modules
 /ysc_8k_electron/dist
+# 安装包只通过 GitHub Releases 分发（见 README「发布流程」）：
+# 不要 `git add -f` 把这里面的 exe 提交进仓库。
 /ysc_8k_electron/release
 
 # npm workspaces (root monorepo)
