@@ -316,3 +316,24 @@ bool CommandBridge::DebugGetDeviceInfo(DeviceRole __role) {
     SerialPort *sp = Resolve(__role); if (!sp) return false;
     return sp->SendJsonCommand("{\"cmd\":715}");
 }
+/* 716 抓包过滤模式（0=全部 1=仅变化 2=仅按键轨迹）；设置后会清空固件缓冲 */
+bool CommandBridge::DebugSetMode(uint8_t mode, DeviceRole __role) {
+    SerialPort *sp = Resolve(__role); if (!sp) return false;
+    char json[64];
+    snprintf(json, sizeof(json), "{\"cmd\":716,\"mode\":%u}", (unsigned)mode);
+    DebugLog("TX debug setmode %u", (unsigned)mode);
+    return sp->SendJsonCommand(json);
+}
+/* 717 按键链路诊断：计数器 + 鼠标布局快照 */
+bool CommandBridge::DebugGetDiag(DeviceRole __role) {
+    SerialPort *sp = Resolve(__role); if (!sp) return false;
+    return sp->SendJsonCommand("{\"cmd\":717}");
+}
+/* 718 分页取记录（含方向/端点/按键/分类） */
+bool CommandBridge::DebugGetEvents(uint16_t from, uint16_t n, DeviceRole __role) {
+    SerialPort *sp = Resolve(__role); if (!sp) return false;
+    char json[80];
+    snprintf(json, sizeof(json), "{\"cmd\":718,\"from\":%u,\"n\":%u}",
+             (unsigned)from, (unsigned)n);
+    return sp->SendJsonCommand(json);
+}

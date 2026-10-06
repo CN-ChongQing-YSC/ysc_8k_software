@@ -84,6 +84,13 @@ public:
     static bool DebugGetReport(uint8_t idx, DeviceRole role);
     static bool DebugClearReports(DeviceRole role);
     static bool DebugGetDeviceInfo(DeviceRole role);
+    /* 按键链路诊断（固件 cmd 716/717/718）：
+     *   716 设置过滤模式（0=全部 1=仅变化 2=仅按键轨迹），会清空固件缓冲；
+     *   717 取计数器 + 鼠标布局快照；
+     *   718 分页取记录（含方向 up/down、端点、按键字节、分类/原因）。 */
+    static bool DebugSetMode(uint8_t mode, DeviceRole role);
+    static bool DebugGetDiag(DeviceRole role);
+    static bool DebugGetEvents(uint16_t from, uint16_t n, DeviceRole role);
 
 private:
     static SerialPort *s_serial;

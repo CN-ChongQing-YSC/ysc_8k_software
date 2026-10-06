@@ -196,7 +196,7 @@ static bool ExtractJsonBool(const char *json, const char *key) {
     return (*p == 't' || *p == '1');
 }
 
-// Forward firmware debug-capture responses (code 700..715) to Electron.
+// Forward firmware debug-capture responses (code 700..718) to Electron.
 // Firmware response shape: {"code":NNN,"message":"..","data":".."}
 // Re-emitted as:           {"type":"debug_response","code":NNN,"message":"..","data":".."}
 static void ForwardDebugResponse(const uint8_t *data, int len) {
@@ -207,9 +207,9 @@ static void ForwardDebugResponse(const uint8_t *data, int len) {
     json[len] = '\0';
 
     int code = ExtractJsonInt(json, "code");
-    // Forward debug (700..715) AND gamepad-mapper config responses (100..104,
+    // Forward debug (700..718) AND gamepad-mapper config responses (100..104,
     // includes async pad plug/unplug event 103) to Electron.
-    bool is_debug = (code >= 700 && code <= 715);
+    bool is_debug = (code >= 700 && code <= 718);
     bool is_gmap  = (code >= 100 && code <= 104);
     // Also forward control responses (code==200 with non-null message) so the
     // UI can read back macro/jitter config. Monitor-push responses carry
@@ -966,6 +966,31 @@ static void OnPipeCommand(const char *json, void *userData) {
         if (!ok)
             g_pipeServer.SendEvent("debug_cmd_result",
                 "\"cmd\":\"device_info\",\"ok\":false,\"error\":\"未连接设备\"");
+    }
+    else if (type == "debug_set_mode") {
+        int mode = ExtractJsonInt(json, "mode");
+        if (mode < 0 || mode > 2) mode = 1;
+        bool ok = g_app.serialConnected && CommandBridge::DebugSetMode((uint8_t)mode, (DeviceRole)DEV_ROLE_MOUSE);
+        if (!ok)
+            g_pipeServer.SendEvent("debug_cmd_result",
+                "\"cmd\":\"set_mode\",\"ok\":false,\"error\":\"未连接设备\"");
+    }
+    else if (type == "debug_get_diag") {
+        bool ok = g_app.serialConnected && CommandBridge::DebugGetDiag((DeviceRole)DEV_ROLE_MOUSE);
+        if (!ok)
+            g_pipeServer.SendEvent("debug_cmd_result",
+                "\"cmd\":\"diag\",\"ok\":false,\"error\":\"未连接设备\"");
+    }
+    else if (type == "debug_get_events") {
+        int from = ExtractJsonInt(json, "from");
+        int n = ExtractJsonInt(json, "n");
+        if (from < 0) from = 0;
+        if (n <= 0) n = 16;
+        bool ok = g_app.serialConnected &&
+                  CommandBridge::DebugGetEvents((uint16_t)from, (uint16_t)n, (DeviceRole)DEV_ROLE_MOUSE);
+        if (!ok)
+            g_pipeServer.SendEvent("debug_cmd_result",
+                "\"cmd\":\"events\",\"ok\":false,\"error\":\"未连接设备\"");
     }
 }
 

@@ -112,6 +112,77 @@
           </div>
         </div>
 
+        <!-- 按键链路诊断：定位"物理按键不上报"这类问题 -->
+        <div class="diag-card" v-if="status.debug || status.reportCount > 0">
+          <div class="diag-head">
+            <span class="diag-title">{{ t('debug.diagTitle') }}</span>
+            <span class="diag-mode">{{ modeLabel }}</span>
+          </div>
+          <div class="diag-desc">{{ t('debug.diagDesc') }}</div>
+
+          <div class="diag-modes">
+            <button
+              v-for="m in modeOptions"
+              :key="m.v"
+              class="chip"
+              :class="{ on: mode === m.v }"
+              :disabled="busy !== null || catching"
+              @click="setMode(m.v)"
+            >{{ m.label }}</button>
+          </div>
+
+          <div class="diag-actions">
+            <button class="btn primary" :disabled="busy !== null || catching" @click="grabButtons">
+              {{ catching ? t('debug.grabRunning') : t('debug.grabBtn') }}
+            </button>
+            <button class="btn" :disabled="busy !== null" @click="refreshDiag">{{ t('debug.diagRead') }}</button>
+          </div>
+
+          <div class="capture-hint" v-if="catchHint">{{ catchHint }}</div>
+
+          <div class="verdict" :class="verdict.level" v-if="verdict">
+            <div class="verdict-text">{{ verdict.text }}</div>
+            <div class="verdict-detail">{{ verdict.detail }}</div>
+          </div>
+
+          <div class="stat-grid" v-if="diag">
+            <div class="stat" v-for="s in statCells" :key="s.k">
+              <span class="stat-k">{{ s.k }}</span>
+              <span class="stat-v" :class="{ zero: !s.v, bad: s.bad && s.v > 0 }">{{ s.v }}</span>
+            </div>
+          </div>
+
+          <div class="lay-line" v-if="diag && diag.lay">
+            {{ t('debug.layLabel') }}
+            len={{ diag.lay.len }} · rid={{ diag.lay.hasRid ? diag.lay.rid : '-' }} ·
+            iface={{ diag.lay.iface }} · ep={{ diag.lay.ep }} ·
+            btn(off={{ diag.lay.btnOff }},{{ diag.lay.btnBits }}bit) ·
+            x({{ diag.lay.xOff }},{{ diag.lay.xBits }}) · y({{ diag.lay.yOff }},{{ diag.lay.yBits }}) ·
+            wh({{ diag.lay.whOff }},{{ diag.lay.whBits }})
+          </div>
+
+          <div class="evt-box" v-if="events.length">
+            <div class="evt-row evt-head">
+              <span class="c-i">#</span>
+              <span class="c-t">{{ t('debug.colTime') }}</span>
+              <span class="c-d">{{ t('debug.colDir') }}</span>
+              <span class="c-e">EP</span>
+              <span class="c-b">{{ t('debug.colBtn') }}</span>
+              <span class="c-c">{{ t('debug.colCls') }}</span>
+              <span class="c-h">RAW</span>
+            </div>
+            <div v-for="e in events" :key="e.i" class="evt-row" :class="dirClass(e.d)">
+              <span class="c-i">{{ e.i }}</span>
+              <span class="c-t">{{ fmtT(e.t) }}</span>
+              <span class="c-d">{{ dirLabel(e.d) }}</span>
+              <span class="c-e">{{ e.e }}</span>
+              <span class="c-b">{{ btnText(e.b) }}</span>
+              <span class="c-c">{{ clsText(e) }}</span>
+              <span class="c-h">{{ hexPretty(e.h) }}</span>
+            </div>
+          </div>
+        </div>
+
         <!-- 导出按钮 -->
         <div class="export-row" v-if="status.reportCount > 0">
           <button
@@ -172,6 +243,31 @@ const busy = ref(null);
 const exportProgress = ref(0);
 const logs = ref([]);
 let pollTimer = null;
+
+/* ---------- 按键链路诊断状态 ---------- */
+const diag = ref(null);        // 固件 717 返回的计数器 + 鼠标布局快照
+const events = ref([]);        // 固件 718 分页取回的记录（含方向/按键/分类）
+const mode = ref(1);           // 抓包模式：0=全部 1=仅变化 2=仅按键轨迹
+const catching = ref(false);
+const catchHint = ref('');
+let catchTimer = null;
+
+const MODES = [
+  { v: 2, key: 'modeBtn' },
+  { v: 1, key: 'modeChanged' },
+  { v: 0, key: 'modeAll' },
+];
+
+/* 分类码（dir=0 上游）/ 原因码（dir=2 事件）—— 与固件 DebugCapture.h 对齐 */
+const CLS_LABELS = {
+  0: 'debug.clsMouse', 1: 'debug.clsRid', 2: 'debug.clsIface', 3: 'debug.clsLayout',
+  4: 'debug.clsKbd', 5: 'debug.clsRaw', 6: 'debug.clsOther',
+};
+const NOTE_LABELS = {
+  1: 'debug.noteEpBusy', 2: 'debug.noteNoContent', 3: 'debug.noteMasked',
+  4: 'debug.noteDropRid', 5: 'debug.noteDropIface', 6: 'debug.noteDropLayout',
+  7: 'debug.clsKbd', 8: 'debug.noteSendFail', 9: 'debug.noteQueueDrop',
+};
 
 /* ---------- helpers ---------- */
 const addLog = (type, message) => {
@@ -336,6 +432,89 @@ const capturePercent = computed(() => {
 const hexVid = computed(() => '0x' + (status.vid || 0).toString(16).toUpperCase().padStart(4, '0'));
 const hexPid = computed(() => '0x' + (status.pid || 0).toString(16).toUpperCase().padStart(4, '0'));
 
+/* ---------- 诊断展示辅助 ---------- */
+const modeOptions = computed(() => MODES.map((m) => ({ v: m.v, label: t('debug.' + m.key) })));
+const modeLabel = computed(() => {
+  const hit = MODES.find((m) => m.v === mode.value) || MODES[1];
+  return t('debug.' + hit.key);
+});
+
+const clsName = (e) => {
+  if (e.d === 2) return t(NOTE_LABELS[e.c] || 'debug.clsOther');
+  if (e.d === 1) return t('debug.dirDownShort');
+  return t(CLS_LABELS[e.c] || 'debug.clsOther');
+};
+const dirLabel = (d) => (d === 1 ? t('debug.dirDown') : d === 2 ? t('debug.dirNote') : t('debug.dirUp'));
+const dirClass = (d) => (d === 1 ? 'down' : d === 2 ? 'note' : 'up');
+const clsText = (e) => clsName(e);
+const BTN_BITS = ['L', 'R', 'M', 'S1', 'S2'];
+const btnText = (b) => {
+  if (b === undefined || b === null || b === 255) return '—';
+  const names = BTN_BITS.filter((_, i) => b & (1 << i)).join('+');
+  return '0x' + b.toString(16).toUpperCase().padStart(2, '0') + (names ? ' ' + names : '');
+};
+const tBase = computed(() => (events.value.length ? events.value[0].t || 0 : 0));
+const fmtT = (t) => '+' + Math.max(0, ((t || 0) - tBase.value)) + 'ms';
+const hexPretty = (h) => String(h || '').replace(/(..)/g, '$1 ').trim().toUpperCase();
+
+const statCells = computed(() => {
+  const d = diag.value;
+  if (!d) return [];
+  return [
+    { k: t('debug.stUpMouse'), v: d.upMouse || 0 },
+    { k: t('debug.stUpBtnOn'), v: d.upBtnOn || 0 },
+    { k: t('debug.stUpPress'), v: d.upPress || 0 },
+    { k: t('debug.stDownMouse'), v: d.downMouse || 0 },
+    { k: t('debug.stDownBtnOn'), v: d.downBtnOn || 0 },
+    { k: t('debug.stDownPress'), v: d.downPress || 0 },
+    { k: t('debug.stRid'), v: d.nRid || 0, bad: true },
+    { k: t('debug.stIface'), v: d.nIface || 0, bad: true },
+    { k: t('debug.stLayout'), v: d.nLayout || 0, bad: true },
+    { k: t('debug.stMasked'), v: d.nMasked || 0, bad: true },
+    { k: t('debug.stSendFail'), v: d.nSendFail || 0, bad: true },
+    { k: t('debug.stQueueDrop'), v: d.nQueueDrop || 0, bad: true },
+    { k: t('debug.stKbd'), v: d.nKbd || 0 },
+    { k: t('debug.stRawFwd'), v: d.nRawFwd || 0 },
+    { k: t('debug.stRec'), v: d.recTotal || 0 },
+  ];
+});
+
+/* 判定：把"上游有没有按键位、下发有没有按键位"直接翻译成结论 */
+const verdict = computed(() => {
+  const d = diag.value;
+  if (!d) return null;
+  const lay = d.lay || {};
+  const upBtn = d.upBtnOn || 0;
+  const downBtn = d.downBtnOn || 0;
+  if (!lay.valid) {
+    return { level: 'bad', text: t('debug.vNoLayout'), detail: t('debug.vNoLayoutD') };
+  }
+  if ((d.upTotal || 0) === 0) {
+    return { level: 'warn', text: t('debug.vNoUpstream'), detail: t('debug.vNoUpstreamD') };
+  }
+  if (upBtn === 0) {
+    return {
+      level: 'bad',
+      text: t('debug.vUpNoBtn'),
+      detail: t('debug.vUpNoBtnD', { mouse: d.upMouse || 0, rid: d.nRid || 0, iface: d.nIface || 0, layout: d.nLayout || 0 }),
+    };
+  }
+  if (downBtn === 0) {
+    return {
+      level: 'bad',
+      text: t('debug.vDownLost'),
+      detail: t('debug.vDownLostD', {
+        masked: d.nMasked || 0, fail: d.nSendFail || 0, kbd: d.nKbd || 0, drop: d.nQueueDrop || 0,
+      }),
+    };
+  }
+  return {
+    level: 'ok',
+    text: t('debug.vOk'),
+    detail: t('debug.vOkD', { up: upBtn, down: downBtn, press: d.downPress || 0, drop: d.nQueueDrop || 0 }),
+  };
+});
+
 /* ---------- command queue ---------- */
 // Each firmware response carries the request cmd code (700..715). Build a
 // pending map keyed by code so the asynchronous response can resolve the
@@ -390,6 +569,9 @@ const CMD_NAME = {
   713: 'get_report',
   714: 'clear_reports',
   715: 'get_device_info',
+  716: 'set_mode',
+  717: 'get_diag',
+  718: 'get_events',
 };
 
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -500,8 +682,94 @@ const clearReports = async () => {
   const r = await sendCmd(714, {}, 2000);
   if (r && r.message === 'debug_cleared') {
     addLog('info', '已清空报告缓冲');
+    events.value = [];
+    diag.value = null;
     await pollStatus();
   }
+};
+
+/* ---------- 按键链路诊断 ---------- */
+/* 切抓包模式（固件会同时清空缓冲与计数器） */
+const applyMode = async (m) => {
+  mode.value = m;
+  const r = await sendCmd(716, { mode: m }, 2500);
+  const ok = r && r.message === 'debug_cfg';
+  if (!ok) addLog('error', '设置抓包模式失败（固件可能不支持 716）');
+  await pollStatus();
+  return ok;
+};
+
+const fetchDiag = async () => {
+  const r = await sendCmd(717, {}, 3000);
+  if (r && r.data) {
+    const d = parseDataObject(r.data);
+    if (d) {
+      diag.value = d;
+      if (typeof d.mode === 'number') mode.value = d.mode;
+      return d;
+    }
+  }
+  addLog('error', '读取诊断失败（固件可能不支持 717）');
+  return null;
+};
+
+/* 分页取记录：一页 16 条，比逐条 713 快得多 */
+const fetchEvents = async (total) => {
+  const acc = [];
+  const n = total || 0;
+  for (let off = 0; off < n; off += 12) {
+    const r = await sendCmd(718, { from: off, n: 12 }, 3000);
+    if (!r || !r.data) break;
+    const d = parseDataObject(r.data);
+    if (!d || !Array.isArray(d.items) || d.items.length === 0) break;
+    acc.push(...d.items);
+    if (d.items.length < 12) break;
+  }
+  events.value = acc;
+  return acc;
+};
+
+const setMode = async (m) => {
+  if (busy.value !== null) return;
+  busy.value = 'mode';
+  events.value = [];
+  diag.value = null;
+  await applyMode(m);
+  addLog('info', '抓包模式：' + modeLabel.value);
+  busy.value = null;
+};
+
+const refreshDiag = async () => {
+  busy.value = 'diag';
+  const d = await fetchDiag();
+  const total = d ? d.recCount || 0 : status.reportCount || 0;
+  await fetchEvents(total);
+  addLog('info', `诊断已刷新：${events.value.length} 条记录`);
+  busy.value = null;
+};
+
+/* 一键抓按键：清空 -> 仅按键轨迹 -> 等 8 秒 -> 自动读回并判定。
+ * 8K 鼠标"全部模式"约 16ms 就写满缓冲，按键那一帧一定被冲掉，
+ * 所以这里强制切到"仅按键轨迹"，只记按键字节发生变化的帧。 */
+const grabButtons = async () => {
+  busy.value = 'grab';
+  events.value = [];
+  diag.value = null;
+  catching.value = true;
+  catchHint.value = t('debug.grabHint');
+  await applyMode(2);
+  busy.value = null;
+  addLog('info', '已清空并按「仅按键轨迹」抓包，请按几下鼠标左键/右键');
+
+  if (catchTimer) clearTimeout(catchTimer);
+  catchTimer = setTimeout(async () => {
+    catching.value = false;
+    catchHint.value = '';
+    const d = await fetchDiag();
+    await fetchEvents(d ? d.recCount || 0 : 0);
+    const v = verdict.value;
+    addLog(v && v.level === 'ok' ? 'success' : 'error', '按键链路：' + (v ? v.text : '未取到数据'));
+  }, 8000);
 };
 
 const exportTxt = async () => {
@@ -520,24 +788,62 @@ const exportTxt = async () => {
   addLog('info', '拉取全部报告...');
   const count = status.reportCount;
   const reports = [];
-  for (let i = 0; i < count; i++) {
-    const r = await sendCmd(713, { idx: i }, 1500);
-    if (r && r.data) {
-      const d = parseDataObject(r.data);
-      if (d) {
-        reports.push({ idx: i, len: d.len, hex: d.hex || '' });
+
+  /* 优先用 718 分页（16 条/次）；旧固件不支持时回退到 713 逐条读取 */
+  let paged = false;
+  const first = await sendCmd(718, { from: 0, n: 12 }, 3000);
+  if (first && first.data) {
+    const d0 = parseDataObject(first.data);
+    if (d0 && Array.isArray(d0.items) && d0.items.length > 0) {
+      paged = true;
+      const push = (items) => items.forEach((it) => reports.push({
+        idx: it.i, len: it.l, hex: it.h || '', t: it.t, dir: it.d,
+        ep: it.e, intf: it.f, btn: it.b, cls: it.c,
+      }));
+      push(d0.items);
+      const total = d0.total || count;
+      while (reports.length < total) {
+        const r = await sendCmd(718, { from: reports.length, n: 12 }, 3000);
+        if (!r || !r.data) break;
+        const d = parseDataObject(r.data);
+        if (!d || !Array.isArray(d.items) || d.items.length === 0) break;
+        push(d.items);
+        exportProgress.value = reports.length;
+        if (d.items.length < 12) break;
       }
-    } else {
-      addLog('error', `读取报告 ${i} 失败`);
     }
-    exportProgress.value = i + 1;
   }
+
+  if (!paged) {
+    for (let i = 0; i < count; i++) {
+      const r = await sendCmd(713, { idx: i }, 1500);
+      if (r && r.data) {
+        const d = parseDataObject(r.data);
+        if (d) {
+          reports.push({
+            idx: i, len: d.len, hex: d.hex || '', t: d.t, dir: d.dir,
+            ep: d.ep, intf: d.intf, btn: d.btn, cls: d.cls,
+          });
+        }
+      } else {
+        addLog('error', `读取报告 ${i} 失败`);
+      }
+      exportProgress.value = i + 1;
+    }
+  }
+  exportProgress.value = reports.length;
+
+  /* 诊断快照：没有就现取一份，保证导出文件自带"哪一段丢的"结论 */
+  if (!diag.value) await fetchDiag();
+  const d = diag.value;
+  const lay = (d && d.lay) || {};
 
   const lines = [];
   lines.push('YSC 8K HID Debug Capture');
   lines.push(`Time: ${new Date().toLocaleString('zh-CN')}`);
   lines.push(`Device VID=${hexVid.value} PID=${hexPid.value} product="${status.product || ''}"`);
   lines.push(`Reports: ${reports.length} / ${status.reportMax}`);
+  lines.push(`Capture mode: ${modeLabel.value}`);
   lines.push('='.repeat(60));
   lines.push('');
   lines.push('== Device Descriptor ==');
@@ -561,11 +867,36 @@ const exportTxt = async () => {
   lines.push('== Full Report Descriptor (raw, all interfaces concatenated) ==');
   lines.push(formatHex(descriptors.value.report));
   lines.push('');
+
+  /* ---- 按键链路诊断 ---- */
+  lines.push('== Button Path Diagnosis ==');
+  lines.push('  (up = physical device -> box, down = box -> PC)');
+  if (d) {
+    lines.push(`  mode=${d.mode} records=${d.recCount}/${d.recMax} recorded_total=${d.recTotal}`);
+    lines.push(`  UP   reports=${d.upTotal} mouse=${d.upMouse} btn_nonzero=${d.upBtnOn} press=${d.upPress} release=${d.upRelease} last_btn=${btnText(d.lastUpBtn)}`);
+    lines.push(`  DOWN reports=${d.downTotal} mouse=${d.downMouse} btn_nonzero=${d.downBtnOn} press=${d.downPress} release=${d.downRelease} last_btn=${btnText(d.lastDownBtn)}`);
+    lines.push(`  DROP rid=${d.nRid} iface=${d.nIface} layout=${d.nLayout} masked=${d.nMasked} send_fail=${d.nSendFail} kbd_consumed=${d.nKbd} raw_fwd=${d.nRawFwd} ep_busy=${d.nEpBusy} no_content=${d.nNoContent} queue_drop=${d.nQueueDrop}`);
+    lines.push(`  MOUSE LAYOUT valid=${lay.valid} len=${lay.len} rid=${lay.hasRid ? lay.rid : '-'} iface=${lay.iface} ep=${lay.ep}` +
+      ` btn(off=${lay.btnOff},bits=${lay.btnBits}) x(off=${lay.xOff},bits=${lay.xBits})` +
+      ` y(off=${lay.yOff},bits=${lay.yBits}) wheel(off=${lay.whOff},bits=${lay.whBits})`);
+    const v = verdict.value;
+    if (v) lines.push(`  VERDICT [${v.level}] ${v.text} — ${v.detail}`);
+  } else {
+    lines.push('  (no diagnosis available — 固件可能不支持 cmd 716/717，请升级固件)');
+  }
+  lines.push('');
   lines.push(`== Captured HID Reports (${reports.length}) ==`);
+  lines.push('  columns: idx  t(ms)  dir  ep  btn  class/reason  raw');
   reports.forEach((r) => {
     // Firmware hex has no separators; reformat with spaces for readability.
     const pretty = formatHex(hexToBytes(r.hex));
-    lines.push(`[${String(r.idx).padStart(3, ' ')}] len=${String(r.len).padStart(2, ' ')}  ${pretty}`);
+    const dir = r.dir === 1 ? 'down' : r.dir === 2 ? 'note' : 'up';
+    const cls = clsText({ d: r.dir, c: r.cls });
+    lines.push(
+      `[${String(r.idx).padStart(3, ' ')}] t=${String(r.t === undefined ? 0 : r.t).padStart(8, ' ')} ` +
+      `${dir.padEnd(4, ' ')} ep=${String(r.ep === undefined ? '-' : r.ep).padStart(2, ' ')} ` +
+      `btn=${btnText(r.btn).padEnd(8, ' ')} ${cls.padEnd(14, ' ')} ${pretty}`
+    );
   });
 
   const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
@@ -801,6 +1132,77 @@ watch(() => props.serialConnected, (v) => {
   font-size: 9px; color: var(--text-dim);
   background: var(--bg-input); padding: 1px 5px; border-radius: 3px;
 }
+
+/* 按键链路诊断 */
+.diag-card {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--btn-radius);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.diag-head { display: flex; justify-content: space-between; align-items: center; }
+.diag-title { font-size: 12px; font-weight: 700; color: var(--text-primary); font-family: var(--font-mono); }
+.diag-mode { font-size: 10px; color: var(--accent-blue); font-family: var(--font-mono); }
+.diag-desc { font-size: 10px; color: var(--text-dim); line-height: 1.5; }
+.diag-modes { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip {
+  font-size: 11px; font-family: var(--font-mono);
+  padding: 3px 10px; border-radius: 10px;
+  background: var(--bg-tertiary); color: var(--text-secondary);
+  border: 1px solid var(--border); cursor: pointer;
+}
+.chip:hover:not(:disabled) { color: var(--text-primary); }
+.chip.on { background: var(--accent-blue); color: #0b0d12; border-color: transparent; font-weight: 700; }
+.diag-actions { display: flex; gap: 8px; }
+.diag-actions .btn { flex: 1; min-width: 90px; }
+
+.verdict { border-radius: 6px; padding: 8px 10px; border: 1px solid var(--border); }
+.verdict.ok { background: rgba(52,211,153,0.10); border-color: rgba(52,211,153,0.35); }
+.verdict.warn { background: rgba(251,191,36,0.10); border-color: rgba(251,191,36,0.35); }
+.verdict.bad { background: rgba(248,113,113,0.10); border-color: rgba(248,113,113,0.35); }
+.verdict-text { font-size: 12px; font-weight: 700; color: var(--text-primary); font-family: var(--font-mono); }
+.verdict-detail { font-size: 10px; color: var(--text-secondary); margin-top: 3px; line-height: 1.5; word-break: break-all; }
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 4px;
+}
+.stat {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 6px; padding: 3px 8px;
+  background: var(--bg-tertiary); border-radius: 4px;
+  font-family: var(--font-mono); font-size: 10px;
+}
+.stat-k { color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stat-v { color: var(--accent-blue); font-weight: 700; }
+.stat-v.zero { color: var(--text-dim); font-weight: 400; }
+.stat-v.bad { color: var(--accent-red); }
+.lay-line { font-size: 10px; color: var(--text-dim); font-family: var(--font-mono); line-height: 1.5; word-break: break-all; }
+
+.evt-box { background: #0d1118; border-radius: 4px; max-height: 220px; overflow: auto; }
+.evt-row {
+  display: flex; gap: 8px; align-items: center;
+  padding: 2px 8px;
+  font-family: var(--font-mono); font-size: 10px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.evt-row.evt-head { position: sticky; top: 0; background: #131a24; color: var(--text-dim); font-weight: 700; }
+.evt-row.up .c-d { color: #60a5fa; }
+.evt-row.down .c-d { color: var(--accent-green); }
+.evt-row.note .c-d { color: var(--accent-yellow); }
+.evt-row.note .c-c { color: var(--accent-yellow); }
+.evt-row .c-i { width: 28px; color: var(--text-dim); flex-shrink: 0; }
+.evt-row .c-t { width: 64px; flex-shrink: 0; }
+.evt-row .c-d { width: 42px; flex-shrink: 0; }
+.evt-row .c-e { width: 20px; flex-shrink: 0; }
+.evt-row .c-b { width: 66px; flex-shrink: 0; }
+.evt-row .c-c { width: 96px; flex-shrink: 0; }
+.evt-row .c-h { flex: 1; color: #93c5fd; word-break: break-all; }
 
 /* export row */
 .export-row { display: flex; gap: 8px; }
