@@ -39,6 +39,12 @@ export const CMD_GAMEPAD_ENABLE = 102;          // {"cmd":102,"on":..}
 export const CMD_GAMEPAD_PLUG_EVENT = 103;      // 设备异步上报：插拔事件
 export const CMD_GAMEPAD_RESET = 104;           // {"cmd":104}
 
+// ── 设备数据线路选择（鼠标线路 / 手柄线路，固件落盘持久化） ──
+export const CMD_DEV_MODE_GET = 62;             // {"cmd":62} → {"code":200,"message":"devmode","data":"{mode,name}"}
+export const CMD_DEV_MODE_SET = 63;             // {"cmd":63,"m":0|1}  0=鼠标 1=手柄
+export const DEV_MODE_MOUSE = 0;
+export const DEV_MODE_GAMEPAD = 1;
+
 // ── 版本 / 波特率 ──
 export const CMD_QUERY_VERSION = 132;           // {"cmd":132}
 export const CMD_SWITCH_BAUDRATE = 133;         // {"cmd":133,"baud":N}

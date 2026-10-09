@@ -248,6 +248,21 @@ bool CommandBridge::SendGamepadReset(DeviceRole __role) {
     return sp->SendJsonCommand("{\"cmd\":104}");
 }
 
+/* ---- 设备数据线路选择（固件 cmd 62/63） ---- */
+bool CommandBridge::SendDevModeGet(DeviceRole __role) {
+    SerialPort *sp = Resolve(__role); if (!sp) return false;
+    DebugLog("TX devmode get");
+    return sp->SendJsonCommand("{\"cmd\":62}");
+}
+bool CommandBridge::SendDevModeSet(int mode, DeviceRole __role) {
+    SerialPort *sp = Resolve(__role); if (!sp) return false;
+    char json[48];
+    snprintf(json, sizeof(json), "{\"cmd\":63,\"m\":%d}", mode ? 1 : 0);
+    DebugLog("TX devmode set: %s", json);
+    DebugLogger::Log("TX devmode set: %s", json);
+    return sp->SendJsonCommand(json);
+}
+
 /* ---- Mouse interpolation (firmware cmd 51/52/53) ---- */
 bool CommandBridge::SendInterpSet(int enable, int profile, int windowMs, int maxWindowMs, DeviceRole __role) {
     SerialPort *sp = Resolve(__role); if (!sp) return false;

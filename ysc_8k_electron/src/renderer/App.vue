@@ -34,10 +34,12 @@
               :connected-port="serialPort"
               :ports="ports"
               :baud="serialBaud"
+              :dev-mode="devMode"
               @connect="onSerialConnect"
               @disconnect="onSerialDisconnect"
               @refresh="onRefreshPorts"
               @switch-baud="onSwitchBaud"
+              @set-mode="onDeviceSetMode"
             />
             <KmnetPanel
               :running="netRunning"
@@ -322,6 +324,9 @@ const mouseInterpConfig = ref({ enabled: 1, profile: 0, ema: 0 });
 
 // 透传鼠标 USB 序列号（cmd 54 回读 {custom, physical, active}）
 const snInfo = ref({ custom: '', physical: '', active: '' });
+
+/* 设备数据线路（固件 cmd 62/63）：0=鼠标线路 1=手柄线路，null=还没读回来 */
+const devMode = ref(null);
 const snLoading = ref(false);   // 回读进行中：刷新按钮转圈防重复点击
 let snLoadingTimer = null;
 
@@ -548,6 +553,18 @@ function onDeviceSetRole(dev, role) {
   api.send('device_set_role', { dev: dev, role: role });
 }
 
+/* 设备数据线路切换（固件 cmd 63，落盘持久化）。切换后固件立即换线路：
+ * 鼠标线路 → 手柄钩子全部退场；手柄线路 → 鼠标合成器不参与数据。 */
+function onDeviceSetMode(mode) {
+  api.send('set_dev_mode', { mode: mode });
+  // 乐观更新：固件会回 {"code":200,"message":"devmode_set"}，失败再回退
+  devMode.value = mode;
+}
+
+function onDeviceGetMode() {
+  api.send('get_dev_mode');
+}
+
 /* 已连接设备切换波特率（鼠标机 / 键盘机通用）。串口两端都要改，驱动会先让
  * 固件切 USART 再重开主机侧句柄；结果由 baudrate_switched / baudrate_failed
  * 事件 + device_list 回推。 */
@@ -586,10 +603,12 @@ onMounted(function() {
     setTimeout(loadMouseCurve, 650);
     setTimeout(loadMouseInterp, 700);
     setTimeout(loadSerialNumber, 800);
+    setTimeout(onDeviceGetMode, 900);  // 读回设备数据线路（cmd 62，旧固件不回）
   });
 
   listen('serial_disconnected', function() {
     serialConnected.value = false;
+    devMode.value = null;   // 断开后线路未知，等下次连接再读
     if (kmnetSelfCheck.value.active && kmnetSelfCheck.value.step === 'disconnecting') {
       selfCheckBeginReconnect();
       return;
@@ -733,6 +752,15 @@ onMounted(function() {
   });
 
   listen('debug_response', function(data) {
+    if (!data || data.message !== 'devmode') return;
+    if (typeof data.data !== 'string') return;
+    try {
+      var j = JSON.parse(data.data);
+      if (j.mode === 0 || j.mode === 1) devMode.value = j.mode;
+    } catch (e) { /* ignore parse errors */ }
+  });
+
+  listen('debug_response', function(data) {
     if (!data || data.message !== 'sn') return;
     snLoading.value = false;
     clearTimeout(snLoadingTimer);
@@ -778,7 +806,7 @@ onMounted(function() {
     deviceSlots.value = next;
   });
 
-  listen('device_attached', function() { api.send('device_list'); });
+  listen('device_attached', function() { api.send('device_list'); onDeviceGetMode(); });
   listen('device_detached', function() { api.send('device_list'); });
   listen('device_lost', function() { api.send('device_list'); });
 

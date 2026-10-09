@@ -712,6 +712,25 @@ static void OnPipeCommand(const char *json, void *userData) {
             g_pipeServer.SendEvent("send_result", ok ? "\"ok\":true,\"cmd\":\"gmap_reset\"" : "\"ok\":false");
         }
     }
+    else if (type == "set_dev_mode") {
+        // {"type":"set_dev_mode","mode":0|1} → 固件 cmd 63（0=鼠标线路 1=手柄线路）
+        int mode = ExtractJsonInt(json, "mode");
+        if (!g_app.serialConnected)
+            g_pipeServer.SendEvent("send_result", "\"ok\":false,\"error\":\"未连接设备\"");
+        else {
+            bool ok = CommandBridge::SendDevModeSet(mode, (DeviceRole)DEV_ROLE_MOUSE);
+            g_pipeServer.SendEvent("send_result", ok ? "\"ok\":true,\"cmd\":\"devmode_set\"" : "\"ok\":false");
+        }
+    }
+    else if (type == "get_dev_mode") {
+        if (!g_app.serialConnected)
+            g_pipeServer.SendEvent("send_result", "\"ok\":false,\"error\":\"未连接设备\"");
+        else {
+            // 响应异步经 ForwardDebugResponse 以 debug_response(message="devmode") 回传
+            bool ok = CommandBridge::SendDevModeGet((DeviceRole)DEV_ROLE_MOUSE);
+            g_pipeServer.SendEvent("send_result", ok ? "\"ok\":true,\"cmd\":\"devmode_get\"" : "\"ok\":false");
+        }
+    }
     else if (type == "set_interp_config") {
         // {"type":"set_interp_config","enable":..,"profile":..,"window":..,"maxw":..} → firmware cmd 51
         int enable  = ExtractJsonInt(json, "enable");

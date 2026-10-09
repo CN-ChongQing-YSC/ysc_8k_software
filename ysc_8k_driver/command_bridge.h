@@ -64,6 +64,12 @@ public:
     static bool SendGamepadEnable(bool on, DeviceRole role);           // {"cmd":102,"on":...}
     static bool SendGamepadReset(DeviceRole role);                     // {"cmd":104}
 
+    /* 设备数据线路选择（固件 cmd 62/63）：把手柄/鼠标的数据处理显式分开。
+     *   mode: 0=鼠标线路(默认) 1=手柄线路。固件落盘持久化，立即生效；
+     *   两种模式下透传都照常工作，只是不匹配线路的数据不参与处理。 */
+    static bool SendDevModeGet(DeviceRole role);                       // {"cmd":62}
+    static bool SendDevModeSet(int mode, DeviceRole role);             // {"cmd":63,"m":0|1}
+
     /* Mouse interpolation (firmware cmd 51/52/53). Spreads low-rate software
      * move commands (e.g. 200Hz) into smooth micro-increments at the device's
      * real polling rate (up to 8kHz). Firmware persists the config; driver is

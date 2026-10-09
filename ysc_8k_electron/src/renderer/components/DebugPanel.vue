@@ -262,6 +262,7 @@ const MODES = [
 const CLS_LABELS = {
   0: 'debug.clsMouse', 1: 'debug.clsRid', 2: 'debug.clsIface', 3: 'debug.clsLayout',
   4: 'debug.clsKbd', 5: 'debug.clsRaw', 6: 'debug.clsOther',
+  7: 'debug.clsGamepad', 8: 'debug.clsMouseRaw',
 };
 const NOTE_LABELS = {
   1: 'debug.noteEpBusy', 2: 'debug.noteNoContent', 3: 'debug.noteMasked',
