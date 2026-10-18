@@ -113,11 +113,11 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useI18n } from '../i18n/index.js';
 import KeyboardTester from './KeyboardTester.vue';
 
-const { t, docs } = useI18n();
+const { t, docs, lang } = useI18n();
 const api = window.driverApi;
 
 const protocols = computed(() => docs.value.protocols);
@@ -168,6 +168,23 @@ function selectCmd(proto, cmd) {
     localStorage.setItem(CMD_STORAGE_KEY, cmd.id);
   } catch (e) { /* ignore */ }
 }
+
+/* 语言切换后，docs 对象整体换成另一份；此前选中的 proto/cmd 仍是旧语言的对象，
+ * 详情面板会继续显示旧语言。这里按 id 重新绑定到新语言的对象。 */
+watch([protocols, lang], function () {
+  const protoId = selectedProto.value && selectedProto.value.id;
+  if (!protoId) return;
+  const proto = (protocols.value || []).find(function (p) { return p.id === protoId; });
+  if (!proto) return;
+  selectedProto.value = proto;
+  const cmdId = selectedCmd.value && selectedCmd.value.id;
+  if (!cmdId) return;
+  const cmd = (proto.commands || []).find(function (c) { return c.id === cmdId; });
+  if (cmd) {
+    selectedCmd.value = cmd;
+    sendText.value = cmd.format;
+  }
+});
 
 function sendCommand() {
   if (!sendText.value || !selectedProto.value) return;

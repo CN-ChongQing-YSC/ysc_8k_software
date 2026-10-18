@@ -6,9 +6,9 @@
       <span class="brand-sub">· {{ platformLabel }}</span>
     </div>
 
-    <div class="conn" :class="dev.connected ? 'on' : 'off'" :title="dev.connected ? `${dev.port} @ ${dev.baud}` : '未连接'">
+    <div class="conn" :class="dev.connected ? 'on' : 'off'" :title="dev.connected ? `${dev.port} @ ${dev.baud}` : t('topbar.notConnected')">
       <span class="dot" />
-      <span class="conn-text">{{ dev.connected ? `${dev.port} @ ${dev.baud}` : '未连接' }}</span>
+      <span class="conn-text">{{ dev.connected ? `${dev.port} @ ${dev.baud}` : t('topbar.notConnected') }}</span>
       <span v-if="dev.connected && dev.version" class="conn-ver">{{ dev.version.clean }}</span>
     </div>
 
@@ -31,14 +31,18 @@ import brandLogo from './assets/brand-white.png';
 
 const dev = useDeviceStore();
 const ui = useUiStore();
-const { t } = useI18n();
+const { t, lang, setLang } = useI18n();
 
-const lang = computed(() => ui.lang);
-const platformLabel = computed(() => (getPlatform() === 'web' ? '网页版' : '桌面版'));
+const platformLabel = computed(() => (getPlatform() === 'web' ? t('topbar.web') : t('topbar.desktop')));
 
 function toggleLang(): void {
-  ui.lang = ui.lang === 'zh' ? 'en' : 'zh';
+  setLang(lang.value === 'zh' ? 'en' : 'zh');
+  // 同步界面状态（其它组件/持久化使用 ui.lang）
+  ui.lang = lang.value;
 }
+
+// 初始语言以 i18n 的持久化状态为准，避免与 ui.lang 默认值不一致
+ui.lang = lang.value;
 </script>
 
 <style scoped>

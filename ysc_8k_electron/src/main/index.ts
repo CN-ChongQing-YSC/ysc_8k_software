@@ -4,6 +4,8 @@ import * as fs from 'fs';
 import { spawn, ChildProcess } from 'child_process';
 import { DriverPipe } from './driver-pipe';
 import * as firmwareUpdater from './firmware-updater';
+import { setMainLang, tr, formatSize } from './i18n';
+import { localizeDriverEvent } from './driver-text';
 
 // Hide default menu bar
 Menu.setApplicationMenu(null);
@@ -199,7 +201,7 @@ function createMainWindow(): void {
 function sendToRenderer(channel: string, data?: any): void {
   const wc = mainWindow?.webContents;
   if (wc && !wc.isDestroyed()) {
-    try { wc.send(channel, data); } catch {}
+    try { wc.send(channel, localizeDriverEvent(channel, data)); } catch {}
   }
 }
 
@@ -263,7 +265,10 @@ function setupIpc(): void {
       const baud = params?.baud as number | undefined;
       const entry = pendingFirmware.get(dt);
       if (!entry) {
-        sendToRenderer('iap_log', { message: '未找到已下载固件，请重新下载', cls: 'err' });
+        sendToRenderer('iap_log', {
+          message: tr('未找到已下载固件，请重新下载', 'Downloaded firmware not found — please download again'),
+          cls: 'err',
+        });
         return;
       }
       driver.iapStartMem(entry.buffer, entry.sha256, baud);
@@ -272,7 +277,10 @@ function setupIpc(): void {
       const port = (params?.port as string) || '';
       const entry = pendingFirmware.get(dt);
       if (!entry) {
-        sendToRenderer('iap2_log', { message: '未找到已下载固件，请重新下载', cls: 'err' });
+        sendToRenderer('iap2_log', {
+          message: tr('未找到已下载固件，请重新下载', 'Downloaded firmware not found — please download again'),
+          cls: 'err',
+        });
         return;
       }
       driver.towmcuStartMem(port, entry.buffer, entry.sha256);
@@ -285,29 +293,18 @@ function setupIpc(): void {
 
   ipcMain.handle('app:getVersion', () => app.getVersion());
 
-  ipcMain.handle('iap:openFile', async () => {
-    const result = await dialog.showOpenDialog(mainWindow!, {
-      title: '选择加密固件文件',
-      filters: [{ name: 'Binary', extensions: ['bin'] }, { name: 'All', extensions: ['*'] }],
-      properties: ['openFile'],
-    });
-    if (result.canceled || result.filePaths.length === 0) return null;
-    const fs = await import('fs');
-    const p = result.filePaths[0];
-    const stat = fs.statSync(p);
-    const name = p.split(/[/\\]/).pop() || p;
-    const sizeStr = stat.size >= 1024 ? `${(stat.size / 1024).toFixed(1)} KB` : `${stat.size} 字节`;
-    return { path: p, info: `${name} — ${sizeStr}` };
+  // 渲染进程切换语言时同步主进程（对话框/错误提示等）
+  ipcMain.handle('app:setLang', (_e, lang: string) => {
+    setMainLang(lang);
+    return null;
   });
 
-  // v2 towmcu panel — browse for a Left/Right encrypted .bin independently.
-  ipcMain.handle('iap2:openFile', async (_e, side: 'left' | 'right') => {
-    const title = side === 'left' ? '选择左固件 (Left)' : '选择右固件 (Right)';
+  ipcMain.handle('iap:openFile', async () => {
     const result = await dialog.showOpenDialog(mainWindow!, {
-      title,
+      title: tr('选择加密固件文件', 'Select encrypted firmware file'),
       filters: [
-        { name: '加密固件 bin', extensions: ['bin'] },
-        { name: 'All', extensions: ['*'] },
+        { name: tr('加密固件 bin', 'Encrypted firmware (.bin)'), extensions: ['bin'] },
+        { name: tr('所有文件', 'All files'), extensions: ['*'] },
       ],
       properties: ['openFile'],
     });
@@ -316,7 +313,29 @@ function setupIpc(): void {
     const p = result.filePaths[0];
     const stat = fs.statSync(p);
     const name = p.split(/[/\\]/).pop() || p;
-    const sizeStr = stat.size >= 1024 ? `${(stat.size / 1024).toFixed(1)} KB` : `${stat.size} 字节`;
+    const sizeStr = formatSize(stat.size);
+    return { path: p, info: `${name} — ${sizeStr}` };
+  });
+
+  // v2 towmcu panel — browse for a Left/Right encrypted .bin independently.
+  ipcMain.handle('iap2:openFile', async (_e, side: 'left' | 'right') => {
+    const title = side === 'left'
+      ? tr('选择左固件 (Left)', 'Select left firmware (Left)')
+      : tr('选择右固件 (Right)', 'Select right firmware (Right)');
+    const result = await dialog.showOpenDialog(mainWindow!, {
+      title,
+      filters: [
+        { name: tr('加密固件 bin', 'Encrypted firmware (.bin)'), extensions: ['bin'] },
+        { name: tr('所有文件', 'All files'), extensions: ['*'] },
+      ],
+      properties: ['openFile'],
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    const fs = await import('fs');
+    const p = result.filePaths[0];
+    const stat = fs.statSync(p);
+    const name = p.split(/[/\\]/).pop() || p;
+    const sizeStr = formatSize(stat.size);
     return { path: p, info: `${name} — ${sizeStr}` };
   });
 
@@ -405,8 +424,8 @@ function setupIpc(): void {
 
       const parent = mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined;
       const result = await dialog.showSaveDialog(parent as BrowserWindow, {
-        title: '导出为 PDF',
-        defaultPath: filename || 'YSC-8K-使用与协议文档.pdf',
+        title: tr('导出为 PDF', 'Export as PDF'),
+        defaultPath: filename || tr('YSC-8K-使用与协议文档.pdf', 'YSC-8K-Usage-and-Protocol.pdf'),
         filters: [{ name: 'PDF', extensions: ['pdf'] }],
       });
       if (result.canceled || !result.filePath) {

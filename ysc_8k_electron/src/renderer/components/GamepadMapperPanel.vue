@@ -9,7 +9,7 @@
       </svg>
       <span>{{ t('gamepad.title') }}</span>
       <span class="header-hint">{{ t('gamepad.hint') }}</span>
-      <span class="conn-state" :class="connected ? 'on' : 'off'">{{ connected ? '● 已连接' : '○ 未连接' }}</span>
+      <span class="conn-state" :class="connected ? 'on' : 'off'">{{ connected ? '● ' + t('gamepad.connected') : '○ ' + t('gamepad.notConnected') }}</span>
       <div style="flex:1"></div>
       <label class="enable-toggle">
         <input type="checkbox" :checked="config.enabled" :disabled="!connected" @change="onToggleEnable($event.target.checked)" />
@@ -18,8 +18,8 @@
       <button class="btn-ghost" :disabled="!connected || loading" @click="loadFromDevice">{{ t('gamepad.refresh') }}</button>
       <button class="btn-accent" :disabled="!connected || loading" @click="saveAll">{{ t('gamepad.save') }}</button>
       <button class="btn-outline red" :disabled="!connected || loading" @click="onReset">{{ t('gamepad.reset') }}</button>
-      <button class="btn-ghost" @click="exportConfig" title="导出配置到文件">导出</button>
-      <button class="btn-ghost" @click="importConfig" title="从文件导入配置">导入</button>
+      <button class="btn-ghost" @click="exportConfig" :title="t('gamepad.exportTitle')">{{ t('gamepad.export') }}</button>
+      <button class="btn-ghost" @click="importConfig" :title="t('gamepad.importTitle')">{{ t('gamepad.import') }}</button>
       <input ref="importInput" type="file" accept=".json,application/json" style="display:none" @change="onImportFile" />
     </div>
 
@@ -29,11 +29,11 @@
       <section class="gm-card">
         <div class="gm-card-title">{{ t('gamepad.move') }}</div>
         <div class="gm-map-row">
-          <span class="gm-label">鼠标移动</span>
+          <span class="gm-label">{{ t('gamepad.moveMouse') }}</span>
           <input type="number" class="input-num" step="1" min="1" v-model.number="movePx" @input="onMoveChange" />
-          <span>像素</span>
+          <span>{{ t('gamepad.movePx') }}</span>
           <span class="gm-arrow">→</span>
-          <span class="gm-label">摇杆</span>
+          <span class="gm-label">{{ t('gamepad.movePct') }}</span>
           <input type="number" class="input-num" step="0.1" min="0.1" v-model.number="movePct" @input="onMoveChange" />
           <span>%</span>
           <label class="gm-field gm-stick-sel">
@@ -44,16 +44,16 @@
             </select>
           </label>
           <label class="gm-field gm-stick-sel">
-            <span class="gm-label">生效次数</span>
+            <span class="gm-label">{{ t('gamepad.times') }}</span>
             <input type="number" class="input-num sm" step="1" min="1" v-model.number="config.move.duration" @input="markDirty" />
-            <span>包</span>
+            <span>{{ t('gamepad.packets') }}</span>
           </label>
         </div>
         <div class="gm-hint">{{ moveHint }}</div>
         <div class="gm-invert-row">
-          <label class="gm-check"><input type="checkbox" v-model="config.move.invert_x" @change="markDirty" /> X 轴取反</label>
-          <label class="gm-check"><input type="checkbox" v-model="config.move.invert_y" @change="markDirty" /> Y 轴取反</label>
-          <label class="gm-check">死区补偿
+          <label class="gm-check"><input type="checkbox" v-model="config.move.invert_x" @change="markDirty" /> {{ t('gamepad.invertX') }}</label>
+          <label class="gm-check"><input type="checkbox" v-model="config.move.invert_y" @change="markDirty" /> {{ t('gamepad.invertY') }}</label>
+          <label class="gm-check">{{ t('gamepad.deadzone') }}
             <input type="number" class="input-num sm" min="0" max="100" step="1" v-model.number="config.move.deadzone" @input="markDirty" /> %
           </label>
         </div>
@@ -87,15 +87,15 @@
 
       <section class="gm-card">
         <div class="gm-card-title-row">
-          <div class="gm-card-title">调试日志</div>
-          <button class="btn-ghost sm" @click="copyLog">📋 复制全部</button>
-          <button class="btn-ghost sm" @click="log = []">清空</button>
+          <div class="gm-card-title">{{ t('gamepad.debugLog') }}</div>
+          <button class="btn-ghost sm" @click="copyLog">📋 {{ t('gamepad.copyAll') }}</button>
+          <button class="btn-ghost sm" @click="log = []">{{ t('gamepad.clear') }}</button>
         </div>
         <div class="gm-log">
           <div v-for="(l, i) in log" :key="i" :class="'log-line log-' + l.type">
             <span class="log-time">{{ l.time }}</span> {{ l.msg }}
           </div>
-          <div v-if="!log.length" class="gm-empty">（无日志）</div>
+          <div v-if="!log.length" class="gm-empty">{{ t('gamepad.emptyLog') }}</div>
         </div>
       </section>
     </div>
@@ -140,7 +140,11 @@ const movePct = ref(1);
 const moveHint = computed(() => {
   if (!movePx.value || movePx.value <= 0) return '';
   const perPx = movePct.value / movePx.value;
-  return `当前换算：鼠标 1 像素 = ${perPx.toFixed(2)}% 摇杆（${movePx.value} 像素 → ${movePct.value}%）`;
+  return t('gamepad.moveHint', {
+    perPx: perPx.toFixed(2),
+    px: movePx.value,
+    pct: movePct.value,
+  });
 });
 function onMoveChange() {
   if (movePct.value > 0 && movePx.value > 0) {
@@ -169,36 +173,36 @@ async function copyLog() {
     .join('\n');
   try {
     await navigator.clipboard.writeText(text);
-    showToast('日志已复制（' + log.value.length + ' 条）', 'ok');
+    showToast(t('gamepad.logCopied', { n: log.value.length }), 'ok');
   } catch (e) {
     // fallback hint — user can still manually select the log text
-    showToast('复制失败，请手动选中日志文本', 'err');
-    addLog('clipboard 写入失败: ' + (e && e.message ? e.message : e), 'err');
+    showToast(t('gamepad.logCopyFail'), 'err');
+    addLog(t('gamepad.clipboardFail', { error: (e && e.message ? e.message : e) }), 'err');
   }
 }
 
 /* ---- config validation (审查) ---- */
 function validateConfig() {
   const errs = [];
-  if (typeof config.enabled !== 'boolean') errs.push('enabled 必须是布尔');
-  if (!Array.isArray(config.key_rules)) errs.push('key_rules 必须是数组');
+  if (typeof config.enabled !== 'boolean') errs.push(t('gamepad.errEnabledBool'));
+  if (!Array.isArray(config.key_rules)) errs.push(t('gamepad.errKeyRulesArray'));
   else {
-    if (config.key_rules.length > 32) errs.push('规则数超过 32');
+    if (config.key_rules.length > 32) errs.push(t('gamepad.errTooManyRules'));
     config.key_rules.forEach((r, i) => {
-      if (!r.src) errs.push(`规则 ${i+1}: 手柄键为空`);
-      if (!r.target) errs.push(`规则 ${i+1}: 目标鼠标键为空`);
+      if (!r.src) errs.push(t('gamepad.errSrcEmpty', { n: i + 1 }));
+      if (!r.target) errs.push(t('gamepad.errTargetEmpty', { n: i + 1 }));
       if ((r.src === 'LT' || r.src === 'RT') && (r.threshold < 0 || r.threshold > 255))
-        errs.push(`规则 ${i+1}: 阈值超范围 (0..255)`);
+        errs.push(t('gamepad.errThreshold', { n: i + 1 }));
     });
   }
   const sc = config.move.scale;
   if (typeof sc !== 'number' || isNaN(sc) || sc < 0.1 || sc > 100)
-    errs.push(`scale 超范围 (0.1..100)，当前=${sc}`);
+    errs.push(t('gamepad.errScale', { value: sc }));
   if (!['left','right'].includes(config.move.target_stick))
-    errs.push('target_stick 必须是 left/right');
+    errs.push(t('gamepad.errStick'));
   const dz = config.move.deadzone;
   if (typeof dz !== 'number' || isNaN(dz) || dz < 0 || dz > 100)
-    errs.push(`deadzone 超范围 (0..100)，当前=${dz}`);
+    errs.push(t('gamepad.errDeadzone', { value: dz }));
   return errs;
 }
 
@@ -241,8 +245,8 @@ async function checkConn() {
   try { connected.value = await api.isConnected(); }
   catch (e) { connected.value = false; }
   if (!connected.value) {
-    addLog('串口未连接，操作被拒绝', 'err');
-    showToast('串口未连接', 'err');
+    addLog(t('gamepad.serialNotConnected'), 'err');
+    showToast(t('gamepad.serialNotConnectedToast'), 'err');
     return false;
   }
   return true;
@@ -255,7 +259,7 @@ function _sendAndWait(type, params, expectCode, timeoutMs = 3000) {
       code: expectCode,
       resolve,
       timer: setTimeout(() => {
-        addLog(`${type} 响应超时 (等 code ${expectCode})`, 'err');
+        addLog(t('gamepad.timeout', { type: type, code: expectCode }), 'err');
         pending = null;
         resolve(null);
       }, timeoutMs),
@@ -277,8 +281,8 @@ function _onDebugResponse(resp) {
     const p = pending; pending = null;
     p.resolve(resp);
   } else if (resp.code === 101) {
-    try { applyCfg(JSON.parse(resp.data)); addLog('配置已回填', 'ok'); }
-    catch (e) { addLog('回填解析失败: ' + e.message, 'err'); }
+    try { applyCfg(JSON.parse(resp.data)); addLog(t('gamepad.configFilled'), 'ok'); }
+    catch (e) { addLog(t('gamepad.fillParseFail', { error: e.message }), 'err'); }
   }
 }
 
@@ -299,23 +303,23 @@ async function saveAll() {
   if (!await checkConn()) return;
   const errs = validateConfig();
   if (errs.length) {
-    addLog('审查失败: ' + errs.join(' | '), 'err');
-    showToast('配置无效: ' + errs[0], 'err');
+    addLog(t('gamepad.validateFail', { errors: errs.join(' | ') }), 'err');
+    showToast(t('gamepad.configInvalid', { error: errs[0] }), 'err');
     return;
   }
   loading.value = true;
   const cfg = buildCfgJson();
-  addLog('审查通过，准备保存: ' + JSON.stringify(cfg).slice(0, 140));
+  addLog(t('gamepad.validatePass', { cfg: JSON.stringify(cfg).slice(0, 140) }));
   const resp = await _sendAndWait('send_ysc', { cmd: JSON.stringify({cmd:100, data: cfg}) }, 100);
   loading.value = false;
   if (resp && resp.message && resp.message.indexOf('ok') === 0) {
     dirty.value = false;
     showToast(t('gamepad.saved'), 'ok');
-    addLog('保存成功（' + resp.message + '）', 'ok');
+    addLog(t('gamepad.saveOk', { msg: resp.message }), 'ok');
   } else {
-    const reason = resp ? (resp.message || '固件返回失败') : '响应超时';
-    showToast('保存失败: ' + reason, 'err');
-    addLog('保存失败: ' + reason, 'err');
+    const reason = resp ? (resp.message || t('gamepad.fwRejected')) : t('gamepad.noResponse');
+    showToast(t('gamepad.saveFail', { reason: reason }), 'err');
+    addLog(t('gamepad.saveFail', { reason: reason }), 'err');
   }
 }
 
@@ -323,16 +327,16 @@ async function loadFromDevice() {
   if (loading.value) return;
   if (!await checkConn()) return;
   loading.value = true;
-  addLog('读取配置...');
+  addLog(t('gamepad.readingConfig'));
   const resp = await _sendAndWait('send_ysc', { cmd: '{"cmd":101}' }, 101);
   loading.value = false;
   if (resp && resp.message === 'ok' && resp.data) {
-    try { applyCfg(JSON.parse(resp.data)); showToast(t('gamepad.refreshed'), 'ok'); addLog('读取并回填成功', 'ok'); }
-    catch (e) { showToast(t('gamepad.parseFail'), 'err'); addLog('解析失败: ' + e.message, 'err'); }
+    try { applyCfg(JSON.parse(resp.data)); showToast(t('gamepad.refreshed'), 'ok'); addLog(t('gamepad.readOk'), 'ok'); }
+    catch (e) { showToast(t('gamepad.parseFail'), 'err'); addLog(t('gamepad.parseFailDetail', { error: e.message }), 'err'); }
   } else {
-    const reason = resp ? (resp.message || '固件返回失败') : '响应超时';
-    showToast('读取失败: ' + reason, 'err');
-    addLog('读取失败: ' + reason, 'err');
+    const reason = resp ? (resp.message || t('gamepad.fwRejected')) : t('gamepad.noResponse');
+    showToast(t('gamepad.readFail', { reason: reason }), 'err');
+    addLog(t('gamepad.readFail', { reason: reason }), 'err');
   }
 }
 
@@ -345,16 +349,16 @@ async function onReset() {
   if (loading.value) return;
   if (!await checkConn()) return;
   loading.value = true;
-  addLog('重置为默认...');
+  addLog(t('gamepad.resetting'));
   const resp = await _sendAndWait('send_ysc', { cmd: '{"cmd":104}' }, 104);
   loading.value = false;
   if (resp && resp.message === 'ok') {
     showToast(t('gamepad.resetDone'), 'ok');
-    addLog('已重置，重新读取...', 'ok');
+    addLog(t('gamepad.resetDoneReload'), 'ok');
     setTimeout(loadFromDevice, 400);
   } else {
-    showToast('重置失败', 'err');
-    addLog('重置失败', 'err');
+    showToast(t('gamepad.resetFail'), 'err');
+    addLog(t('gamepad.resetFail'), 'err');
   }
 }
 
@@ -369,8 +373,8 @@ function exportConfig() {
   a.download = 'gamepad_config.json';
   a.click();
   URL.revokeObjectURL(url);
-  showToast('配置已导出', 'ok');
-  addLog('导出配置: ' + text.slice(0, 100) + '...', 'ok');
+  showToast(t('gamepad.configExported'), 'ok');
+  addLog(t('gamepad.configExporting', { text: text.slice(0, 100) }), 'ok');
 }
 
 function importConfig() {
@@ -385,11 +389,11 @@ function onImportFile(event) {
     try {
       const cfg = JSON.parse(e.target.result);
       applyCfg(cfg);
-      showToast('配置已导入，请点击保存写入设备', 'ok');
-      addLog('导入配置成功，待保存', 'ok');
+      showToast(t('gamepad.configImported'), 'ok');
+      addLog(t('gamepad.importOk'), 'ok');
     } catch (err) {
-      showToast('导入失败: ' + err.message, 'err');
-      addLog('导入失败: ' + err.message, 'err');
+      showToast(t('gamepad.importFail', { error: err.message }), 'err');
+      addLog(t('gamepad.importFail', { error: err.message }), 'err');
     }
   };
   reader.readAsText(file);
@@ -401,10 +405,10 @@ const importInput = ref(null);
 onMounted(async () => {
   api.on('debug_response', _onDebugResponse);
   api.on('send_result', _onSendResult);
-  addLog('面板已加载，检查连接...', 'info');
+  addLog(t('gamepad.panelLoaded'), 'info');
   await checkConn();
   if (connected.value) {
-    addLog('已连接，自动读取配置...', 'info');
+    addLog(t('gamepad.autoLoading'), 'info');
     loadFromDevice();
   }
 });
@@ -417,7 +421,18 @@ onUnmounted(() => {
 <style scoped>
 .gamepad-page { display: flex; flex-direction: column; height: 100%; }
 .header-hint { margin-left: 10px; opacity: .6; font-size: 13px; }
-.conn-state { margin-left: 12px; font-size: 12px; padding: 2px 8px; border-radius: 4px; }
+/* 窄窗口/英文长文案下标题栏换行，避免标题与按钮重叠 */
+.gamepad-page .panel-header { align-content: center; }
+.gamepad-page .panel-header > span:first-of-type { white-space: nowrap; }
+.gamepad-page .header-hint {
+  flex: 1 1 220px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.conn-state { font-size: 12px; padding: 2px 8px; border-radius: 4px; }
+.gamepad-page .conn-state { margin-left: 4px; white-space: nowrap; }
 .conn-state.on { background: rgba(80,200,120,.15); color: #50c878; }
 .conn-state.off { background: rgba(220,80,80,.15); color: #dc5050; }
 .enable-toggle { display: flex; align-items: center; gap: 6px; margin-right: 8px; cursor: pointer; font-size: 13px; }

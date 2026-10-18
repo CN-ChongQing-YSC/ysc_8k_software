@@ -262,13 +262,21 @@ html, body {
 .panel-header {
   display: flex;
   align-items: center;
-  height: 30px;
-  padding: 0 12px;
+  flex-wrap: wrap;
+  row-gap: 4px;
+  min-height: 30px;
+  padding: 3px 12px;
   background: var(--bg-tertiary);
   font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
   gap: 6px;
+}
+
+/* 标题栏按钮不参与收缩：英文文案更长时宁可换行，也不要把按钮文字挤掉 */
+.panel-header > button,
+.panel-header > .btn {
+  flex: none;
 }
 
 .panel-icon {
@@ -1853,6 +1861,12 @@ html, body {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* 槽位开关按内容宽度，不要被 flex:1 拉成整条 */
+.macro-slot-header .btn-toggle {
+  flex: none;
+  min-width: 52px;
 }
 
 .macro-slot-num {

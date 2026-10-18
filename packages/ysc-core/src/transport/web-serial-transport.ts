@@ -15,7 +15,10 @@ import { FrameParser } from '../protocol/rx-parser';
 import { buildJsonFrame } from '../protocol/frame';
 import { YSC_USB_VENDOR, YSC_USB_PRODUCT } from '../protocol/constants';
 import { Emitter, decodeUtf8 } from '../utils';
+import { useI18n } from '../i18n';
 import type { DeviceEvent, DeviceTransport, PortFilter, PortInfo } from './types';
+
+const { t } = useI18n();
 
 type SerialPortLike = any; // Web Serial SerialPort（运行时存在即可，类型在 lib 不全）
 
@@ -39,7 +42,7 @@ export class WebSerialTransport implements DeviceTransport {
 
   constructor() {
     if (typeof navigator === 'undefined' || !('serial' in navigator)) {
-      throw new Error('Web Serial API 不可用（需 Chromium 系浏览器 + 安全源）');
+      throw new Error(t('errors.webSerialUnavailable'));
     }
     this.serial = (navigator as any).serial;
     this.parser = new FrameParser((payload) => {
@@ -67,7 +70,7 @@ export class WebSerialTransport implements DeviceTransport {
     const vid = info.usbVendorId;
     const pid = info.usbProductId;
     const label =
-      vid != null ? `USB ${vid.toString(16).padStart(4, '0')}:${pid?.toString(16).padStart(4, '0') ?? ''}` : 'USB 串口';
+      vid != null ? `USB ${vid.toString(16).padStart(4, '0')}:${pid?.toString(16).padStart(4, '0') ?? ''}` : t('errors.usbSerial');
     return { id, label, usbVendorId: vid, usbProductId: pid, side: '', description: label };
   }
 
@@ -81,7 +84,7 @@ export class WebSerialTransport implements DeviceTransport {
     if (port) {
       const info = this.portToInfo(port);
       this.bus.emit({ type: 'usbDisconnect', port: info });
-      if (port === this.activePort) this.handleLoss('设备已断开');
+      if (port === this.activePort) this.handleLoss(t('errors.deviceDisconnected'));
     }
   };
 
@@ -105,7 +108,7 @@ export class WebSerialTransport implements DeviceTransport {
 
   async connect(portId: string, baud?: number): Promise<{ port: string; baud: number }> {
     const port = this.ports.get(portId);
-    if (!port) throw new Error(`未知端口 id: ${portId}`);
+    if (!port) throw new Error(t('errors.unknownPort', { id: portId }));
     if (this._connected) await this.disconnect();
 
     const rate = baud ?? 115200;
@@ -136,7 +139,7 @@ export class WebSerialTransport implements DeviceTransport {
           if (value) this.parser.feed(value);
         }
       } catch (e: any) {
-        if (!this.readAbort) this.handleLoss(e?.message || '读取异常');
+        if (!this.readAbort) this.handleLoss(e?.message || t('errors.readError'));
       } finally {
         try {
           reader.releaseLock();
@@ -202,7 +205,7 @@ export class WebSerialTransport implements DeviceTransport {
       await this.writer.write(bytes);
       return true;
     } catch (e: any) {
-      this.handleLoss(e?.message || '写入失败');
+      this.handleLoss(e?.message || t('errors.writeError'));
       return false;
     }
   }

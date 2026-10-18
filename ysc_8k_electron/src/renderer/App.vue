@@ -281,13 +281,13 @@ function selfCheckSuccess(message) {
 function selfCheckScheduleTimeout() {
   if (selfCheckTimer) clearTimeout(selfCheckTimer);
   selfCheckTimer = setTimeout(function() {
-    selfCheckFail('自检超时,请确认设备状态');
+    selfCheckFail(t('kmnet.selfCheck.timeout'));
   }, 10000);
 }
 
 function selfCheckBeginReconnect() {
   kmnetSelfCheck.value.step = 'reconnecting';
-  kmnetSelfCheck.value.message = '正在以 ' + TARGET_BAUD + ' 重新连接进行验证...';
+  kmnetSelfCheck.value.message = t('kmnet.selfCheck.reconnectingAt', { baud: TARGET_BAUD });
   selfCheckScheduleTimeout();
   selfCheckReconnectAttempts = 0;
   selfCheckReconnectTimer = setTimeout(function() {
@@ -302,7 +302,7 @@ function selfCheckScheduleReconnectRetry(message) {
     selfCheckFail(message);
     return false;
   }
-  kmnetSelfCheck.value.message = '第 ' + selfCheckReconnectAttempts + ' 次重连失败(' + message + '),等待后重试...';
+  kmnetSelfCheck.value.message = t('kmnet.selfCheck.retry', { n: selfCheckReconnectAttempts, error: message });
   if (selfCheckReconnectTimer) clearTimeout(selfCheckReconnectTimer);
   selfCheckReconnectTimer = setTimeout(function() {
     selfCheckReconnectTimer = null;
@@ -386,7 +386,7 @@ function dismissCh343Warn() {
 
 function onKmnetStart(port) {
   if (!serialConnected.value) {
-    selfCheckFail('请先连接串口后再启动 KmNet 服务');
+    selfCheckFail(t('kmnet.selfCheck.needSerial'));
     return;
   }
   kmnetSelfCheck.value = {
@@ -592,9 +592,9 @@ onMounted(function() {
     serialBaud.value = data.baud;
     if (kmnetSelfCheck.value.active && kmnetSelfCheck.value.step === 'reconnecting') {
       if (data.baud === TARGET_BAUD) {
-        selfCheckSuccess('自检通过,波特率 ' + data.baud + ' 工作正常');
+        selfCheckSuccess(t('kmnet.selfCheck.passed', { baud: data.baud }));
       } else {
-        selfCheckFail('重连成功但实际波特率为 ' + data.baud + ',与目标 ' + TARGET_BAUD + ' 不一致');
+        selfCheckFail(t('kmnet.selfCheck.baudMismatch', { actual: data.baud, target: TARGET_BAUD }));
       }
       return;
     }
@@ -619,12 +619,12 @@ onMounted(function() {
 
   listen('serial_error', function(data) {
     if (kmnetSelfCheck.value.active && kmnetSelfCheck.value.step === 'reconnecting') {
-      var msg = (data && data.message) ? data.message : '未知错误';
+      var msg = (data && data.message) ? data.message : t('kmnet.selfCheck.unknownError');
       selfCheckScheduleReconnectRetry(msg);
       return;
     }
     if (kmnetSelfCheck.value.active) {
-      selfCheckFail('串口错误:' + (data && data.message ? data.message : '未知错误'));
+      selfCheckFail(t('kmnet.selfCheck.serialError', { error: (data && data.message) ? data.message : t('kmnet.selfCheck.unknownError') }));
     } else {
       // 非自检场景的串口错误：复位连接态并刷新端口（防御性兜底，覆盖物理断开等情形）
       serialConnected.value = false;
@@ -637,18 +637,18 @@ onMounted(function() {
     if (kmnetSelfCheck.value.active && kmnetSelfCheck.value.step === 'switching') {
       if (data.baud === TARGET_BAUD) {
         kmnetSelfCheck.value.step = 'disconnecting';
-        kmnetSelfCheck.value.message = '波特率已切换,正在断开串口...';
+        kmnetSelfCheck.value.message = t('kmnet.selfCheck.baudSwitched');
         selfCheckScheduleTimeout();
         api.send('serial_disconnect');
       } else {
-        selfCheckFail('波特率切换返回 ' + data.baud + ',与目标 ' + TARGET_BAUD + ' 不一致');
+        selfCheckFail(t('kmnet.selfCheck.switchMismatch', { actual: data.baud, target: TARGET_BAUD }));
       }
     }
   });
 
   listen('baudrate_failed', function(data) {
     if (kmnetSelfCheck.value.active) {
-      selfCheckFail('波特率切换失败:' + (data && data.message ? data.message : '设备可能已断开'));
+      selfCheckFail(t('kmnet.selfCheck.switchFailed', { error: (data && data.message) ? data.message : t('kmnet.selfCheck.deviceGone') }));
     }
   });
 
@@ -662,7 +662,7 @@ onMounted(function() {
       kmnetSelfCheck.value = {
         active: true,
         step: 'disconnecting',
-        message: '当前已为 ' + TARGET_BAUD + ',断开重连进行自检...',
+        message: t('kmnet.selfCheck.alreadyAtBaud', { baud: TARGET_BAUD }),
         result: '',
       };
       selfCheckScheduleTimeout();
@@ -671,7 +671,7 @@ onMounted(function() {
       kmnetSelfCheck.value = {
         active: true,
         step: 'switching',
-        message: '正在将波特率切换为 ' + TARGET_BAUD + '...',
+        message: t('kmnet.selfCheck.switchingTo', { baud: TARGET_BAUD }),
         result: '',
       };
       selfCheckScheduleTimeout();
@@ -683,7 +683,7 @@ onMounted(function() {
     netRunning.value = false;
     kmnetStat.value = { total: 0, c: {}, client: {}, ring: [] };
     if (kmnetSelfCheck.value.active) {
-      selfCheckFail('KmNet 服务已停止,自检中断');
+      selfCheckFail(t('kmnet.selfCheck.serviceStopped'));
     }
   });
 

@@ -1,17 +1,17 @@
 <template>
   <section class="card device-card">
     <header class="dc-head">
-      <h2>我的设备</h2>
+      <h2>{{ t('deviceCard.title') }}</h2>
       <span class="state-pill" :class="dev.connected ? 'on' : 'off'">
-        {{ dev.connected ? '已连接' : '未连接' }}
+        {{ dev.connected ? t('deviceCard.connected') : t('deviceCard.disconnected') }}
       </span>
     </header>
 
     <!-- 未连接：授权 + 选择 + 连接 -->
     <template v-if="!dev.connected">
       <div v-if="isWeb" class="row">
-        <button class="btn primary" :disabled="dev.connecting" @click="onAddDevice">＋ 选择设备</button>
-        <button class="btn" @click="dev.refreshPorts()">刷新</button>
+        <button class="btn primary" :disabled="dev.connecting" @click="onAddDevice">＋ {{ t('deviceCard.selectDevice') }}</button>
+        <button class="btn" @click="dev.refreshPorts()">{{ t('deviceCard.refresh') }}</button>
       </div>
 
       <div v-if="dev.ports.length" class="row">
@@ -28,30 +28,30 @@
           <option :value="4000000">4M</option>
         </select>
         <button class="btn primary" :disabled="!selectedPort || dev.connecting" @click="onConnect">
-          {{ dev.connecting ? '连接中…' : '连接' }}
+          {{ dev.connecting ? t('deviceCard.connecting') : t('deviceCard.connect') }}
         </button>
       </div>
       <p v-else-if="isWeb" class="hint">
-        尚未授权 YSC 设备。点「选择设备」，在系统弹窗中选 YSC 串口（VID 1A86 / PID FE0C）。
+        {{ t('deviceCard.authorizedHint') }}
       </p>
-      <p v-else class="hint">未发现设备，请插入 YSC 设备后点「刷新」。</p>
+      <p v-else class="hint">{{ t('deviceCard.noDeviceHint') }}</p>
     </template>
 
     <!-- 已连接：设备信息 -->
     <template v-else>
       <div class="info-grid">
-        <div><span class="k">端口</span><span class="v mono">{{ dev.port }}</span></div>
-        <div><span class="k">波特率</span><span class="v mono">{{ dev.baud }}</span></div>
-        <div><span class="k">固件版本</span>
+        <div><span class="k">{{ t('deviceCard.port') }}</span><span class="v mono">{{ dev.port }}</span></div>
+        <div><span class="k">{{ t('deviceCard.baud') }}</span><span class="v mono">{{ dev.baud }}</span></div>
+        <div><span class="k">{{ t('deviceCard.firmware') }}</span>
           <span class="v mono">{{ dev.version ? dev.version.raw : (dev.versionRaw || '—') }}</span>
         </div>
-        <div v-if="dev.version?.side"><span class="k">侧别</span>
+        <div v-if="dev.version?.side"><span class="k">{{ t('deviceCard.side') }}</span>
           <span class="v" :class="`side-${dev.version.side.toLowerCase()}`">{{ dev.version.side }}</span>
         </div>
       </div>
       <div class="row">
-        <button class="btn" @click="dev.fetchVersion()">读取版本</button>
-        <button class="btn danger" @click="dev.disconnect()">断开</button>
+        <button class="btn" @click="dev.fetchVersion()">{{ t('deviceCard.readVersion') }}</button>
+        <button class="btn danger" @click="dev.disconnect()">{{ t('deviceCard.disconnect') }}</button>
       </div>
     </template>
 
@@ -63,7 +63,9 @@
 import { ref, watch } from 'vue';
 import { useDeviceStore } from '../store/device-store';
 import { getPlatform } from '../platform';
+import { useI18n } from '../i18n';
 
+const { t } = useI18n();
 const dev = useDeviceStore();
 const isWeb = getPlatform() === 'web';
 

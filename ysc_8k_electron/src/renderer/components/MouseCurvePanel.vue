@@ -69,9 +69,9 @@
 
         <div class="mcurve-viz">
           <div class="mcurve-viz-head">
-            <span class="macro-field-label">曲线预览（逐报告复刻固件输出）</span>
+            <span class="macro-field-label">{{ t('mouseCurve.vizPreview') }}</span>
             <div style="flex:1"></div>
-            <button class="btn btn-ghost" @click="replay">▶ 重播</button>
+            <button class="btn btn-ghost" @click="replay">▶ {{ t('mouseCurve.vizReplay') }}</button>
           </div>
 
           <div class="mcurve-track" ref="trackEl">
@@ -84,16 +84,16 @@
             <div v-for="(h, i) in barsData" :key="i" class="mcurve-bar"
                  :class="{ active: i === activeSeg }" :style="{ height: h + '%' }"></div>
           </div>
-          <div class="mcurve-bars-axis"><span>起步</span><span>中段</span><span>收尾</span></div>
+          <div class="mcurve-bars-axis"><span>{{ t('mouseCurve.vizStart') }}</span><span>{{ t('mouseCurve.vizMid') }}</span><span>{{ t('mouseCurve.vizEnd') }}</span></div>
 
           <div class="mcurve-readout">
-            <span>进度 <b>{{ readout.progress }}%</b></span>
-            <span>当前段 <b>{{ readout.seg + 1 }}/{{ readout.n }}</b></span>
-            <span>本段占总位移 <b>{{ readout.share }}%</b></span>
-            <span>USB 报告数 <b>{{ readout.totalReports }}</b></span>
-            <span>实际设备时长(8KHz) <b>≈ {{ readout.realMs }} ms</b></span>
+            <span>{{ t('mouseCurve.vizProgress') }} <b>{{ readout.progress }}%</b></span>
+            <span>{{ t('mouseCurve.vizSeg') }} <b>{{ readout.seg + 1 }}/{{ readout.n }}</b></span>
+            <span>{{ t('mouseCurve.vizShare') }} <b>{{ readout.share }}%</b></span>
+            <span>{{ t('mouseCurve.vizReports') }} <b>{{ readout.totalReports }}</b></span>
+            <span>{{ t('mouseCurve.vizReal') }} <b>≈ {{ readout.realMs }} ms</b></span>
           </div>
-          <div class="mcurve-viz-note">慢放演示(固定 ~2.2s)。设备按固定节拍逐 USB 报告吐位移，曲线体现在"每段走多远"——时间轴匀速、位移呈钟形，这就是"起步慢·中间快·收尾慢"。</div>
+          <div class="mcurve-viz-note">{{ t('mouseCurve.vizNote') }}</div>
         </div>
       </div>
 
@@ -307,6 +307,20 @@ onUnmounted(function () { if (tween) tween.kill(); });
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+/* 英文文案明显更长：单字段改为竖向排列，标签/提示不再被 48px/72px 固定宽度挤成竖排 */
+.mcurve-page .macro-field:not(.mcurve-field-row) {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+.mcurve-page .macro-field-label,
+.mcurve-page .macro-field-hint {
+  width: auto;
+}
+.mcurve-page .mcurve-viz-head .macro-field-label {
+  flex: 1;
+  min-width: 0;
 }
 .mcurve-page .mcurve-field-row {
   display: flex;

@@ -201,6 +201,16 @@ function loadFromDevice() {
   flex-direction: column;
   gap: 16px;
 }
+/* 英文文案更长：单字段竖排、标签/提示宽度自适应，避免被固定宽度挤成竖排文字 */
+.jitter-page .macro-field:not(.jitter-field-row) {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+.jitter-page .macro-field-label,
+.jitter-page .macro-field-hint {
+  width: auto;
+}
 .jitter-page .jitter-field-row {
   display: flex;
   gap: 24px;

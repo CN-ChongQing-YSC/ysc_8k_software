@@ -16,7 +16,10 @@
  * 超时，直到驱动补一个 device_response 转发。连接/监控/键盘/手柄/调试路径已完整。
  */
 import { Emitter } from '../utils';
+import { useI18n } from '../i18n';
 import type { DeviceEvent, DeviceTransport, PortFilter, PortInfo, TowmcuSide } from './types';
+
+const { t } = useI18n();
 
 /** 注入的 driverApi 表面（仅用到的子集）。 */
 export interface DriverApiLike {
@@ -70,7 +73,7 @@ export class DriverPipeTransport implements DeviceTransport {
       this.bus.emit({ type: 'disconnected' });
     });
     this.subscribe('serial_error', (d) => {
-      this.bus.emit({ type: 'error', message: d.message || '串口错误' });
+      this.bus.emit({ type: 'error', message: d.message || t('errors.serial') });
     });
     this.subscribe('baudrate_switched', (d) => {
       this._curBaud = d.baud;
@@ -78,7 +81,7 @@ export class DriverPipeTransport implements DeviceTransport {
     });
     this.subscribe('baudrate_failed', (d) => {
       this.bus.emit({ type: 'baudrate', baud: 0, ok: false });
-      this.bus.emit({ type: 'error', message: d.message || '切换波特率失败' });
+      this.bus.emit({ type: 'error', message: d.message || t('errors.switchBaud') });
     });
     this.subscribe('monitor_data', (d) => {
       this.bus.emit({
@@ -121,7 +124,7 @@ export class DriverPipeTransport implements DeviceTransport {
 
   async requestPort(_opts?: PortFilter): Promise<PortInfo> {
     // Electron：驱动自开 COM 口，UI 用枚举下拉；本方法在桌面流程不应被调用
-    throw new Error('桌面版使用端口下拉选择，无需 requestPort');
+    throw new Error(t('errors.requestPortDesktop'));
   }
 
   async connect(portId: string, baud?: number): Promise<{ port: string; baud: number }> {
@@ -141,7 +144,7 @@ export class DriverPipeTransport implements DeviceTransport {
 
   async sendRaw(_bytes: Uint8Array): Promise<boolean> {
     // 桌面版裸串口由驱动托管（IAP 走 iap_start_mem / towmcu_start_mem，MAKCU 走 send_makcu）
-    throw new Error('桌面版不支持 sendRaw；IAP/MAKCU 走驱动专用命令');
+    throw new Error(t('errors.sendRawDesktop'));
   }
 
   async jumpToIap(): Promise<boolean> {

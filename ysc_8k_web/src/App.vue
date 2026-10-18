@@ -5,16 +5,16 @@
       <template v-if="ui.activeView === 'device-card'">
         <DeviceCard />
         <section class="card help-card">
-          <h2 class="card-title">快速入门</h2>
+          <h2 class="card-title">{{ t('web.quickStart') }}</h2>
           <ol class="steps">
-            <li>用 <b>Chrome / Edge</b> 打开本页(localhost 或 HTTPS)。</li>
-            <li>点「选择设备」,在系统弹窗选 YSC 串口(<span class="mono">VID 1A86 / PID FE0C</span>)。</li>
-            <li>选波特率,点「连接」—— 版本/监控/键盘等随即可用。</li>
-            <li>左侧导航切换各功能面板。</li>
+            <li v-html="t('web.step1')"></li>
+            <li v-html="t('web.step2')"></li>
+            <li>{{ t('web.step3') }}</li>
+            <li>{{ t('web.step4') }}</li>
           </ol>
           <p class="hint">
             <span class="material-symbols-outlined ph-inline">info</span>
-            Firefox / Safari 不支持 Web Serial,请用 Chromium 内核浏览器。授权过的端口下次自动记住。
+            {{ t('web.browserHint') }}
           </p>
         </section>
       </template>
@@ -22,27 +22,27 @@
       <!-- 实时监控 -->
       <template v-else-if="ui.activeView === 'monitor'">
         <section v-if="dev.connected" class="card">
-          <h2 class="card-title">实时监控</h2>
+          <h2 class="card-title">{{ t('web.liveMonitor') }}</h2>
           <Toggle
             :model-value="dev.monitorOn"
-            label="实时上报"
+            :label="t('web.liveUpload')"
             @update:model-value="onToggleMonitor"
           />
           <div class="monitor-grid">
-            <div><span class="k">按键</span><span class="v mono">{{ formatHex(dev.monitor.buttons, 4) }}</span></div>
+            <div><span class="k">{{ t('web.buttons') }}</span><span class="v mono">{{ formatHex(dev.monitor.buttons, 4) }}</span></div>
             <div><span class="k">X</span><span class="v mono">{{ dev.monitor.x }}</span></div>
             <div><span class="k">Y</span><span class="v mono">{{ dev.monitor.y }}</span></div>
-            <div><span class="k">帧数</span><span class="v mono">{{ dev.monitorCount }}</span></div>
+            <div><span class="k">{{ t('web.frames') }}</span><span class="v mono">{{ dev.monitorCount }}</span></div>
           </div>
         </section>
-        <div v-else class="placeholder"><div class="ph-icon">📡</div><div>请先在「我的设备」连接设备</div></div>
+        <div v-else class="placeholder"><div class="ph-icon">📡</div><div>{{ t('web.connectFirst') }}</div></div>
       </template>
 
       <!-- 键盘测试 -->
       <template v-else-if="ui.activeView === 'keyboard-tester'">
         <section v-if="dev.connected" class="card">
-          <h2 class="card-title">键盘测试</h2>
-          <p class="hint">按住下方按键向设备注入 HID 按键（cmd 45），松开自动释放。</p>
+          <h2 class="card-title">{{ t('web.keyboardTest') }}</h2>
+          <p class="hint">{{ t('web.keyboardHint') }}</p>
           <div class="kbd">
             <button
               v-for="k in testKeys"
@@ -54,9 +54,9 @@
               @pointercancel="pressKey(k.kc, false)"
             >{{ k.label }}</button>
           </div>
-          <button class="btn" @click="releaseAll">释放全部</button>
+          <button class="btn" @click="releaseAll">{{ t('web.releaseAll') }}</button>
         </section>
-        <div v-else class="placeholder"><div class="ph-icon">⌨️</div><div>请先在「我的设备」连接设备</div></div>
+        <div v-else class="placeholder"><div class="ph-icon">⌨️</div><div>{{ t('web.connectFirst') }}</div></div>
       </template>
 
       <!-- 其余视图：占位 -->
@@ -75,14 +75,14 @@ import { computed, onMounted, watch } from 'vue';
 import { AppShell, DeviceCard, Toggle, ALL_VIEW_KEYS } from '@ysc/core/ui';
 import { useDeviceStore, useUiStore } from '@ysc/core/store';
 import { isWebSerialSupported } from '@ysc/core/platform';
+import { useI18n } from '@ysc/core/i18n';
 
+const { t } = useI18n();
 const dev = useDeviceStore();
 const ui = useUiStore();
 const webSerialOk = isWebSerialSupported();
 
-const banner = webSerialOk
-  ? ''
-  : '当前浏览器不支持 Web Serial API。请用 Chrome / Edge 桌面端，并通过 HTTPS 或 localhost 打开。';
+const banner = computed(() => (webSerialOk ? '' : t('web.serialUnsupported')));
 
 const testKeys = [
   { label: 'W', kc: 0x1a },
@@ -109,7 +109,7 @@ const placeholderLabel = computed(() => {
   switch (ui.activeView) {
     case 'kmnet':
     case 'ch343':
-      return '该功能为桌面版专属（浏览器沙箱限制）';
+      return t('web.desktopOnly');
     case 'macro':
     case 'jitter':
     case 'mouse-curve':
@@ -119,9 +119,9 @@ const placeholderLabel = computed(() => {
     case 'firmware-v1':
     case 'firmware-v2':
     case 'debug':
-      return '该面板正在迁移到共享核心（Phase 4/5/6）';
+      return t('web.migrating');
     default:
-      return '敬请期待';
+      return t('web.comingSoon');
   }
 });
 

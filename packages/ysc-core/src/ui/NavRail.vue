@@ -117,7 +117,7 @@ function itemTitle(i: NavItem): string {
 }
 function groupBtnTitle(g: NavGroup): string {
   const target = groupTarget(g);
-  return target ? groupLabel(g) + '：' + itemLabel(target) : groupLabel(g);
+  return target ? t('nav.groupItemTitle', { group: groupLabel(g), item: itemLabel(target) }) : groupLabel(g);
 }
 
 // item.key -> 所属分组 key（展开态全量渲染时，点击条目也要记录到正确的分组）

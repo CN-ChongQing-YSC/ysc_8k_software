@@ -11,6 +11,7 @@
  * —— 两处 schema 待真机确认后可收敛（见 plan 验证项）。
  */
 import { Emitter, decodeUtf8, tryParseJson } from '../utils';
+import { useI18n } from '../i18n';
 import type { DeviceEvent, DeviceTransport, PortFilter, PortInfo } from '../transport/types';
 import {
   CMD_QUERY_VERSION,
@@ -23,6 +24,7 @@ import {
 export class YscDevice {
   private bus = new Emitter<DeviceEvent>();
   private transport: DeviceTransport;
+  private readonly t = useI18n().t;
 
   /** 版本查询的一次性回调（简单请求/响应关联）。 */
   private versionResolver: ((v: string) => void) | null = null;
@@ -124,7 +126,7 @@ export class YscDevice {
       this.versionTimer = setTimeout(() => {
         this.versionResolver = null;
         this.versionTimer = null;
-        reject(new Error('查询版本超时'));
+        reject(new Error(this.t('errors.versionTimeout')));
       }, timeoutMs);
       this.transport.sendJson(JSON.stringify({ cmd: CMD_QUERY_VERSION })).catch((e) => {
         if (this.versionTimer) clearTimeout(this.versionTimer);

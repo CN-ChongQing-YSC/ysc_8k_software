@@ -217,10 +217,11 @@
 
 <script setup>
 import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue';
-import { useI18n } from '../i18n/index.js';
+import { useI18n, getLang } from '../i18n/index.js';
 
 const api = window.driverApi;
 const { t } = useI18n();
+const locale = () => (getLang() === 'zh' ? 'zh-CN' : 'en-US');
 
 const props = defineProps({
   serialConnected: { type: Boolean, default: false },
@@ -272,7 +273,7 @@ const NOTE_LABELS = {
 
 /* ---------- helpers ---------- */
 const addLog = (type, message) => {
-  const time = new Date().toLocaleTimeString('zh-CN');
+  const time = new Date().toLocaleTimeString(locale());
   logs.value.unshift({ type, time, message });
   if (logs.value.length > 80) logs.value = logs.value.slice(0, 80);
 };
@@ -596,27 +597,27 @@ function parseDataObject(s) {
 
 const enterDebug = async () => {
   busy.value = 'enter';
-  addLog('info', '进入调试模式...');
+  addLog('info', t('debug.log.enter'));
   const r = await sendCmd(700, {}, 2000);
   if (r && r.message === 'debug_enter') {
-    addLog('success', '已进入调试模式');
+    addLog('success', t('debug.log.entered'));
     await pollStatus();
     await fetchDescriptors();
   } else {
-    addLog('error', '进入失败');
+    addLog('error', t('debug.log.enterFail'));
   }
   busy.value = null;
 };
 
 const exitDebug = async () => {
   busy.value = 'exit';
-  addLog('info', '退出调试模式...');
+  addLog('info', t('debug.log.exit'));
   const r = await sendCmd(701, {}, 2000);
   if (r && r.message === 'debug_exit') {
-    addLog('success', '已退出，恢复正常透传');
+    addLog('success', t('debug.log.exited'));
     await pollStatus();
   } else {
-    addLog('error', '退出失败');
+    addLog('error', t('debug.log.exitFail'));
   }
   busy.value = null;
 };
@@ -624,7 +625,7 @@ const exitDebug = async () => {
 const fetchDescriptors = async () => {
   // Note: caller owns `busy` state so this can be invoked from enter/export
   // flows without clobbering their UI indicator.
-  addLog('info', '获取描述符（后台）...');
+  addLog('info', t('debug.log.fetchDesc'));
 
   // 设备描述符
   const dev = await sendCmd(710, {}, 2000);
@@ -632,7 +633,7 @@ const fetchDescriptors = async () => {
     const d = parseDataObject(dev.data);
     if (d && d.hex) {
       descriptors.value.device = hexToBytes(d.hex);
-      addLog('success', `设备描述符 ${descriptors.value.device.length}B`);
+      addLog('success', t('debug.log.devDesc', { n: descriptors.value.device.length }));
     }
   }
   await delay(120);
@@ -643,7 +644,7 @@ const fetchDescriptors = async () => {
     const d = parseDataObject(cfg.data);
     if (d && d.hex) {
       descriptors.value.config = hexToBytes(d.hex);
-      addLog('success', `配置描述符 ${descriptors.value.config.length}B`);
+      addLog('success', t('debug.log.cfgDesc', { n: descriptors.value.config.length }));
     }
   }
   await delay(120);
@@ -656,12 +657,12 @@ const fetchDescriptors = async () => {
       const total = d.total || 0;
       let acc = hexToBytes(d.hex || '');
       let off = acc.length;
-      addLog('info', `报告描述符首批 ${acc.length}/${total}B`);
+      addLog('info', t('debug.log.repFirst', { n: acc.length, total: total }));
       while (off < total) {
         await delay(120);
         const more = await sendCmd(712, { offset: off, max: 400 }, 3000);
         if (!more || !more.data) {
-          addLog('error', `报告描述符分片失败 @offset=${off}`);
+          addLog('error', t('debug.log.repChunk', { offset: off }));
           break;
         }
         const md = parseDataObject(more.data);
@@ -672,17 +673,17 @@ const fetchDescriptors = async () => {
         off += chunk.length;
       }
       descriptors.value.report = acc.slice(0, total);
-      addLog('success', `报告描述符 ${descriptors.value.report.length}/${total}B`);
+      addLog('success', t('debug.log.repDone', { n: descriptors.value.report.length, total: total }));
     }
   } else {
-    addLog('error', '报告描述符获取失败');
+    addLog('error', t('debug.log.repFail'));
   }
 };
 
 const clearReports = async () => {
   const r = await sendCmd(714, {}, 2000);
   if (r && r.message === 'debug_cleared') {
-    addLog('info', '已清空报告缓冲');
+    addLog('info', t('debug.log.cleared'));
     events.value = [];
     diag.value = null;
     await pollStatus();
@@ -695,7 +696,7 @@ const applyMode = async (m) => {
   mode.value = m;
   const r = await sendCmd(716, { mode: m }, 2500);
   const ok = r && r.message === 'debug_cfg';
-  if (!ok) addLog('error', '设置抓包模式失败（固件可能不支持 716）');
+  if (!ok) addLog('error', t('debug.log.modeFail'));
   await pollStatus();
   return ok;
 };
@@ -710,7 +711,7 @@ const fetchDiag = async () => {
       return d;
     }
   }
-  addLog('error', '读取诊断失败（固件可能不支持 717）');
+  addLog('error', t('debug.log.diagFail'));
   return null;
 };
 
@@ -736,7 +737,7 @@ const setMode = async (m) => {
   events.value = [];
   diag.value = null;
   await applyMode(m);
-  addLog('info', '抓包模式：' + modeLabel.value);
+  addLog('info', t('debug.log.mode', { mode: modeLabel.value }));
   busy.value = null;
 };
 
@@ -745,7 +746,7 @@ const refreshDiag = async () => {
   const d = await fetchDiag();
   const total = d ? d.recCount || 0 : status.reportCount || 0;
   await fetchEvents(total);
-  addLog('info', `诊断已刷新：${events.value.length} 条记录`);
+  addLog('info', t('debug.log.diagRefreshed', { n: events.value.length }));
   busy.value = null;
 };
 
@@ -760,7 +761,7 @@ const grabButtons = async () => {
   catchHint.value = t('debug.grabHint');
   await applyMode(2);
   busy.value = null;
-  addLog('info', '已清空并按「仅按键轨迹」抓包，请按几下鼠标左键/右键');
+  addLog('info', t('debug.log.grabArmed'));
 
   if (catchTimer) clearTimeout(catchTimer);
   catchTimer = setTimeout(async () => {
@@ -769,7 +770,7 @@ const grabButtons = async () => {
     const d = await fetchDiag();
     await fetchEvents(d ? d.recCount || 0 : 0);
     const v = verdict.value;
-    addLog(v && v.level === 'ok' ? 'success' : 'error', '按键链路：' + (v ? v.text : '未取到数据'));
+    addLog(v && v.level === 'ok' ? 'success' : 'error', t('debug.log.verdict', { text: v ? v.text : t('debug.log.noData') }));
   }, 8000);
 };
 
@@ -782,11 +783,11 @@ const exportTxt = async () => {
   if (!descriptors.value.device.length ||
       !descriptors.value.config.length ||
       !descriptors.value.report.length) {
-    addLog('info', '导出前重新获取描述符...');
+    addLog('info', t('debug.log.exportDesc'));
     await fetchDescriptors();
   }
 
-  addLog('info', '拉取全部报告...');
+  addLog('info', t('debug.log.pullReports'));
   const count = status.reportCount;
   const reports = [];
 
@@ -827,7 +828,7 @@ const exportTxt = async () => {
           });
         }
       } else {
-        addLog('error', `读取报告 ${i} 失败`);
+        addLog('error', t('debug.log.reportFail', { n: i }));
       }
       exportProgress.value = i + 1;
     }
@@ -840,54 +841,65 @@ const exportTxt = async () => {
   const lay = (d && d.lay) || {};
 
   const lines = [];
-  lines.push('YSC 8K HID Debug Capture');
-  lines.push(`Time: ${new Date().toLocaleString('zh-CN')}`);
-  lines.push(`Device VID=${hexVid.value} PID=${hexPid.value} product="${status.product || ''}"`);
-  lines.push(`Reports: ${reports.length} / ${status.reportMax}`);
-  lines.push(`Capture mode: ${modeLabel.value}`);
+  lines.push(t('debug.exportDoc.title'));
+  lines.push(t('debug.exportDoc.time', { time: new Date().toLocaleString(locale()) }));
+  lines.push(t('debug.exportDoc.device', { vid: hexVid.value, pid: hexPid.value, product: status.product || '' }));
+  lines.push(t('debug.exportDoc.reports', { n: reports.length, max: status.reportMax }));
+  lines.push(t('debug.exportDoc.mode', { mode: modeLabel.value }));
   lines.push('='.repeat(60));
   lines.push('');
-  lines.push('== Device Descriptor ==');
+  lines.push(t('debug.exportDoc.devDesc'));
   lines.push(formatHex(descriptors.value.device));
   lines.push('');
-  lines.push('== Config Descriptor ==');
+  lines.push(t('debug.exportDoc.cfgDesc'));
   lines.push(formatHex(descriptors.value.config));
   lines.push('');
-  lines.push(`== HID Report Descriptor (${descriptors.value.report.length} bytes, ${reportByInterface.value.length} interfaces) ==`);
+  lines.push(t('debug.exportDoc.repDesc', { bytes: descriptors.value.report.length, ifaces: reportByInterface.value.length }));
   reportByInterface.value.forEach((iface) => {
     lines.push('');
-    lines.push(`  ---- Interface ${iface.number} (${iface.protocol}) — ${iface.bytes.length} B ----`);
+    lines.push('  ' + t('debug.exportDoc.iface', { n: iface.number, protocol: iface.protocol, bytes: iface.bytes.length }));
     iface.collections.forEach((sec, idx) => {
       lines.push(`    [${idx + 1}] ${sec.label}${sec.reportIds.length ? '  Report ID ' + sec.reportIds.join('/') : ''}  (${sec.bytes.length} B)`);
       lines.push(`      ${formatHex(sec.bytes)}`);
     });
-    lines.push(`  -- Full IF${iface.number} raw --`);
+    lines.push('  ' + t('debug.exportDoc.ifaceRaw', { n: iface.number }));
     lines.push('  ' + formatHex(iface.bytes));
   });
   lines.push('');
-  lines.push('== Full Report Descriptor (raw, all interfaces concatenated) ==');
+  lines.push(t('debug.exportDoc.repRaw'));
   lines.push(formatHex(descriptors.value.report));
   lines.push('');
 
   /* ---- 按键链路诊断 ---- */
-  lines.push('== Button Path Diagnosis ==');
-  lines.push('  (up = physical device -> box, down = box -> PC)');
+  lines.push(t('debug.exportDoc.diag'));
+  lines.push('  ' + t('debug.exportDoc.diagNote'));
   if (d) {
-    lines.push(`  mode=${d.mode} records=${d.recCount}/${d.recMax} recorded_total=${d.recTotal}`);
-    lines.push(`  UP   reports=${d.upTotal} mouse=${d.upMouse} btn_nonzero=${d.upBtnOn} press=${d.upPress} release=${d.upRelease} last_btn=${btnText(d.lastUpBtn)}`);
-    lines.push(`  DOWN reports=${d.downTotal} mouse=${d.downMouse} btn_nonzero=${d.downBtnOn} press=${d.downPress} release=${d.downRelease} last_btn=${btnText(d.lastDownBtn)}`);
-    lines.push(`  DROP rid=${d.nRid} iface=${d.nIface} layout=${d.nLayout} masked=${d.nMasked} send_fail=${d.nSendFail} kbd_consumed=${d.nKbd} raw_fwd=${d.nRawFwd} ep_busy=${d.nEpBusy} no_content=${d.nNoContent} queue_drop=${d.nQueueDrop}`);
-    lines.push(`  MOUSE LAYOUT valid=${lay.valid} len=${lay.len} rid=${lay.hasRid ? lay.rid : '-'} iface=${lay.iface} ep=${lay.ep}` +
-      ` btn(off=${lay.btnOff},bits=${lay.btnBits}) x(off=${lay.xOff},bits=${lay.xBits})` +
-      ` y(off=${lay.yOff},bits=${lay.yBits}) wheel(off=${lay.whOff},bits=${lay.whBits})`);
+    lines.push('  ' + t('debug.exportDoc.diagStat', { mode: d.mode, rec: d.recCount, max: d.recMax, total: d.recTotal }));
+    lines.push('  ' + t('debug.exportDoc.up', {
+      total: d.upTotal, mouse: d.upMouse, btn: d.upBtnOn, press: d.upPress,
+      release: d.upRelease, last: btnText(d.lastUpBtn),
+    }));
+    lines.push('  ' + t('debug.exportDoc.down', {
+      total: d.downTotal, mouse: d.downMouse, btn: d.downBtnOn, press: d.downPress,
+      release: d.downRelease, last: btnText(d.lastDownBtn),
+    }));
+    lines.push('  ' + t('debug.exportDoc.drop', {
+      rid: d.nRid, iface: d.nIface, layout: d.nLayout, masked: d.nMasked, fail: d.nSendFail,
+      kbd: d.nKbd, raw: d.nRawFwd, epbusy: d.nEpBusy, nocon: d.nNoContent, queue: d.nQueueDrop,
+    }));
+    lines.push('  ' + t('debug.exportDoc.layout', {
+      valid: lay.valid, len: lay.len, rid: lay.hasRid ? lay.rid : '-', iface: lay.iface, ep: lay.ep,
+      btnOff: lay.btnOff, btnBits: lay.btnBits, xOff: lay.xOff, xBits: lay.xBits,
+      yOff: lay.yOff, yBits: lay.yBits, whOff: lay.whOff, whBits: lay.whBits,
+    }));
     const v = verdict.value;
-    if (v) lines.push(`  VERDICT [${v.level}] ${v.text} — ${v.detail}`);
+    if (v) lines.push('  ' + t('debug.exportDoc.verdict', { level: v.level, text: v.text, detail: v.detail }));
   } else {
-    lines.push('  (no diagnosis available — 固件可能不支持 cmd 716/717，请升级固件)');
+    lines.push('  ' + t('debug.exportDoc.noDiag'));
   }
   lines.push('');
-  lines.push(`== Captured HID Reports (${reports.length}) ==`);
-  lines.push('  columns: idx  t(ms)  dir  ep  btn  class/reason  raw');
+  lines.push(t('debug.exportDoc.captured', { n: reports.length }));
+  lines.push('  ' + t('debug.exportDoc.columns'));
   reports.forEach((r) => {
     // Firmware hex has no separators; reformat with spaces for readability.
     const pretty = formatHex(hexToBytes(r.hex));
@@ -908,7 +920,7 @@ const exportTxt = async () => {
   a.download = `hid_debug_${ts}.txt`;
   a.click();
   URL.revokeObjectURL(url);
-  addLog('success', `已导出 ${reports.length} 条报告`);
+  addLog('success', t('debug.log.exported', { n: reports.length }));
   busy.value = null;
 };
 

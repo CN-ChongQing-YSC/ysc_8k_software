@@ -51,12 +51,24 @@ function tInternal(path, params) {
   return format(val, params);
 }
 
+function syncMainProcess(lang) {
+  // 主进程（对话框/错误提示）与窗口标题跟随界面语言
+  try { document.title = tInternal('app.title'); } catch (e) {}
+  try {
+    if (typeof window !== 'undefined' && window.driverApi && window.driverApi.setLang) {
+      const p = window.driverApi.setLang(lang);
+      if (p && typeof p.catch === 'function') p.catch(function() {});
+    }
+  } catch (e) {}
+}
+
 export function setLang(lang) {
   if (lang !== 'zh' && lang !== 'en') return;
   state.lang = lang;
   try { localStorage.setItem(STORAGE_KEY, lang); } catch (e) {}
   document.documentElement.setAttribute('lang', lang);
   setCoreLang(lang); // 同步 core i18n，NavRail 等共享组件文案实时跟随
+  syncMainProcess(lang);
 }
 
 export function getLang() {
@@ -78,4 +90,5 @@ export function useI18n() {
 
 export function initI18n() {
   document.documentElement.setAttribute('lang', state.lang);
+  syncMainProcess(state.lang);
 }

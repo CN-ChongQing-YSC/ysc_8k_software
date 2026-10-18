@@ -11,13 +11,13 @@
       <div style="flex:1" />
       <button class="tab-btn" :class="{ active: activeTab === 'docs' }" @click="setTab('docs')">{{ t('docs.tabDocs') }}</button>
       <button class="tab-btn" :class="{ active: activeTab === 'tester' }" @click="setTab('tester')">{{ t('docs.tabTester') }}</button>
-      <button class="tab-btn export-pdf-btn" @click="exportPdf" :disabled="exporting" :title="exportDetail">
+      <button class="tab-btn export-pdf-btn" @click="exportPdf" :disabled="exporting" :title="exportDetail || t('docs.exportHint')">
         <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;vertical-align:-2px">
           <path d="M8 2v8" /><path d="M5 7l3 3 3-3" /><path d="M3 13h10" />
         </svg>{{ exportLabel }}
       </button>
     </div>
-    <div v-if="exportDetail" class="export-status" :class="{ 'is-error': exportLabel.indexOf('失败') >= 0 }">{{ exportDetail }}</div>
+    <div class="export-status" :class="{ 'is-error': exportFailed }">{{ exportDetail || t('docs.exportHint') }}</div>
     <div class="docs-scroll" v-show="activeTab === 'docs'">
       <section>
         <h3>{{ content.serial.title }}</h3>
@@ -67,12 +67,12 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import CommandTester from './CommandTester.vue';
 import { useI18n } from '../i18n/index.js';
 import { buildPdfHtml } from '../pdf-doc.js';
 
-const { t, docs } = useI18n();
+const { t, docs, lang } = useI18n();
 const TAB_STORAGE_KEY = 'ysc_ui_docs_tab';
 function loadStoredTab() {
   try {
@@ -90,49 +90,61 @@ const content = docs;
 // ---- Export documentation as PDF ----
 const api = window.driverApi;
 const exporting = ref(false);
-const exportLabel = ref('导出 PDF');
-const exportDetail = ref('导出使用 / 协议 / 状态文档为 PDF');
+const exportFailed = ref(false);
+const exportLabel = ref(t('docs.exportPdf'));
+const exportDetail = ref('');
 let exportResetTimer = null;
+
+// 切换语言时刷新导出按钮文案；exportDetail 为空时模板回退到 docs.exportHint
+watch(lang, function () {
+  exportLabel.value = t('docs.exportPdf');
+  exportFailed.value = false;
+});
 
 async function exportPdf() {
   if (exporting.value) return;
   exporting.value = true;
-  exportLabel.value = '生成中…';
+  exportFailed.value = false;
+  exportLabel.value = t('docs.generating');
   exportDetail.value = '';
   try {
     // First: confirm the preload actually exposes exportPdf. If not, the app is
     // running an OLD preload (must fully quit + reopen, or re-run dev/dist).
     if (!api || typeof api.exportPdf !== 'function') {
-      exportLabel.value = '导出失败 ✗';
-      exportDetail.value = '驱动 preload 未暴露 exportPdf —— 程序跑的是旧 preload。请【完全退出整个程序再重新打开】(打包版需重新 npm run dist;dev 版需停掉再 npm run dev)。';
+      exportFailed.value = true;
+      exportLabel.value = t('docs.exportFailed');
+      exportDetail.value = t('docs.preloadMissing');
       return;
     }
     let ver = '';
     try { ver = await api.getAppVersion(); } catch (e) { /* ignore */ }
     // `content` is a Vue computed ref (useI18n returns docs as computed); unwrap
     // with .value so buildPdfHtml sees the actual docs object, not the ref.
-    const html = buildPdfHtml(content.value || content, ver);
-    const res = await api.exportPdf(html, 'YSC-8K-使用与协议文档.pdf');
+    const html = buildPdfHtml(content.value || content, ver, lang.value);
+    const res = await api.exportPdf(html, t('docs.pdfFilename'));
     if (res && res.success) {
-      exportLabel.value = '已导出 ✓';
+      exportLabel.value = t('docs.exported');
       exportDetail.value = res.path || '';
     } else if (res && res.canceled) {
-      exportLabel.value = '已取消';
+      exportLabel.value = t('docs.canceled');
       exportDetail.value = '';
     } else {
-      exportLabel.value = '导出失败 ✗';
+      exportFailed.value = true;
+      exportLabel.value = t('docs.exportFailed');
       // Show the error + the log file path so the user can send us the full log.
-      const err = (res && res.error) ? res.error : '未知错误';
-      exportDetail.value = err + (res && res.log ? '  |  日志: ' + res.log : '');
+      const err = (res && res.error) ? res.error : t('docs.unknownError');
+      exportDetail.value = err + (res && res.log ? '  |  ' + t('docs.logSuffix', { log: res.log }) : '');
     }
   } catch (e) {
-    exportLabel.value = '导出失败 ✗';
-    exportDetail.value = '渲染进程异常: ' + ((e && e.message) ? e.message : String(e));
+    exportFailed.value = true;
+    exportLabel.value = t('docs.exportFailed');
+    exportDetail.value = t('docs.rendererError', { error: (e && e.message) ? e.message : String(e) });
   } finally {
     exporting.value = false;
     if (exportResetTimer) clearTimeout(exportResetTimer);
     exportResetTimer = setTimeout(function () {
-      exportLabel.value = '导出 PDF';
+      exportFailed.value = false;
+      exportLabel.value = t('docs.exportPdf');
     }, 8000);
   }
 }

@@ -41,6 +41,9 @@ contextBridge.exposeInMainWorld('driverApi', {
 
   getAppVersion: (): Promise<string> => ipcRenderer.invoke('app:getVersion'),
 
+  // 同步界面语言到主进程（文件对话框标题、主进程错误提示等）
+  setLang: (lang: 'zh' | 'en'): Promise<void> => ipcRenderer.invoke('app:setLang', lang),
+
   openIAPFile: (): Promise<{ path: string; info: string } | null> =>
     ipcRenderer.invoke('iap:openFile'),
 

@@ -13,6 +13,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { app } from 'electron';
+import { tr, formatSize } from './i18n';
 
 // Base URL of the firmware backend. Override for local dev via YSC_FW_BASE_URL.
 // Production: Nginx on ysc-order-2026.top proxies /fwapi/ -> loopback:8082.
@@ -201,7 +202,7 @@ export async function download(
 ): Promise<DownloadResult> {
   const resp = await fetch(info.downloadUrl);
   if (!resp.ok || !resp.body) {
-    throw new Error(`下载失败 HTTP ${resp.status}`);
+    throw new Error(tr(`下载失败 HTTP ${resp.status}`, `Download failed: HTTP ${resp.status}`));
   }
   const total = Number(resp.headers.get('content-length') || info.size || 0);
   const reader = resp.body.getReader();
@@ -219,9 +220,12 @@ export async function download(
   // sha256 verify
   const hash = crypto.createHash('sha256').update(buf).digest('hex');
   if (hash !== info.sha256) {
-    throw new Error(`sha256 校验失败 (期望 ${info.sha256.slice(0, 12)}…, 实际 ${hash.slice(0, 12)}…)`);
+    throw new Error(tr(
+      `sha256 校验失败 (期望 ${info.sha256.slice(0, 12)}…, 实际 ${hash.slice(0, 12)}…)`,
+      `SHA-256 mismatch (expected ${info.sha256.slice(0, 12)}…, got ${hash.slice(0, 12)}…)`,
+    ));
   }
 
-  const sizeStr = buf.length >= 1024 ? `${(buf.length / 1024).toFixed(1)} KB` : `${buf.length} 字节`;
+  const sizeStr = formatSize(buf.length);
   return { buffer: buf, info: `${info.filename} — ${sizeStr}` };
 }
