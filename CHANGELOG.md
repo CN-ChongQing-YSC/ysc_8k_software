@@ -27,6 +27,18 @@ YSC 8K 上位机软件发布记录。版本号同时存在于 `ysc_8k_electron/p
 
 ### 修复
 
+- **抖枪宏 / 鼠标曲线没有板载：断电或重启后回到默认**
+  - 固件原来只在 RAM 保存抖枪宏（cmd 39/41），鼠标曲线则**完全没有实现**
+    （cmd 42 被"一次性滚轮"占用、43/44 无处理）。
+  - 现固件新增两份带 magic/version/checksum 的 Flash 记录：
+    `JITTER_OFFSET=0x5000`（抖枪）、`CURVE_OFFSET=0x6000`（曲线），上电自动恢复；
+    cmd 39/41/42/44 只置延迟落盘标志，主循环擦写，ISR 不做 Flash 操作。
+  - 鼠标曲线按 towmcu 同款算法实现：定点 Q=32768，profile 0=线性 / 1=smoothstep /
+    2=min-jerk / 3=random，N 段（2..32）× H 报告分段发送，全整数（ISR 不碰 FPU）。
+    cmd 42 带 `w` 仍是 kmboxnet 一次性滚轮，带 `e/p/n/d/j` 则是曲线设置；
+    cmd 43 回读、cmd 44 恢复默认。
+  - 固件版本 `Oct 18 2026`，已用 WCH-Link 烧录并校验（IAP + APP 均验过）。
+
 - **手柄映射「读取配置」偶发超时/设备读取失败**
   - 面板原来用 `driverApi.isConnected()`（只代表和驱动进程的管道连着）判断“已连接”，
     串口没连时也会自动读配置，必然等满超时。改为监听驱动的
