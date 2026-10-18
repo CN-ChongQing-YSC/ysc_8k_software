@@ -98,7 +98,9 @@ private:
     CRITICAL_SECTION m_csWrite;
 
     // TX async write queue
-    enum { QUEUE_CAP = 64, FRAME_SZ = 2048 };
+    // FRAME_SZ 必须容纳最大一帧命令：手柄映射 24 条规则约 1.9KB，
+    // 旧值 2048 在 25+ 规则时会栈溢出（实测 0xc0000409）。留足余量到 4096。
+    enum { QUEUE_CAP = 64, FRAME_SZ = 4096 };
 
     struct FrameSlot {
         uint8_t data[FRAME_SZ];

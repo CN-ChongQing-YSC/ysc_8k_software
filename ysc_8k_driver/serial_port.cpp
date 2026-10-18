@@ -348,6 +348,12 @@ bool SerialPort::SendJsonCommand(const char *json) {
     if (!m_hPort || !json) return false;
 
     int jsonLen = (int)strlen(json);
+    /* 防御：超大 JSON 直接拒绝，绝不能像旧版那样 memcpy 溢出栈缓冲
+     * （25 条以上手柄映射规则曾把驱动直接打崩：0xc0000409）。 */
+    if (jsonLen <= 0 || jsonLen + HEADER_LEN + END_MARKER_LEN > FRAME_SZ) {
+        DebugLogger::Log("SERIAL TX rejected: json too large (%d bytes)", jsonLen);
+        return false;
+    }
     uint16_t packetLen = (uint16_t)(HEADER_LEN + jsonLen + END_MARKER_LEN);
 
     uint8_t buf[FRAME_SZ];

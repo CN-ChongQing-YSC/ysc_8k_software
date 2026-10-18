@@ -62,7 +62,7 @@
       <section class="gm-card">
         <div class="gm-card-title-row">
           <div class="gm-card-title">{{ t('gamepad.keyRules') }}</div>
-          <button class="btn-ghost sm" @click="addRule">{{ t('gamepad.addRule') }}</button>
+          <button class="btn-ghost sm" @click="addRule" :disabled="config.key_rules.length >= MAX_RULES" :title="t('gamepad.ruleLimit', { n: MAX_RULES })">{{ t('gamepad.addRule') }}</button>
         </div>
         <div v-if="!config.key_rules.length" class="gm-empty">{{ t('gamepad.noRules') }}</div>
         <div v-for="(r, i) in config.key_rules" :key="i" class="gm-rule">
@@ -119,7 +119,14 @@ const config = reactive({
 });
 const dirty = ref(false);
 const loading = ref(false);
-const connected = ref(false);
+/* 真实串口连接态（来自驱动 state / serial_connected / serial_disconnected 事件）。
+ * 旧实现用 api.isConnected()（只代表管道连着驱动）判断，串口没连也会显示“已连接”，
+ * 面板打开时自动读配置就会必然超时一次。 */
+const serialConnected = ref(false);
+const connected = computed(() => serialConnected.value);
+let stateProbeTimer = null;
+let autoLoaded = false;
+const MAX_RULES = 24;   /* 固件 GMAP_MAX_RULES，超过会解析截断/落盘溢出 */
 const toast = ref('');
 const toastType = ref('ok');
 const log = ref([]);
@@ -154,6 +161,7 @@ function onMoveChange() {
 }
 function onStick(v) { config.move.target_stick = v; markDirty(); }
 function addRule() {
+  if (config.key_rules.length >= MAX_RULES) return;
   config.key_rules.push({ src: 'A', target: 'mouse_left', threshold: 128, mode: 'augment' });
   markDirty();
 }
@@ -187,7 +195,7 @@ function validateConfig() {
   if (typeof config.enabled !== 'boolean') errs.push(t('gamepad.errEnabledBool'));
   if (!Array.isArray(config.key_rules)) errs.push(t('gamepad.errKeyRulesArray'));
   else {
-    if (config.key_rules.length > 32) errs.push(t('gamepad.errTooManyRules'));
+    if (config.key_rules.length > MAX_RULES) errs.push(t('gamepad.errTooManyRules', { n: MAX_RULES }));
     config.key_rules.forEach((r, i) => {
       if (!r.src) errs.push(t('gamepad.errSrcEmpty', { n: i + 1 }));
       if (!r.target) errs.push(t('gamepad.errTargetEmpty', { n: i + 1 }));
@@ -240,11 +248,35 @@ function applyCfg(cfg) {
   dirty.value = false;
 }
 
-/* ---- connection check ---- */
-async function checkConn() {
-  try { connected.value = await api.isConnected(); }
-  catch (e) { connected.value = false; }
-  if (!connected.value) {
+/* ---- 串口连接态 ---- */
+function applySerialState(on) {
+  const was = serialConnected.value;
+  serialConnected.value = !!on;
+  if (!on) {
+    autoLoaded = false;
+    return;
+  }
+  if (!was) {
+    addLog(t('gamepad.connected'), 'ok');
+    maybeAutoLoad();
+  }
+}
+function onStateEvent(d) {
+  if (d && typeof d.serialConnected === 'boolean') applySerialState(d.serialConnected);
+}
+function onSerialConnected() { applySerialState(true); }
+function onSerialDisconnected() { applySerialState(false); }
+
+/* 串口连上后自动读一次；断开重连后可再次自动读。 */
+function maybeAutoLoad() {
+  if (autoLoaded || !serialConnected.value) return;
+  autoLoaded = true;
+  addLog(t('gamepad.autoLoading'), 'info');
+  loadFromDevice();
+}
+
+function checkConn() {
+  if (!serialConnected.value) {
     addLog(t('gamepad.serialNotConnected'), 'err');
     showToast(t('gamepad.serialNotConnectedToast'), 'err');
     return false;
@@ -252,21 +284,30 @@ async function checkConn() {
   return true;
 }
 
-/* ---- send + wait for debug_response ---- */
-function _sendAndWait(type, params, expectCode, timeoutMs = 3000) {
+/* ---- send + wait for debug_response（超时自动重试，读配置尤其需要）---- */
+function _sendAndWait(type, params, expectCode, timeoutMs = 4000, retries = 1) {
   return new Promise((resolve) => {
-    pending = {
-      code: expectCode,
-      resolve,
-      timer: setTimeout(() => {
-        addLog(t('gamepad.timeout', { type: type, code: expectCode }), 'err');
-        pending = null;
-        resolve(null);
-      }, timeoutMs),
+    let left = retries;
+    const attempt = () => {
+      pending = {
+        code: expectCode,
+        resolve,
+        timer: setTimeout(() => {
+          pending = null;
+          if (left-- > 0) {
+            addLog(t('gamepad.retrying', { code: expectCode }), 'warn');
+            attempt();
+          } else {
+            addLog(t('gamepad.timeout', { type: type, code: expectCode }), 'err');
+            resolve(null);
+          }
+        }, timeoutMs),
+      };
+      const paramStr = JSON.stringify(params);
+      addLog(`TX ${type} ${paramStr.length > 120 ? paramStr.slice(0, 120) + '...' : paramStr}`, 'tx');
+      api.send(type, params);
     };
-    const paramStr = JSON.stringify(params);
-    addLog(`TX ${type} ${paramStr.length > 120 ? paramStr.slice(0, 120) + '...' : paramStr}`, 'tx');
-    api.send(type, params);
+    attempt();
   });
 }
 // reassign onDebugResponse to use pending.resolve
@@ -310,7 +351,7 @@ async function saveAll() {
   loading.value = true;
   const cfg = buildCfgJson();
   addLog(t('gamepad.validatePass', { cfg: JSON.stringify(cfg).slice(0, 140) }));
-  const resp = await _sendAndWait('send_ysc', { cmd: JSON.stringify({cmd:100, data: cfg}) }, 100);
+  const resp = await _sendAndWait('send_ysc', { cmd: JSON.stringify({cmd:100, data: cfg}) }, 100, 2500, 1);
   loading.value = false;
   if (resp && resp.message && resp.message.indexOf('ok') === 0) {
     dirty.value = false;
@@ -328,7 +369,7 @@ async function loadFromDevice() {
   if (!await checkConn()) return;
   loading.value = true;
   addLog(t('gamepad.readingConfig'));
-  const resp = await _sendAndWait('send_ysc', { cmd: '{"cmd":101}' }, 101);
+  const resp = await _sendAndWait('send_ysc', { cmd: '{"cmd":101}' }, 101, 2500, 2);
   loading.value = false;
   if (resp && resp.message === 'ok' && resp.data) {
     try { applyCfg(JSON.parse(resp.data)); showToast(t('gamepad.refreshed'), 'ok'); addLog(t('gamepad.readOk'), 'ok'); }
@@ -350,12 +391,14 @@ async function onReset() {
   if (!await checkConn()) return;
   loading.value = true;
   addLog(t('gamepad.resetting'));
-  const resp = await _sendAndWait('send_ysc', { cmd: '{"cmd":104}' }, 104);
+  const resp = await _sendAndWait('send_ysc', { cmd: '{"cmd":104}' }, 104, 2500, 1);
   loading.value = false;
   if (resp && resp.message === 'ok') {
     showToast(t('gamepad.resetDone'), 'ok');
     addLog(t('gamepad.resetDoneReload'), 'ok');
-    setTimeout(loadFromDevice, 400);
+    /* 104 会触发固件延迟落盘（擦 4KB 扇区，毫秒级阻塞），
+     * 立刻读容易正好撞上落盘而超时，这里留足时间。 */
+    setTimeout(loadFromDevice, 1000);
   } else {
     showToast(t('gamepad.resetFail'), 'err');
     addLog(t('gamepad.resetFail'), 'err');
@@ -388,6 +431,13 @@ function onImportFile(event) {
   reader.onload = (e) => {
     try {
       const cfg = JSON.parse(e.target.result);
+      const n = Array.isArray(cfg.key_rules) ? cfg.key_rules.length : 0;
+      if (n > MAX_RULES) {
+        const msg = t('gamepad.importTooMany', { n: n, max: MAX_RULES });
+        showToast(msg, 'err');
+        addLog(msg, 'err');
+        return;
+      }
       applyCfg(cfg);
       showToast(t('gamepad.configImported'), 'ok');
       addLog(t('gamepad.importOk'), 'ok');
@@ -405,16 +455,27 @@ const importInput = ref(null);
 onMounted(async () => {
   api.on('debug_response', _onDebugResponse);
   api.on('send_result', _onSendResult);
+  api.on('state', onStateEvent);
+  api.on('serial_connected', onSerialConnected);
+  api.on('serial_disconnected', onSerialDisconnected);
   addLog(t('gamepad.panelLoaded'), 'info');
-  await checkConn();
-  if (connected.value) {
-    addLog(t('gamepad.autoLoading'), 'info');
-    loadFromDevice();
-  }
+  /* 以驱动的真实串口状态为准。state 包正常会立刻回来；
+   * 700ms 没回再补问一次（避免刚启动时漏事件）。 */
+  api.send('get_state');
+  stateProbeTimer = setTimeout(() => {
+    stateProbeTimer = null;
+    if (!serialConnected.value) api.send('get_state');
+  }, 700);
 });
 onUnmounted(() => {
   api.off('debug_response', _onDebugResponse);
   api.off('send_result', _onSendResult);
+  api.off('state', onStateEvent);
+  api.off('serial_connected', onSerialConnected);
+  api.off('serial_disconnected', onSerialDisconnected);
+  if (stateProbeTimer) clearTimeout(stateProbeTimer);
+  if (pending && pending.timer) clearTimeout(pending.timer);
+  pending = null;
 });
 </script>
 
