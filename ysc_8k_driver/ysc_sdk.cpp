@@ -40,7 +40,7 @@ static constexpr int END_MARKER_LEN       = 5;
 static constexpr int HEADER_LEN           = START_MARKER_LEN + 2; // <START> + 2B 长度
 static constexpr int MAX_PAYLOAD          = 4096;
 
-#define YSC_SDK_VERSION "1.0.0"
+#define YSC_SDK_VERSION "1.1.0"
 
 // 线程局部的最近一次错误描述
 static thread_local char g_lastErr[512] = {0};
@@ -712,6 +712,43 @@ YSC_API int YSC_CALL Ysc_InterpSet(YscDevice *dev, int enable, int profile,
 }
 YSC_API int YSC_CALL Ysc_InterpReset(YscDevice *dev) {
     return Ysc_SendCommandNoWait(dev, "{\"cmd\":53}");
+}
+
+// ---- 按键弹起 / 强制松开 (firmware cmd 58 / 67) ----
+YSC_API int YSC_CALL Ysc_ReleaseButton(YscDevice *dev,
+                                       uint8_t buttonMask, int release) {
+    buttonMask &= 0x1F;
+    char j[64];
+    snprintf(j, sizeof(j), "{\"cmd\":58,\"b\":%u,\"s\":%u}",
+             (unsigned)buttonMask, release ? 1u : 0u);
+    // cmd 58 固件通常不回包，按即发即弃处理，避免白等一个超时。
+    return Ysc_SendCommandNoWait(dev, j);
+}
+
+YSC_API int YSC_CALL Ysc_ForceRelease(YscDevice *dev, uint8_t buttonMask,
+                                      uint32_t durationMs, int timeoutMs,
+                                      char *outBuf, int bufSize) {
+    buttonMask &= 0x1F;
+    if (buttonMask == 0)
+        return Ysc_ForceRestore(dev, timeoutMs, outBuf, bufSize);
+    char j[80];
+    if (durationMs > 0) {
+        snprintf(j, sizeof(j), "{\"cmd\":67,\"b\":%u,\"t\":%lu}",
+                 (unsigned)buttonMask, (unsigned long)durationMs);
+    } else {
+        snprintf(j, sizeof(j), "{\"cmd\":67,\"b\":%u}", (unsigned)buttonMask);
+    }
+    return Ysc_SendCommand(dev, j, timeoutMs, outBuf, bufSize);
+}
+
+YSC_API int YSC_CALL Ysc_ForceReleaseQuery(YscDevice *dev, int timeoutMs,
+                                           char *outBuf, int bufSize) {
+    return Ysc_SendCommand(dev, "{\"cmd\":67}", timeoutMs, outBuf, bufSize);
+}
+
+YSC_API int YSC_CALL Ysc_ForceRestore(YscDevice *dev, int timeoutMs,
+                                      char *outBuf, int bufSize) {
+    return Ysc_SendCommand(dev, "{\"cmd\":67,\"b\":0}", timeoutMs, outBuf, bufSize);
 }
 
 // DLL 入口（可选）：进程/线程附加时无需特殊处理

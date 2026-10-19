@@ -42,3 +42,7 @@ EXPORTS
     Ysc_InterpGet           = _Ysc_InterpGet@16
     Ysc_InterpSet           = _Ysc_InterpSet@20
     Ysc_InterpReset         = _Ysc_InterpReset@4
+    Ysc_ReleaseButton       = _Ysc_ReleaseButton@12
+    Ysc_ForceRelease        = _Ysc_ForceRelease@24
+    Ysc_ForceReleaseQuery   = _Ysc_ForceReleaseQuery@16
+    Ysc_ForceRestore        = _Ysc_ForceRestore@16

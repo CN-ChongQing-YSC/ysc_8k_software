@@ -204,6 +204,40 @@ YSC_API int YSC_CALL Ysc_InterpSet(YscDevice *dev, int enable, int profile,
                                    int windowMs, int maxWindowMs);
 YSC_API int YSC_CALL Ysc_InterpReset(YscDevice *dev);
 
+// ----------------------------------------------------------------------------
+// 6. 按键弹起 / 强制松开（防粘键）
+//    buttonMask：bit0..4 = 左/右/中/侧1/侧2（值 1/2/4/8/16）。
+// ----------------------------------------------------------------------------
+
+// cmd 58「按键弹起」：物理按住的键仍参与上报合成，但让主机看到这些键松开。
+//   release=1 → {"cmd":58,"b":mask,"s":1}
+//   release=0 → {"cmd":58,"b":mask,"s":0} 恢复
+// 固件通常不回包，本函数即发即弃：成功写入串口返回 1，未连接/失败返回 0。
+// 注意：cmd 58 需要设备固件实现；若固件没有该命令则无回包、也无效果，
+// 此时请改用下面的 cmd 67「强制松开」（V2 固件通用）。
+YSC_API int YSC_CALL Ysc_ReleaseButton(YscDevice *dev,
+                                       uint8_t buttonMask, int release);
+
+// cmd 67「强制松开」：比 cmd 33/58 更彻底，按键位无论物理按住还是注入状态，
+// 都从发往主机的 HID 报告里清除。
+//   buttonMask=0            → 立即全部恢复
+//   durationMs>0            → durationMs 后自动恢复
+//   durationMs=0            → 保持到下一次恢复命令
+// 同步等待固件应答，outBuf 写入响应负载（含 code/message/data），形如：
+//   {"code":200,"message":"force_release","data":"{\"b\":1,\"remain\":500}"}
+// 返回值见文件顶部“返回值约定”。
+YSC_API int YSC_CALL Ysc_ForceRelease(YscDevice *dev, uint8_t buttonMask,
+                                      uint32_t durationMs, int timeoutMs,
+                                      char *outBuf, int bufSize);
+
+// cmd 67 查询：{"cmd":67}，返回当前强制位图与剩余自动恢复毫秒数。
+YSC_API int YSC_CALL Ysc_ForceReleaseQuery(YscDevice *dev, int timeoutMs,
+                                           char *outBuf, int bufSize);
+
+// cmd 67 立即全部恢复（等价 Ysc_ForceRelease(dev, 0, 0, ...)）。
+YSC_API int YSC_CALL Ysc_ForceRestore(YscDevice *dev, int timeoutMs,
+                                      char *outBuf, int bufSize);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

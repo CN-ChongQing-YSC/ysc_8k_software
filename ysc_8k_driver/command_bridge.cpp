@@ -87,6 +87,51 @@ bool CommandBridge::SendMouseWheel(int32_t wheel, DeviceRole __role) {
     return sp->SendJsonCommand(json);
 }
 
+bool CommandBridge::SendButtonRelease(uint8_t button_mask, bool release, DeviceRole __role) {
+    SerialPort *sp = Resolve(__role); if (!sp) return false;
+    /* 固件 cmd 58：物理按住的键仍参与上报合成，但通过内部屏蔽位让主机看到
+     * 这些键松开。s=1 弹起，s=0 恢复；固件通常不回包，按即发即弃处理。 */
+    button_mask &= 0x1Fu;
+    char json[64];
+    snprintf(json, sizeof(json), "{\"cmd\":58,\"b\":%u,\"s\":%u}",
+             (unsigned)button_mask, release ? 1u : 0u);
+    DebugLog("TX serial: %s", json);
+    DebugLogger::Log("TX[%ls] %s", sp->GetPortName(), json);
+    return sp->SendJsonCommand(json);
+}
+
+bool CommandBridge::SendForceRelease(uint8_t button_mask, uint32_t duration_ms, DeviceRole __role) {
+    SerialPort *sp = Resolve(__role); if (!sp) return false;
+    /* 固件 cmd 67：b=0 立即全部恢复；t>0 到点自动恢复，t=0 保持到恢复命令。
+     * 应答 message=force_release / force_restore，data={b,remain}。 */
+    button_mask &= 0x1Fu;
+    if (button_mask == 0) return SendForceRestore(__role);
+    char json[80];
+    if (duration_ms > 0) {
+        snprintf(json, sizeof(json), "{\"cmd\":67,\"b\":%u,\"t\":%lu}",
+                 (unsigned)button_mask, (unsigned long)duration_ms);
+    } else {
+        snprintf(json, sizeof(json), "{\"cmd\":67,\"b\":%u}", (unsigned)button_mask);
+    }
+    DebugLog("TX serial: %s", json);
+    DebugLogger::Log("TX[%ls] %s", sp->GetPortName(), json);
+    return sp->SendJsonCommand(json);
+}
+
+bool CommandBridge::SendForceReleaseQuery(DeviceRole __role) {
+    SerialPort *sp = Resolve(__role); if (!sp) return false;
+    DebugLog("TX serial: {\"cmd\":67}");
+    DebugLogger::Log("TX[%ls] {\"cmd\":67}", sp->GetPortName());
+    return sp->SendJsonCommand("{\"cmd\":67}");
+}
+
+bool CommandBridge::SendForceRestore(DeviceRole __role) {
+    SerialPort *sp = Resolve(__role); if (!sp) return false;
+    DebugLog("TX serial: {\"cmd\":67,\"b\":0}");
+    DebugLogger::Log("TX[%ls] {\"cmd\":67,\"b\":0}", sp->GetPortName());
+    return sp->SendJsonCommand("{\"cmd\":67,\"b\":0}");
+}
+
 bool CommandBridge::SendMouseMask(uint8_t mask, DeviceRole __role) {
     SerialPort *sp = Resolve(__role); if (!sp) return false;
     /* 固件 cmd 60：物理屏蔽位图，mask=0 即解除全部。

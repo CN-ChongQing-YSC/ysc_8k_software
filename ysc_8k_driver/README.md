@@ -47,6 +47,10 @@ talks to it over a named pipe — it never opens a COM port directly.
 | `{"type":"kbd_key","kc":4,"down":1}` | 键盘单键注入（HID 键码）。事件 `kbd_result` |
 | `{"type":"kbd_type_string","s":"hello"}` | 逐字符打字符串（≤128B） |
 | `{"type":"kbd_release_all"}` | 释放所有注入键 |
+| `{"type":"release_button","b":1,"s":1}` | 按键弹起（固件 cmd 58）：物理按住仍让主机看到松开；`s=0` 恢复 |
+| `{"type":"force_release","b":1,"t":500}` | 强制松开（固件 cmd 67）：`t` 毫秒后自动恢复，`t=0` 保持到恢复 |
+| `{"type":"force_release_query"}` | 查询 cmd 67 当前强制位图与剩余毫秒数 |
+| `{"type":"force_restore"}` | 立即全部恢复（cmd 67 `b=0`） |
 
 `get_state` / `get_monitor` 事件新增 `mouse`（valid/buttons/x/y）与
 `kbd`（valid/mod/count/overflow/keys）字段。
@@ -77,7 +81,7 @@ Output: `work\Release\ysc_8k_driver.exe` (the `OutDir` override at vcxproj:84).
 ## ysc_sdk.dll — 给其它语言调用的驱动 SDK
 
 不想在 易语言 / Python / C# / Delphi 里重复实现串口驱动？用 `ysc_sdk.dll`。
-它把连接串口、列出串口、切换波特率、全部 YSC 协议命令封装成 27 个 C 导出函数，
+它把连接串口、列出串口、切换波特率、全部 YSC 协议命令封装成 31 个 C 导出函数，
 其它语言直接加载 DLL 即可。
 
 - 源码：`ysc_sdk.h` / `ysc_sdk.cpp`（串口逻辑严格对照 `serial_port.cpp`，
@@ -89,8 +93,17 @@ msbuild ysc_sdk.sln /p:Configuration=Release /p:Platform=x64   # -> bin\x64\Rele
 msbuild ysc_sdk.sln /p:Configuration=Release /p:Platform=x86   # -> bin\Win32\Release\ysc_sdk.dll（32 位易语言）
 ```
 
-完整 API、调用约定、各语言示例见 `../Example/`（Python 已含覆盖全部 27 个接口、
+完整 API、调用约定、各语言示例见 `../Example/`（Python 已含覆盖全部 31 个接口、
 真机验证的自动化测试 `test_dll.py`）。
+
+防粘键新增 4 个 SDK 接口（SDK 1.1.0）：
+
+| 接口 | 对应固件命令 | 说明 |
+|---|---|---|
+| `Ysc_ReleaseButton(dev, mask, release)` | cmd 58 | 物理按住时让主机看到松开；`release=0` 恢复；即发即弃（需固件实现 cmd 58，V2 固件请用 cmd 67） |
+| `Ysc_ForceRelease(dev, mask, ms, timeout, out, size)` | cmd 67 | 强制松开；`ms>0` 自动恢复，`ms=0` 保持 |
+| `Ysc_ForceReleaseQuery(dev, timeout, out, size)` | cmd 67 查询 | 回当前强制位图 + 剩余毫秒 |
+| `Ysc_ForceRestore(dev, timeout, out, size)` | cmd 67 `b=0` | 立即全部恢复 |
 
 
 ## v2 (towmcu dual-MCU) firmware update — IPC protocol

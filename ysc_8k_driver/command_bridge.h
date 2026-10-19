@@ -29,6 +29,16 @@ public:
      * kmNet_mouse_wheel()/mouse_all() 是"一次滚 N 格"，不能用 cmd 35 的 hold
      * （hold 会按回报率重复发，8K 下一毫秒就是 8 格）。 */
     static bool SendMouseWheel(int32_t wheel, DeviceRole role);
+    /* 按键弹起（固件 cmd 58）：物理按住的键仍参与上报合成，但通过内部屏蔽位
+     * 让主机看到这些键已松开。release=true → {"cmd":58,"b":mask,"s":1}；
+     * release=false → s=0 恢复。固件通常不回包，按即发即弃处理。 */
+    static bool SendButtonRelease(uint8_t button_mask, bool release, DeviceRole role);
+    /* 强制松开（固件 cmd 67）：b 位图，t=自动恢复毫秒（0/缺省=保持到恢复）。
+     * b=0 立即全部恢复；不带 b 的查询走 SendForceReleaseQuery。
+     * 固件应答 message=force_release / force_restore，data={b,remain}。 */
+    static bool SendForceRelease(uint8_t button_mask, uint32_t duration_ms, DeviceRole role);
+    static bool SendForceReleaseQuery(DeviceRole role);                 // {"cmd":67}
+    static bool SendForceRestore(DeviceRole role);                      // {"cmd":67,"b":0}
     /* 物理屏蔽位图（固件 cmd 60）：bit0..4 按键，bit5 X，bit6 Y，bit7 滚轮；
      * mask=0 解除全部。kmboxnet 的 mask_mouse_* / unmask_all 落到这里。 */
     static bool SendMouseMask(uint8_t mask, DeviceRole role);

@@ -22,6 +22,7 @@
 #include <string>
 #include <algorithm>
 #include <cstdio>
+#include <cstring>
 #include <cstdarg>
 #include <timeapi.h>
 #pragma comment(lib, "winmm.lib")
@@ -672,6 +673,63 @@ static void OnPipeCommand(const char *json, void *userData) {
             snprintf(body, sizeof(body), "\"ok\":%s,\"dir\":\"tx\",\"proto\":\"ysc\",\"cmd\":\"%s\"",
                      ok ? "true" : "false", cmd.c_str());
             g_pipeServer.SendEvent("send_result", body);
+        }
+    }
+    else if (type == "release_button") {
+        /* {"type":"release_button","b":1,"s":1} → 固件 cmd 58。
+         * 物理按住的键仍参与合成，但让主机看到这些键松开；s=0 恢复。
+         * 固件通常不回包，send_result 只表示"已写入串口"。 */
+        if (!g_app.serialConnected) {
+            g_pipeServer.SendEvent("send_result", "\"ok\":false,\"error\":\"未连接设备\"");
+        } else {
+            int b = ExtractJsonInt(json, "b");
+            if (b < 0) b = 0;
+            if (b > 0x1F) b = 0x1F;
+            int s = (strstr(json, "\"s\":") != nullptr) ? ExtractJsonInt(json, "s") : 1;
+            bool ok = CommandBridge::SendButtonRelease((uint8_t)b, s != 0, (DeviceRole)DEV_ROLE_MOUSE);
+            char body[160];
+            snprintf(body, sizeof(body),
+                     "\"ok\":%s,\"cmd\":\"release_button\",\"b\":%d,\"s\":%d",
+                     ok ? "true" : "false", b, s != 0 ? 1 : 0);
+            g_pipeServer.SendEvent("send_result", body);
+        }
+    }
+    else if (type == "force_release") {
+        /* {"type":"force_release","b":1,"t":500} → 固件 cmd 67。
+         * b=0 立即全部恢复；t=0/缺省保持到恢复命令。
+         * 固件应答通过 debug_response（message=force_release / force_restore）异步返回。 */
+        if (!g_app.serialConnected) {
+            g_pipeServer.SendEvent("send_result", "\"ok\":false,\"error\":\"未连接设备\"");
+        } else {
+            int b = ExtractJsonInt(json, "b");
+            int t = ExtractJsonInt(json, "t");
+            if (b < 0) b = 0;
+            if (b > 0x1F) b = 0x1F;
+            if (t < 0) t = 0;
+            bool ok = CommandBridge::SendForceRelease((uint8_t)b, (uint32_t)t, (DeviceRole)DEV_ROLE_MOUSE);
+            char body[160];
+            snprintf(body, sizeof(body),
+                     "\"ok\":%s,\"cmd\":\"force_release\",\"b\":%d,\"t\":%d",
+                     ok ? "true" : "false", b, t);
+            g_pipeServer.SendEvent("send_result", body);
+        }
+    }
+    else if (type == "force_release_query") {
+        if (!g_app.serialConnected) {
+            g_pipeServer.SendEvent("send_result", "\"ok\":false,\"error\":\"未连接设备\"");
+        } else {
+            bool ok = CommandBridge::SendForceReleaseQuery((DeviceRole)DEV_ROLE_MOUSE);
+            g_pipeServer.SendEvent("send_result", ok ? "\"ok\":true,\"cmd\":\"force_release_query\""
+                                                     : "\"ok\":false,\"cmd\":\"force_release_query\"");
+        }
+    }
+    else if (type == "force_restore") {
+        if (!g_app.serialConnected) {
+            g_pipeServer.SendEvent("send_result", "\"ok\":false,\"error\":\"未连接设备\"");
+        } else {
+            bool ok = CommandBridge::SendForceRestore((DeviceRole)DEV_ROLE_MOUSE);
+            g_pipeServer.SendEvent("send_result", ok ? "\"ok\":true,\"cmd\":\"force_restore\""
+                                                     : "\"ok\":false,\"cmd\":\"force_restore\"");
         }
     }
     else if (type == "set_gamepad_config") {

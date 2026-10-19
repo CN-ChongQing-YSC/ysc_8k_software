@@ -25,6 +25,16 @@ YSC 8K 上位机软件发布记录。版本号同时存在于 `ysc_8k_electron/p
     上游就没有按键位（不是盒子的问题）/ 上游有而下发没有（丢在盒子内部，附原因计数）/
     已下发到主机（问题在 PC 侧）。导出 TXT 同步带上「Button Path Diagnosis」整段。
 
+- **驱动 / SDK 集成「按键弹起」「强制松开」（固件 cmd 58 / cmd 67）**
+  - 管道新增 `release_button` / `force_release` / `force_release_query` / `force_restore`，
+    带 `b` 位图、`s`（弹起/恢复）、`t`（自动恢复毫秒）参数；`send_result` 只表示已写入串口，
+    固件应答仍通过 `debug_response` 异步返回。
+  - SDK 1.1.0 新增 `Ysc_ReleaseButton` / `Ysc_ForceRelease` / `Ysc_ForceReleaseQuery` /
+    `Ysc_ForceRestore`，x64/x86 均已导出；`Ysc_ForceRelease` 同步返回
+    `{"code":200,"message":"force_release|force_restore","data":"{\"b\":..,\"remain\":..}"}`。
+  - 真机验证：`force_release` → `{b:1,remain:600}`；查询 → `remain:585`；
+    `force_restore` → `{b:0,remain:0}`；SDK 调用返回一致。
+
 ### 修复
 
 - **抖枪宏 / 鼠标曲线没有板载：断电或重启后回到默认**
