@@ -24,6 +24,7 @@ export const ELECTRON_NAV: NavGroup[] = [
       { key: 'jitter', label: '抖动', icon: 'jitter', desc: '反检测微抖参数（振幅/频率）' },
       { key: 'mouse-curve', label: '鼠标曲线', icon: 'curve', desc: '分段自定义鼠标加速曲线' },
       { key: 'mouse-interp', label: '鼠标插值', icon: 'curve', desc: '平滑插值降噪，轨迹更稳' },
+      { key: 'physical-guard', label: '物理护栏', icon: 'shield', desc: '学习真实反向手速，拦截不可能的反向移动' },
     ],
   },
   {

@@ -30,7 +30,7 @@
         <div class="gm-card-title">{{ t('gamepad.move') }}</div>
         <div class="gm-map-row">
           <span class="gm-label">{{ t('gamepad.moveMouse') }}</span>
-          <input type="number" class="input-num" step="1" min="1" v-model.number="movePx" @input="onMoveChange" />
+          <input type="number" class="input-num" step="0.1" min="0.1" v-model.number="movePx" @input="onMoveChange" />
           <span>{{ t('gamepad.movePx') }}</span>
           <span class="gm-arrow">→</span>
           <span class="gm-label">{{ t('gamepad.movePct') }}</span>
@@ -159,6 +159,44 @@ function onMoveChange() {
     markDirty();
   }
 }
+
+/* 固件只认 move.scale（鼠标移动多少像素 = 1% 摇杆），而界面是两个输入框
+ * （N 像素 → X%）。读回/导入时若只按 scale 反推，X% 会被写成 1%，
+ * 且 px 被 Math.round 取整（10 像素→3% 的 3.333 会变成 3 像素→1%），
+ * 比例被悄悄改掉。所以：
+ *   1) 导出的文件带上 ui.move_px / ui.move_pct，重新导入时原样还原；
+ *   2) 没有这对数（固件回读 / 老文件）时，从 scale 反推一对整数像素值，
+ *      优先小的百分比，保证 px/pct 与 scale 一致，绝不取整丢精度。 */
+function pairFromScale(scale) {
+  const s = Number(scale);
+  if (!isFinite(s) || s <= 0) return { px: 10, pct: 1 };
+  /* 先按“N 像素 = 1%”试，再逐步放大百分比，取第一个能整除成整数像素的
+   * 组合：10→1%、10px→3%、13px→7% 这类用户填过的比例都能原样反推回来。 */
+  for (let pct = 1; pct <= 100; pct++) {
+    const px = s * pct;
+    const rounded = Math.round(px);
+    /* 容差留 0.2%：固件回读的 scale 只保留有限位小数（3.33 × 3 = 9.99）。 */
+    if (rounded >= 1 && Math.abs(px - rounded) <= px * 2e-3) return { px: rounded, pct };
+  }
+  /* 没有整数解就保留原始比值，只把其中一个输入保持为 1。 */
+  return s >= 1
+    ? { px: Math.round(s * 1000) / 1000, pct: 1 }
+    : { px: 1, pct: Math.round(1000 / s) / 1000 };
+}
+
+/* 用文件里的 ui 提示还原（自洽才用，手改过 scale 时以 scale 为准）。 */
+function restoreMovePair(ui) {
+  const px = Number(ui && ui.move_px);
+  const pct = Number(ui && ui.move_pct);
+  if (isFinite(px) && px > 0 && isFinite(pct) && pct > 0) {
+    const implied = px / pct;
+    const s = Number(config.move.scale);
+    if (isFinite(s) && Math.abs(implied - s) <= Math.max(1e-6, Math.abs(s) * 2e-3)) {
+      return { px, pct };
+    }
+  }
+  return pairFromScale(config.move.scale);
+}
 function onStick(v) { config.move.target_stick = v; markDirty(); }
 function addRule() {
   if (config.key_rules.length >= MAX_RULES) return;
@@ -214,6 +252,8 @@ function validateConfig() {
   return errs;
 }
 
+/* 发给固件的配置：严格保持固件协议字段，不能多带 ui 之类的键
+ * （固件落盘缓冲只有 2048B，多余字段只会挤占规则空间）。 */
 function buildCfgJson() {
   return {
     magic: 'GMAP', version: 1, enabled: !!config.enabled,
@@ -226,6 +266,19 @@ function buildCfgJson() {
   };
 }
 
+/* 导出到文件：额外带上界面用的 px/% 两个输入框，重新导入时不再被压成 1%。
+ * 只写文件、不发给设备，所以不会影响固件协议。 */
+function buildExportJson() {
+  const cfg = buildCfgJson();
+  const px = Number(movePx.value);
+  const pct = Number(movePct.value);
+  cfg.ui = {
+    move_px: (isFinite(px) && px > 0) ? px : null,
+    move_pct: (isFinite(pct) && pct > 0) ? pct : null,
+  };
+  return cfg;
+}
+
 function applyCfg(cfg) {
   if (!cfg || typeof cfg !== 'object') throw new Error('cfg not object');
   config.enabled = !!cfg.enabled;
@@ -235,15 +288,18 @@ function applyCfg(cfg) {
     mode: r.mode || 'augment',
   }));
   if (cfg.move) {
-    config.move.scale = typeof cfg.move.scale === 'number' ? cfg.move.scale : 10.0;
+    /* scale 兼容字符串形式（手改过的备份文件），非法值仍退回默认 10。 */
+    const sc = Number(cfg.move.scale);
+    config.move.scale = (isFinite(sc) && sc > 0) ? sc : 10.0;
     config.move.target_stick = cfg.move.target_stick || 'left';
     config.move.duration = cfg.move.duration || 10;
     config.move.invert_x = !!cfg.move.invert_x;
     config.move.invert_y = !!cfg.move.invert_y;
     config.move.deadzone = (typeof cfg.move.deadzone === 'number') ? cfg.move.deadzone : 0;
-    // sync the px/pct inputs from scale (default pct=1, px=scale)
-    movePct.value = 1;
-    movePx.value = Math.max(1, Math.round(config.move.scale));
+    /* 还原 px/% 两个输入框：优先用导出文件里的 ui 提示，否则按 scale 反推。 */
+    const pair = restoreMovePair(cfg.ui);
+    movePx.value = pair.px;
+    movePct.value = pair.pct;
   }
   dirty.value = false;
 }
@@ -407,7 +463,7 @@ async function onReset() {
 
 /* ---- export / import (避免刷新固件丢失配置) ---- */
 function exportConfig() {
-  const cfg = buildCfgJson();
+  const cfg = buildExportJson();
   const text = JSON.stringify(cfg, null, 2);
   const blob = new Blob([text], { type: 'application/json' });
   const url = URL.createObjectURL(blob);

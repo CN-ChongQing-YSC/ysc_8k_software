@@ -370,6 +370,22 @@ export const docs = {
           ],
         },
         {
+          id: 'ysc_physical_guard', name: 'Physical Guard / Anti-Anomaly Move (cmd:68/69/70)',
+          format: '{"cmd":68,"e":1,"wx":14,"wy":18}',
+          note: 'Uses the user-measured fastest reversal interval as the window and suppresses, per axis, software move commands that are opposite to the physical direction and younger than the window. Physical mouse passthrough is untouched. Semantics: let now be the current ms tick, dir the physical direction, rev the last physical direction reversal, and lastMove the last nonzero physical movement; when enabled, win&gt;0, dir!=0, now-lastMove&lt;=50ms, the command is opposite to dir, and now-rev&lt;win, that axis is zeroed. Same-direction commands, physical idle, and commands after the window pass. Pending injection on the blocked axis is canceled across both move streams (cmd30/31), and that axis Reduce is reset to 1.0 (physical priority). Config is persisted at data-flash offset 0x7000. Replies: cmd68 -&gt; message="guard_set"; cmd69 -&gt; message="guard" (data contains e/wx/wy/sx/sy/last); cmd70 -&gt; message="guard_reset".',
+          params: [
+            { name: 'e', type: 'uint8', desc: 'Enable 1/0 (omitted = keep current)' },
+            { name: 'wx', type: 'uint16', desc: 'X window ms, 0=no X filtering, max 500 (omitted = keep)' },
+            { name: 'wy', type: 'uint16', desc: 'Y window ms, 0=no Y filtering, max 500 (omitted = keep)' },
+          ],
+          actions: [
+            { label: 'Enable 50/50ms', cmd: '{"cmd":68,"e":1,"wx":50,"wy":50}' },
+            { label: 'Query state', cmd: '{"cmd":69}' },
+            { label: 'Disable guard', cmd: '{"cmd":68,"e":0}' },
+            { label: 'Reset defaults', cmd: '{"cmd":70}' },
+          ],
+        },
+        {
           id: 'ysc_get_version', name: 'Get Version (cmd:0x84)',
           format: '{"cmd":132}',
           note: 'Query firmware build date. Returns {code:200,message:"version",data:"build date"}. Dual-MCU v2 (towmcu) CDC path: APP returns message="ysc-towmcu-L|R v1.0"; IAP returns data="YSC-IAP". Classify mode by the substring "-IAP".',

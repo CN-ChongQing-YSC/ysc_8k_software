@@ -57,12 +57,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
-
-export interface SelectOption {
-  value: string;
-  label: string;
-  disabled?: boolean;
-}
+import type { SelectOption } from './select-option';
 
 const props = withDefaults(
   defineProps<{

@@ -211,6 +211,8 @@ function setupDriverEvents(): void {
     'baudrate_switched', 'baudrate_failed',
     'kmnet_started', 'kmnet_error', 'kmnet_stopped',
     'monitor_data',
+    'human_guard',
+    'upload_status',
     'local_ip', 'version', 'state', 'ports_list', 'ports_changed',
     'iap_log', 'iap_progress', 'iap_done',
     'towmcu_ports', 'towmcu_version',

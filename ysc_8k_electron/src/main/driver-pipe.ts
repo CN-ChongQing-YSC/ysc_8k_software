@@ -42,6 +42,33 @@ export interface KbdState {
   keys: number[];         // 非修饰 HID 键码，升序
 }
 
+/** 物理护栏校准的单轴统计（驱动 human_guard 事件） */
+export interface GuardAxisStat {
+  count: number;
+  min: number;
+  p5: number;
+  median: number;
+  last: number;
+  suggest: number;
+  reliable: boolean;
+  recent: number[];
+}
+
+export interface HumanGuardEvent {
+  phase: 'idle' | 'running' | 'done' | 'error';
+  session?: number;
+  axis?: 'x' | 'y';
+  duration?: number;
+  elapsed?: number;
+  frames?: number;
+  timebase?: 'device' | 'host' | 'mixed' | 'none';
+  reason?: string;
+  dirX?: number;
+  dirY?: number;
+  x?: GuardAxisStat;
+  y?: GuardAxisStat;
+}
+
 export interface DriverEvents {
   ready: void;
   ports_list: { ports: string[] };
@@ -60,6 +87,8 @@ export interface DriverEvents {
     mouseValid?: number;          // 鼠标侧是否收到过数据
     kbd?: KbdState;               // 键盘侧物理状态（新增）
   };
+  // 物理护栏校准（驱动侧测量）
+  human_guard: HumanGuardEvent;
   log: { level: string; message: string };
   local_ip: { ip: string };
   version: { version: string };

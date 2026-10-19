@@ -88,6 +88,12 @@ public:
     static bool SendInterpGet(DeviceRole role);                                                          // {"cmd":52}
     static bool SendInterpReset(DeviceRole role);                                                        // {"cmd":53}
 
+    /* 物理护栏（防异常移动，固件 cmd 68/69/70）：以实测最快反向间隔为窗口，
+     * 逐轴拦截与物理方向相反且低于窗口的软件移动命令。配置持久化在设备端。 */
+    static bool SendGuardSet(int enable, int wx, int wy, DeviceRole role);  // {"cmd":68,"e":..,"wx":..,"wy":..}
+    static bool SendGuardGet(DeviceRole role);                              // {"cmd":69}
+    static bool SendGuardReset(DeviceRole role);                            // {"cmd":70}
+
     /* Debug capture commands (forwarded to firmware over serial).
      * Responses are delivered asynchronously through the PipeServer event
      * "debug_response" once the firmware replies. */

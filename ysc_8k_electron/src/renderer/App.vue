@@ -145,6 +145,11 @@
         @reset="onMouseInterpReset"
         @load="loadMouseInterp"
       />
+      <PhysicalGuardPanel
+        v-else-if="currentView === 'physical-guard'"
+        :connected="mouseDeviceConnected"
+        :dev-mode="devMode"
+      />
       <GamepadMapperPanel v-else-if="currentView === 'gamepad'" />
       <DocsPanel v-else-if="currentView === 'docs'" />
       <FirmwarePanel
@@ -172,6 +177,7 @@ import MacroPanel from './components/MacroPanel.vue';
 import JitterMacroPanel from './components/JitterMacroPanel.vue';
 import MouseCurvePanel from './components/MouseCurvePanel.vue';
 import MouseInterpPanel from './components/MouseInterpPanel.vue';
+import PhysicalGuardPanel from './components/PhysicalGuardPanel.vue';
 import SerialNumberPanel from './components/SerialNumberPanel.vue';
 import GamepadMapperPanel from './components/GamepadMapperPanel.vue';
 import DocsPanel from './components/DocsPanel.vue';
@@ -186,7 +192,7 @@ import { ELECTRON_NAV } from './electron-nav';
 const api = window.driverApi;
 const { t } = useI18n();
 
-const VALID_VIEWS = ['home', 'km-focus', 'docs', 'macro', 'jitter', 'mouse-curve', 'mouse-interp', 'gamepad', 'firmware', 'towmcu-firmware', 'debug'];
+const VALID_VIEWS = ['home', 'km-focus', 'docs', 'macro', 'jitter', 'mouse-curve', 'mouse-interp', 'physical-guard', 'gamepad', 'firmware', 'towmcu-firmware', 'debug'];
 
 // 共享核心 ui-store 驱动导航视图（与 @ysc/core NavRail 共用 activeView，持久化由 store 负责）
 const ui = useUiStore();
@@ -221,6 +227,14 @@ const kbdState = ref({ valid: 0, mod: 0, count: 0, overflow: 0, keys: [] });
 const anyDeviceConnected = computed(() =>
   serialConnected.value ||
   deviceSlots.value.some(function (d) { return d && d.connected; })
+);
+
+/* 物理护栏只对“透传鼠标”的那台设备有意义：
+ *   - 旧单串口路径（主页）默认就是鼠标机；
+ *   - 双设备路径要角色明确为 mouse，避免只连键盘机时面板误判为可用。 */
+const mouseDeviceConnected = computed(() =>
+  serialConnected.value ||
+  deviceSlots.value.some(function (d) { return d && d.connected && d.role === 'mouse'; })
 );
 
 const firmwareFilePath = ref('');

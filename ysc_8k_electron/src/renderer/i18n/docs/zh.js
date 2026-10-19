@@ -372,6 +372,22 @@ export const docs = {
           ],
         },
         {
+          id: 'ysc_physical_guard', name: '物理护栏 / 防异常移动 (cmd:68/69/70)',
+          format: '{"cmd":68,"e":1,"wx":14,"wy":18}',
+          note: '以用户实测的“最快反向间隔”为窗口，逐轴拦截与物理方向相反、且低于窗口的软件移动命令。物理鼠标透传不受影响。语义：设 now 为当前毫秒时基、dir 为物理方向、rev 为物理最近一次方向反转时刻、lastMove 为最近一次物理非零位移时刻；当 enabled 且 win&gt;0、dir≠0、now-lastMove≤50ms、命令方向与 dir 相反、且 now-rev&lt;win 时，该轴命令清零。同向/物理停手/超过窗口一律放行。被拦截轴上两条移动流(cmd30/31)的未发完余量会一起取消，该轴 Reduce 复位为 1.0（物理优先）。配置持久化在数据 Flash 逻辑偏移 0x7000。应答：cmd68→message="guard_set"，cmd69→message="guard"（data 含 e/wx/wy/sx/sy/last），cmd70→message="guard_reset"。',
+          params: [
+            { name: 'e', type: 'uint8', desc: '启用 1/0（缺省保持当前值）' },
+            { name: 'wx', type: 'uint16', desc: 'X 轴窗口 ms，0=不拦截 X，最大 500（缺省保持）' },
+            { name: 'wy', type: 'uint16', desc: 'Y 轴窗口 ms，0=不拦截 Y，最大 500（缺省保持）' },
+          ],
+          actions: [
+            { label: '启用 50/50ms', cmd: '{"cmd":68,"e":1,"wx":50,"wy":50}' },
+            { label: '查询状态', cmd: '{"cmd":69}' },
+            { label: '关闭护栏', cmd: '{"cmd":68,"e":0}' },
+            { label: '恢复默认', cmd: '{"cmd":70}' },
+          ],
+        },
+        {
           id: 'ysc_get_version', name: '获取版本 (cmd:0x84)',
           format: '{"cmd":132}',
           note: '查询固件编译日期。返回 {code:200,message:"version",data:"编译日期"}。8K V2 路径:APP 返回 message="ysc-towmcu-L|R v1.0";IAP 返回 data="YSC-IAP"。靠子串 "-IAP" 区分模式。',

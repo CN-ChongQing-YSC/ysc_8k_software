@@ -78,7 +78,9 @@ const props = defineProps({
 
 const emit = defineEmits(['toggle-upload']);
 
-const uploadEnabled = ref(false);
+// 固件侧 needUpload 默认就是开启（MouseSerialController.c: static uint8_t needUpload = 1）。
+// 这里若初始为 false，主页会显示“未监控”，但监控数据仍在流，造成自相矛盾。
+const uploadEnabled = ref(true);
 
 function toggleUpload() {
   uploadEnabled.value = !uploadEnabled.value;

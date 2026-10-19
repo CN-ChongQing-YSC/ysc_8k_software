@@ -10,6 +10,7 @@
 #include "kmboxnet_server.h"
 #include "command_bridge.h"
 #include "monitor_push.h"
+#include "human_guard.h"
 #include "device_context.h"
 #include "debug_logger.h"
 #include "pipe_server.h"
@@ -233,6 +234,7 @@ static void ForwardDebugResponse(const uint8_t *data, int len) {
 // Combined serial response handler: existing monitor push + debug forwarding.
 static void OnSerialResponseCombo(const uint8_t *data, int len, void *userData) {
     MonitorPush::OnSerialResponse(data, len, userData);
+    HumanGuard::OnSerialFrame(data, len);
     ForwardDebugResponse(data, len);
 }
 
@@ -264,6 +266,7 @@ static void OnDeviceLost(int slot, void *userData) {
     // 该侧状态清零，并通知前端
     bool isKbd = (d && d->role == DEV_ROLE_KBD);
     MonitorPush::ResetSide(isKbd ? 1 : 0);
+    if (!isKbd) HumanGuard::Abort("device_lost");
     char body[256];
     snprintf(body, sizeof(body),
              "\"dev\":%d,\"role\":\"%s\",\"message\":\"设备已断开\"",
@@ -548,6 +551,7 @@ static void OnPipeCommand(const char *json, void *userData) {
         }
     }
     else if (type == "serial_disconnect") {
+        HumanGuard::Abort("device_lost");
         g_serial.Disconnect();
         g_app.serialConnected = false;
         DebugLogger::Log("SERIAL DISCONNECTED");
@@ -817,6 +821,56 @@ static void OnPipeCommand(const char *json, void *userData) {
         else {
             bool ok = CommandBridge::SendInterpReset((DeviceRole)DEV_ROLE_MOUSE);
             g_pipeServer.SendEvent("send_result", ok ? "\"ok\":true,\"cmd\":\"interp_reset\"" : "\"ok\":false");
+        }
+    }
+    // ── 物理护栏（Physical Guard）：驱动侧测量 + 固件配置桥接 ──
+    else if (type == "human_guard_begin") {
+        std::string axis = ExtractJsonString(json, "axis");
+        int duration = ExtractJsonInt(json, "duration");
+        if (duration <= 0) duration = 5000;
+        bool ok = HumanGuard::Begin(axis.c_str(), duration);
+        g_pipeServer.SendEvent("send_result", ok ? "\"ok\":true,\"cmd\":\"human_guard_begin\""
+                                                 : "\"ok\":false,\"cmd\":\"human_guard_begin\"");
+    }
+    else if (type == "human_guard_stop") {
+        HumanGuard::Stop();
+        g_pipeServer.SendEvent("send_result", "\"ok\":true,\"cmd\":\"human_guard_stop\"");
+    }
+    else if (type == "human_guard_status") {
+        HumanGuard::SendStatus();
+    }
+    else if (type == "set_guard_config") {
+        // {"type":"set_guard_config","enable":0|1,"wx":ms,"wy":ms} → 固件 cmd 68
+        int enable = ExtractJsonInt(json, "enable");
+        int wx = ExtractJsonInt(json, "wx");
+        int wy = ExtractJsonInt(json, "wy");
+        SerialPort *sp = CommandBridge::Resolve((DeviceRole)DEV_ROLE_MOUSE);
+        if (!sp) {
+            g_pipeServer.SendEvent("send_result", "\"ok\":false,\"error\":\"未连接鼠标设备\",\"cmd\":\"guard_set\"");
+        } else {
+            bool ok = CommandBridge::SendGuardSet(enable, wx, wy, (DeviceRole)DEV_ROLE_MOUSE);
+            g_pipeServer.SendEvent("send_result", ok ? "\"ok\":true,\"cmd\":\"guard_set\""
+                                                     : "\"ok\":false,\"cmd\":\"guard_set\"");
+        }
+    }
+    else if (type == "get_guard_config") {
+        SerialPort *sp = CommandBridge::Resolve((DeviceRole)DEV_ROLE_MOUSE);
+        if (!sp) {
+            g_pipeServer.SendEvent("send_result", "\"ok\":false,\"error\":\"未连接鼠标设备\",\"cmd\":\"guard_get\"");
+        } else {
+            bool ok = CommandBridge::SendGuardGet((DeviceRole)DEV_ROLE_MOUSE);
+            g_pipeServer.SendEvent("send_result", ok ? "\"ok\":true,\"cmd\":\"guard_get\""
+                                                     : "\"ok\":false,\"cmd\":\"guard_get\"");
+        }
+    }
+    else if (type == "reset_guard_config") {
+        SerialPort *sp = CommandBridge::Resolve((DeviceRole)DEV_ROLE_MOUSE);
+        if (!sp) {
+            g_pipeServer.SendEvent("send_result", "\"ok\":false,\"error\":\"未连接鼠标设备\",\"cmd\":\"guard_reset\"");
+        } else {
+            bool ok = CommandBridge::SendGuardReset((DeviceRole)DEV_ROLE_MOUSE);
+            g_pipeServer.SendEvent("send_result", ok ? "\"ok\":true,\"cmd\":\"guard_reset\""
+                                                     : "\"ok\":false,\"cmd\":\"guard_reset\"");
         }
     }
     else if (type == "send_makcu") {
@@ -1096,6 +1150,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR, int) {
 
     CommandBridge::Init(&g_serial);
     MonitorPush::Init(&g_kmServer);
+    HumanGuard::Init();
     g_serial.SetResponseCallback(OnSerialResponseCombo, nullptr);
 
     // Start named pipe server for Electron UI
@@ -1175,6 +1230,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR, int) {
     }
 
     // Cleanup
+    HumanGuard::Shutdown();    // 先停测量线程，再关管道
     MonitorPush::Shutdown();   // 先停 UI 推送线程，再关管道（避免线程写已关闭的句柄）
     g_pipeServer.Stop();
     DebugLogger::Shutdown();
@@ -1235,6 +1291,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         // 全程主线程，与其它命令处理串行，无并发；Disconnect 此刻读线程已退出，立即返回。
         if (g_app.serialConnected && (LONG)wParam == g_serial.ReaderGen()) {
             DebugLogger::Log("SERIAL unexpected disconnect (physical/IO), cleaning up");
+            HumanGuard::Abort("device_lost");
             g_serial.Disconnect();
             g_app.serialConnected = false;
             UpdateTrayTip();
@@ -1348,6 +1405,7 @@ void HandleMenuCommand(UINT cmdId) {
 
     switch (cmdId) {
     case IDM_DISCONNECT_SERIAL:
+        HumanGuard::Abort("device_lost");
         g_serial.Disconnect();
         g_app.serialConnected = false;
         DebugLogger::Log("SERIAL DISCONNECTED");

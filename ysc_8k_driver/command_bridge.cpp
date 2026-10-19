@@ -329,6 +329,29 @@ bool CommandBridge::SendInterpReset(DeviceRole __role) {
     return sp->SendJsonCommand("{\"cmd\":53}");
 }
 
+/* ---- 物理护栏（firmware cmd 68/69/70）---- */
+bool CommandBridge::SendGuardSet(int enable, int wx, int wy, DeviceRole __role) {
+    SerialPort *sp = Resolve(__role); if (!sp) return false;
+    char json[96];
+    snprintf(json, sizeof(json), "{\"cmd\":68,\"e\":%d,\"wx\":%d,\"wy\":%d}",
+             enable ? 1 : 0, wx, wy);
+    DebugLog("TX guard set: %s", json);
+    DebugLogger::Log("TX guard set: %s", json);
+    return sp->SendJsonCommand(json);
+}
+
+bool CommandBridge::SendGuardGet(DeviceRole __role) {
+    SerialPort *sp = Resolve(__role); if (!sp) return false;
+    DebugLog("TX guard get");
+    return sp->SendJsonCommand("{\"cmd\":69}");
+}
+
+bool CommandBridge::SendGuardReset(DeviceRole __role) {
+    SerialPort *sp = Resolve(__role); if (!sp) return false;
+    DebugLog("TX guard reset");
+    return sp->SendJsonCommand("{\"cmd\":70}");
+}
+
 /* ---- Debug capture commands ----
  * Command codes must stay in sync with firmware (USART1Dma.h).
  *   700 enter / 701 exit / 702 status

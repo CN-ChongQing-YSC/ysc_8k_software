@@ -51,9 +51,38 @@ talks to it over a named pipe — it never opens a COM port directly.
 | `{"type":"force_release","b":1,"t":500}` | 强制松开（固件 cmd 67）：`t` 毫秒后自动恢复，`t=0` 保持到恢复 |
 | `{"type":"force_release_query"}` | 查询 cmd 67 当前强制位图与剩余毫秒数 |
 | `{"type":"force_restore"}` | 立即全部恢复（cmd 67 `b=0`） |
+| `{"type":"human_guard_begin","axis":"x","duration":5000}` | 开始物理护栏校准（驱动侧测量），事件 `human_guard` |
+| `{"type":"human_guard_stop"}` | 提前结束校准 |
+| `{"type":"human_guard_status"}` | 查询当前/上次校准结果 |
+| `{"type":"set_guard_config","enable":1,"wx":14,"wy":18}` | 写固件 cmd 68（物理护栏窗口） |
+| `{"type":"get_guard_config"}` | 读固件 cmd 69；应答走 `debug_response`（message=`guard`） |
+| `{"type":"reset_guard_config"}` | 固件 cmd 70，恢复默认 |
 
 `get_state` / `get_monitor` 事件新增 `mouse`（valid/buttons/x/y）与
 `kbd`（valid/mod/count/overflow/keys）字段。
+
+### 物理护栏（Physical Guard）
+
+监控帧现在带固件毫秒时基 `t`，且 1ms 合并窗口内的 X/Y 是**累加**值：
+
+```
+{"code":200,"message":null,"data":"{\"b\":0,\"x\":-12,\"y\":3,\"wh\":0,\"t\":123456}"}
+```
+
+驱动侧 `HumanGuard` 只在校准期间解析该帧，按 X/Y 两轴独立检测方向反转，
+记录相邻反转之间的最小毫秒间隔；结果通过 `human_guard` 事件上报：
+
+```json
+{"type":"human_guard","phase":"done","session":123456,"axis":"x","duration":5000,
+ "elapsed":5000,"frames":3120,"timebase":"device","reason":"timeout",
+ "dirX":1,"dirY":0,
+ "x":{"count":34,"min":14,"p5":16,"median":21,"last":18,"suggest":14,"reliable":true,"recent":[18,20,15,14]},
+ "y":{"count":0,"min":0,"p5":0,"median":0,"last":0,"suggest":0,"reliable":false,"recent":[]}}
+```
+
+`timebase` 为 `device`（固件 `t`）/`host`（旧固件，主机时间）/`mixed`/`none`。
+校准结果由前端“应用”后通过 `set_guard_config` 下发固件；固件持久化在
+数据 Flash 逻辑偏移 `0x7000`，重启后仍生效。
 
 ### 键盘物理状态
 

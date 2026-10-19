@@ -25,7 +25,7 @@ export type IconKey =
   | 'gamepad'
   | 'doc' | 'terminal'
   | 'chip' | 'dualchip'
-  | 'bug' | 'wrench'
+  | 'bug' | 'wrench' | 'shield'
   | 'menu' | 'menuOpen';
 
 export const NAV: NavGroup[] = [
