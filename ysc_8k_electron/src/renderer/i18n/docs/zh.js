@@ -343,6 +343,35 @@ export const docs = {
           params: [],
         },
         {
+          id: 'ysc_button_release', name: '弹起按键 (cmd:58)',
+          format: '{"cmd":58,"b":1,"s":1}',
+          note: '物理按住的键仍参与上报合成，但通过内部屏蔽位让主机看到这些键松开（cmd:33 做不到：物理按住的键会持续合并回来）。b 为按键位掩码（bit0..4=左/右/中/侧1/侧2）；s=1 弹起，s=0 恢复。注意：当前 V2 固件（Oct 18 2026）未实现 58，无回包/无效果，请改用 cmd:67。',
+          params: [
+            { name: 'b', type: 'uint8', desc: '按键位掩码(1=左, 2=右, 4=中, 8=侧1, 16=侧2)' },
+            { name: 's', type: 'uint8', desc: '1=弹起, 0=恢复' },
+          ],
+          actions: [
+            { label: '弹起左键', cmd: '{"cmd":58,"b":1,"s":1}' },
+            { label: '恢复左键', cmd: '{"cmd":58,"b":1,"s":0}' },
+            { label: '弹起右键', cmd: '{"cmd":58,"b":2,"s":1}' },
+          ],
+        },
+        {
+          id: 'ysc_force_release', name: '强制松开 (cmd:67)',
+          format: '{"cmd":67,"b":1,"t":500}',
+          note: '强制松开：b 中的按键位无论物理按住还是软件注入，都从发往主机的 HID 报告里清除。t=自动恢复毫秒数（可选；0/缺省=保持到恢复命令）。{"cmd":67,"b":0} 立即全部恢复；不带 b（{"cmd":67}）为查询，返回当前强制位图与剩余毫秒。应答 message=force_release / force_restore，data="{b,remain}"。',
+          params: [
+            { name: 'b', type: 'uint8', desc: '按键位掩码(1=左, 2=右, 4=中, 8=侧1, 16=侧2)；0=全部恢复' },
+            { name: 't', type: 'uint32', desc: '自动恢复时长 ms（可选；0/缺省=保持到恢复命令）' },
+          ],
+          actions: [
+            { label: '强制松开左键 500ms', cmd: '{"cmd":67,"b":1,"t":500}' },
+            { label: '强制松开左键 2s', cmd: '{"cmd":67,"b":1,"t":2000}' },
+            { label: '恢复全部', cmd: '{"cmd":67,"b":0}' },
+            { label: '查询状态', cmd: '{"cmd":67}' },
+          ],
+        },
+        {
           id: 'ysc_get_version', name: '获取版本 (cmd:0x84)',
           format: '{"cmd":132}',
           note: '查询固件编译日期。返回 {code:200,message:"version",data:"编译日期"}。8K V2 路径:APP 返回 message="ysc-towmcu-L|R v1.0";IAP 返回 data="YSC-IAP"。靠子串 "-IAP" 区分模式。',

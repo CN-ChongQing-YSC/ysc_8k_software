@@ -341,6 +341,35 @@ export const docs = {
           params: [],
         },
         {
+          id: 'ysc_button_release', name: 'Release Button (cmd:58)',
+          format: '{"cmd":58,"b":1,"s":1}',
+          note: 'Makes the host see these buttons released even while they are physically held; the physical state still participates in report composition. cmd:33 cannot do this because the held state is merged back continuously. b is the button bitmask (bit0..4 = left/right/middle/side1/side2); s=1 release, s=0 restore. Note: the current V2 firmware (Oct 18 2026) does not implement cmd 58, so it produces no reply/effect; use cmd:67 instead.',
+          params: [
+            { name: 'b', type: 'uint8', desc: 'Button bitmask (1=left, 2=right, 4=middle, 8=side1, 16=side2)' },
+            { name: 's', type: 'uint8', desc: '1=release, 0=restore' },
+          ],
+          actions: [
+            { label: 'Release left', cmd: '{"cmd":58,"b":1,"s":1}' },
+            { label: 'Restore left', cmd: '{"cmd":58,"b":1,"s":0}' },
+            { label: 'Release right', cmd: '{"cmd":58,"b":2,"s":1}' },
+          ],
+        },
+        {
+          id: 'ysc_force_release', name: 'Force Release (cmd:67)',
+          format: '{"cmd":67,"b":1,"t":500}',
+          note: 'Force-releases the selected buttons: whether physically held or injected, these bits are removed from every HID report sent to the host. t = auto-restore delay in ms (optional; 0/omitted = hold until a restore command). {"cmd":67,"b":0} restores everything immediately; {"cmd":67} without b queries the current mask and remaining ms. Reply: message=force_release / force_restore, data="{b,remain}".',
+          params: [
+            { name: 'b', type: 'uint8', desc: 'Button bitmask (1=left, 2=right, 4=middle, 8=side1, 16=side2); 0=restore all' },
+            { name: 't', type: 'uint32', desc: 'Auto-restore delay ms (optional; 0/omitted = hold until restore)' },
+          ],
+          actions: [
+            { label: 'Release left 500ms', cmd: '{"cmd":67,"b":1,"t":500}' },
+            { label: 'Release left 2s', cmd: '{"cmd":67,"b":1,"t":2000}' },
+            { label: 'Restore all', cmd: '{"cmd":67,"b":0}' },
+            { label: 'Query state', cmd: '{"cmd":67}' },
+          ],
+        },
+        {
           id: 'ysc_get_version', name: 'Get Version (cmd:0x84)',
           format: '{"cmd":132}',
           note: 'Query firmware build date. Returns {code:200,message:"version",data:"build date"}. Dual-MCU v2 (towmcu) CDC path: APP returns message="ysc-towmcu-L|R v1.0"; IAP returns data="YSC-IAP". Classify mode by the substring "-IAP".',
