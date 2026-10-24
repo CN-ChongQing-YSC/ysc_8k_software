@@ -1,0 +1,53 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/ysc_core",
+    "crates/ysc_host",
+    "crates/ysc_driver",
+    "crates/ysc_sdk",
+]
+
+[workspace.package]
+version = "1.17.0"
+edition = "2021"
+rust-version = "1.82"
+license = "MIT"
+
+[workspace.dependencies]
+windows = { version = "0.62", features = [
+    "Win32_Foundation",
+    "Win32_Devices_Communication",
+    "Win32_Devices_DeviceAndDriverInstallation",
+    "Win32_Devices_Usb",
+    "Win32_Graphics_Gdi",
+    "Win32_Media",
+    "Win32_NetworkManagement_IpHelper",
+    "Win32_NetworkManagement_Ndis",
+    "Win32_Networking_WinSock",
+    "Win32_Security",
+    "Win32_Storage_FileSystem",
+    "Win32_System_IO",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Registry",
+    "Win32_System_Pipes",
+    "Win32_System_SystemInformation",
+    "Win32_System_Threading",
+    "Win32_System_Time",
+    "Win32_UI_Controls",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+base64 = "0.22"
+once_cell = "1"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.dev]
+opt-level = 1

@@ -1,0 +1,5 @@
+/* 已退役：颜色系统统一迁至 @ysc/core/ui/tokens.css（Wooting 配色）。
+ * 本文件不再定义任何颜色变量，避免与新 token 冲突。
+ * 旧变量名（--bg-primary / --accent-blue 等）全部由 tokens.css 以 Wooting 取值重新提供。
+ * 见 packages/ysc-core/src/ui/tokens.css。
+ */

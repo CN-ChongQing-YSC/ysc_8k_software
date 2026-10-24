@@ -374,7 +374,7 @@ export const docs = {
         {
           id: 'ysc_physical_guard', name: '物理护栏 / 防异常移动 (cmd:68/69/70)',
           format: '{"cmd":68,"e":1,"wx":14,"wy":18}',
-          note: '以用户实测的“最快反向间隔”为窗口，逐轴拦截与物理方向相反、且低于窗口的软件移动命令。物理鼠标透传不受影响。语义：设 now 为当前毫秒时基、dir 为物理方向、rev 为物理最近一次方向反转时刻、lastMove 为最近一次物理非零位移时刻；当 enabled 且 win&gt;0、dir≠0、now-lastMove≤50ms、命令方向与 dir 相反、且 now-rev&lt;win 时，该轴命令清零。同向/物理停手/超过窗口一律放行。被拦截轴上两条移动流(cmd30/31)的未发完余量会一起取消，该轴 Reduce 复位为 1.0（物理优先）。配置持久化在数据 Flash 逻辑偏移 0x7000。应答：cmd68→message="guard_set"，cmd69→message="guard"（data 含 e/wx/wy/sx/sy/last），cmd70→message="guard_reset"。',
+          note: '以用户实测的“最快反向间隔”为窗口，逐轴拦截“与物理方向相反”或“与软件上一条被接受方向相反”且低于窗口的软件移动命令。物理鼠标透传不受影响。语义：设 now 为当前毫秒时基、dir 为物理方向、rev 为物理最近一次方向反转时刻，softDir/softRev/softLast 为软件上一条被接受命令的方向/方向切换时刻/位移时刻；当 enabled 且 win&gt;0 时，满足任一条件该轴命令清零：①命令与物理方向相反且 now-rev&lt;win；②命令与软件上一条被接受方向相反、不是新移动片段（now-softLast&lt;win）、且 now-softRev&lt;win。同向命令和超过窗口的反向命令放行；物理停手不再作为放行条件，软件自身的反向也受同一窗口限制。被拦截轴上两条移动流(cmd30/31)的未发完余量会一起取消，该轴 Reduce 复位为 1.0（物理优先）。配置持久化在数据 Flash 逻辑偏移 0x7000。应答：cmd68→message="guard_set"，cmd69→message="guard"（data 含 e/wx/wy/sx/sy/last），cmd70→message="guard_reset"。',
           params: [
             { name: 'e', type: 'uint8', desc: '启用 1/0（缺省保持当前值）' },
             { name: 'wx', type: 'uint16', desc: 'X 轴窗口 ms，0=不拦截 X，最大 500（缺省保持）' },

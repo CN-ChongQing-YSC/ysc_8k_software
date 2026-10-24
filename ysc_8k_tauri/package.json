@@ -1,0 +1,17 @@
+{
+  "name": "ysc-8k-tauri",
+  "version": "2.0.0",
+  "private": true,
+  "description": "YSC 8K 纯 Rust Tauri 单 exe 驱动",
+  "scripts": {
+    "dev": "tauri dev",
+    "build:web": "npm --prefix web run build",
+    "typecheck": "npm --prefix web run typecheck",
+    "build:app": "tauri build",
+    "build:app:dir": "tauri build --no-bundle",
+    "build:app:debug": "tauri build --debug --no-bundle"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

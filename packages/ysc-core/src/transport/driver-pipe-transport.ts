@@ -33,6 +33,7 @@ function mapSide(s: string): TowmcuSide {
   const u = (s || '').toUpperCase();
   if (u.includes('LEFT')) return 'Left';
   if (u.includes('RIGHT')) return 'Right';
+  if (u.includes('V3') || u.includes('YSCV3')) return 'V3';
   if (u.includes('IAP')) return 'IAP';
   return '';
 }

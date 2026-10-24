@@ -1,0 +1,18 @@
+[package]
+name = "ysc_sdk"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "ysc_sdk.dll — YSC 8K 驱动 C ABI（Rust 移植版）"
+
+[lib]
+name = "ysc_sdk"
+crate-type = ["cdylib"]
+
+[dependencies]
+ysc_core = { path = "../ysc_core" }
+windows.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+base64.workspace = true

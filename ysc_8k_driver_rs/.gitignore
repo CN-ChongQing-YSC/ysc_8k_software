@@ -1,0 +1,16 @@
+# Rust build output
+/target
+
+# 本地保留的 C++ 参照二进制（用于差分对照，不入库）
+/reference
+/reference_ysc_8k_driver_cpp.exe
+
+# 驱动运行日志（exe 同目录）
+ysc_driver_debug.log
+
+# 探针输出
+/*.txt
+/tools/__pycache__/
+
+# 临时验证工程
+/.tmp_*/

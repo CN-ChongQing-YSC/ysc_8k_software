@@ -1,18 +1,20 @@
 {
   "name": "ysc-8k-software",
-  "version": "1.16.0",
+  "version": "1.17.0",
   "private": true,
-  "description": "YSC 8K 设备软件 —— 共享核心 + Electron 桌面版 + 网页版 (Web Serial)",
+  "description": "YSC 8K 设备软件 —— 纯 Rust Tauri 单 exe 桌面驱动（活动）+ 共享核心 + 网页版；Electron/C++ 已冻结",
   "workspaces": [
     "packages/*",
     "ysc_8k_electron",
     "ysc_8k_web"
   ],
   "scripts": {
-    "dev:electron": "npm -w ysc-8k-driver run dev",
+    "dev:tauri": "npm --prefix ysc_8k_tauri run dev",
+    "build:tauri": "pwsh -NoProfile -ExecutionPolicy Bypass -File ysc_8k_tauri/tools/build.ps1",
+    "build:tauri:debug": "npm --prefix ysc_8k_tauri run build:app:debug",
+    "typecheck:tauri": "npm --prefix ysc_8k_tauri/web run typecheck",
     "dev:web": "npm -w ysc-8k-web run dev",
     "build:web": "npm -w ysc-8k-web run build",
-    "dist:electron": "npm -w ysc-8k-driver run dist",
     "typecheck": "npm -w @ysc/core run typecheck"
   }
 }

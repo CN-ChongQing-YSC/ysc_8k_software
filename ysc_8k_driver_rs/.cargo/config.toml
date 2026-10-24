@@ -1,0 +1,7 @@
+# 驱动 exe / SDK DLL 不依赖 VC++ Redistributable：静态链接 MSVC CRT。
+# 目标机只需系统自带的 UCRT（Windows 10/11 默认具备）。
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[target.i686-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

@@ -1,50 +1,91 @@
 # YSC 8K 上位机软件
 
-本仓库包含 YSC 8K 设备的 Windows 上位机软件,由两个对等子项目组成。已从固件仓库 `ysc_v2_8k_passthrough` 解耦,独立维护、独立发版。
+本仓库包含 YSC 8K 设备的 Windows 上位机软件，已从固件仓库
+`ysc_v2_8k_passthrough` 解耦，独立维护、独立发版。
 
-| 目录 | 说明 | 技术栈 |
+**桌面端当前唯一维护方向：纯 Rust + Tauri v2 单 exe。**
+Electron + C++ 组合栈已冻结在 `1.17.0`，只读保留用于回归，不再修 bug/加功能。
+项目当前进度、冻结边界和 AI 必读状态见 [`AGENTS.md`](AGENTS.md)。
+
+## 目录
+
+| 目录 | 说明 | 状态 |
 |---|---|---|
-| `ysc_8k_driver/` | **后端**:Win32 托盘程序,独占全部串口 I/O,通过命名管道对外提供服务 | C++ / Visual Studio (v142) / x64 |
-| `ysc_8k_electron/` | **前端**:UI 与业务逻辑,经命名管道与后端通信 | Electron + Vue 3 + Vite + TypeScript |
+| `ysc_8k_tauri/` | **活动桌面端**：Rust 宿主 + WebView2 + NSIS，单 exe | 维护 |
+| `packages/ysc-ui/` | 当前 YSC 桌面 UI（从 Electron renderer 迁入） | 维护 |
+| `packages/ysc-core/` | 协议、串口传输、设备 store、共享 UI | 维护 |
+| `ysc_8k_web/` | 网页版（Web Serial） | 维护 |
+| `ysc_8k_driver_rs/` | Rust 核心：`ysc_core` / `ysc_host` / SDK / 旧管道二进制 | 核心维护；管道壳冻结 |
+| `ysc_8k_driver/` | C++ 驱动 + SDK 源工程 | **冻结** |
+| `ysc_8k_electron/` | Electron + Vue 桌面壳 | **冻结** |
 
-## 目录相对位置契约(重要)
+## 快速开始（Tauri 桌面版）
 
-前端以**相对路径**引用后端编译产物,因此两个子目录**必须并列存放于同一父目录**(即本仓库根):
+```powershell
+cd D:\project\ysc_project\ysc_8k_software
 
-- 开发模式:`ysc_8k_electron` 启动时 spawn `../ysc_8k_driver/work/Release/ysc_8k_driver.exe`
-- 打包时(`electron-builder.yml`):把 `../ysc_8k_driver/work/Release/ysc_8k_driver.exe` 收进安装包
-- 命名管道:`\\.\pipe\ysc_8k_driver`(前后端硬编码一致)
+# 首次
+npm --prefix ysc_8k_tauri install
+npm --prefix ysc_8k_tauri/web install
 
-> 移动任一子目录到别处前,必须同步修改 `ysc_8k_electron/electron-builder.yml` 与 `ysc_8k_electron/src/main/index.ts` 中的相对路径。
+# 开发（Vite + Tauri）
+npm run dev:tauri
 
-## 快速开始
+# 类型检查 + 调试构建
+npm run typecheck:tauri
+npm run build:tauri:debug
 
-### 后端(ysc_8k_driver)
-用 Visual Studio(带 v142 工具集)打开 `ysc_8k_driver/ysc_8k_driver.sln`,构建 `Release | x64`,产物在 `ysc_8k_driver/work/Release/ysc_8k_driver.exe`。依赖系统库:`ws2_32.lib`、`setupapi.lib`。
-
-### 前端(ysc_8k_electron)
-```bash
-cd ysc_8k_electron
-npm install          # 首次;国内镜像已配在 .npmrc
-npm run dev          # 开发
-npm run dist         # 打包安装包到 release/
+# 发布 NSIS（产出 release/YSC_8K_Setup_<ver>.exe + sha256）
+npm run build:tauri
 ```
-> 打包前必须先得到后端 `ysc_8k_driver.exe`,否则 electron-builder 的 extraResources 找不到文件。
-> 一键打包 + 静默安装见 `ysc_8k_electron/build-and-install.bat`。
 
-## 各子项目详情
-- 后端架构、命令、串口/管道协议:见 `ysc_8k_driver/README.md`
-- 前端模块、固件升级流程:见 `ysc_8k_electron/docs/`
+构建细节见 [`ysc_8k_tauri/README.md`](ysc_8k_tauri/README.md)。
+Rust 核心测试：
 
-## 发布流程(Release)
+```powershell
+cd ysc_8k_driver_rs
+cargo test --workspace
+```
 
-**安装包只通过 GitHub Releases 分发,不提交进 git 仓库。**
+## YSC V3 固件更新
 
-1. **同步版本号**(必须一致):`VERSION`、根 `package.json` 与各 workspace 的 `package.json`(一条命令即可:`npm version <ver> --workspaces --include-workspace-root --no-git-tag-version`)、以及 `ysc_8k_driver/main.cpp` 里 `get_version` 上报的驱动版本。
-2. **`CHANGELOG.md` 落版**:把「未发布(Unreleased)」改成 `## v<ver> — <日期>`,并在顶部新开一个空的「未发布」段。
-3. **构建**:先构建后端得到 `ysc_8k_driver/work/Release/ysc_8k_driver.exe`,再在 `ysc_8k_electron` 里 `npm run dist`,产物为 `release/YSC 8K 驱动 Setup <ver>.exe`。
-4. **打 tag + 发 Release**:tag `v<ver>`;发布说明 = CHANGELOG 对应段落 + 「安装说明」;把安装包作为 **Release 附件**上传,附件名用 ASCII:`YSC_8K_Setup_<ver>.exe`。直链形如
+侧栏「固件 → 固件更新 (YSC V3)」只显示 `side="V3"`（`YSCV3-CDC`）端口：
+
+- 查询 `YSC-V3-IAP` / `YSC-V3-APP <date>`，显示 IAP/APP 模式。
+- APP 下可「进入下载模式」，双片握手最长等待 30s。
+- 手动选择 V3 加密镜像（AES 密钥 `YSC_V3_8K_2026`）升级；
+  END 后必须等回 `YSC-V3-APP`，否则报 `APP_NOT_BOOTED`。
+- 在线目录暂未发布，页面明确提示使用手动镜像。
+- 启动自动烧录：exe 同目录放 `v3_firmware.bin`，或传
+  `--auto-flash-v3=<path>`；端口就绪后自动完成升级，详见
+  [`ysc_8k_tauri/README.md`](ysc_8k_tauri/README.md)。
+
+真机验收：`YSC-V3-IAP` → 写入 `ysc_v3_8k_passthrough_app_encrypted.bin` →
+`YSC-V3-APP Oct 21 2026`。当前页面：[`docs/v3-release.png`](ysc_8k_tauri/docs/v3-release.png)。
+
+## 发布流程（Release）
+
+**安装包只通过 GitHub Releases 分发，不提交进 git 仓库。**
+
+1. 同步版本号：`ysc_8k_tauri/package.json`（Tauri 构建脚本读取它）、
+   `ysc_8k_tauri/src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml`；
+   旧栈版本 `VERSION` / `ysc_8k_driver` 继续冻结在 `1.17.0`。
+2. `CHANGELOG.md` 落版：把「未发布（Unreleased）」改成 `## v<ver> — <日期>`，
+   并在顶部新开空的「未发布」段。
+3. 构建：`npm run build:tauri`，产物归档为
+   `ysc_8k_tauri/release/YSC_8K_Setup_<ver>.exe`（约 5.4 MiB），脚本输出 sha256。
+4. 打 tag + 发 Release：tag `v<ver>`；安装包作为 **Release 附件**上传，
+   附件名用 ASCII：`YSC_8K_Setup_<ver>.exe`。直链形如
    `https://github.com/CN-ChongQing-YSC/ysc_8k_software/releases/download/v<ver>/YSC_8K_Setup_<ver>.exe`
-5. **验证**:打开 Release 页面确认资产与 sha256,再从直链完整下载一次、比对哈希。
+5. 验证：确认 Release 资产与 sha256，再从直链完整下载一次、比对哈希。
 
-> ⚠️ **不要把安装包提交进仓库**:单文件约 85MB,超过 GitHub 50MB 的建议上限;`ysc_8k_electron/release/` 已在 `.gitignore` 里,**不要用 `git add -f` 强推** —— 那会让每次 clone 都多拉一份,而且历史很难瘦身。
+`ysc_8k_tauri/release/`、`src-tauri/target/` 已在 `.gitignore` 中，
+**不要 `git add -f` 强推安装包**。
+
+## 旧栈（只读）
+
+- Electron 开发/打包：`ysc_8k_electron/`，其 `FROZEN.md` 说明冻结边界。
+- C++ 驱动/SDK：`ysc_8k_driver/`，其 `FROZEN.md` 说明冻结边界。
+- 旧 Rust 命名管道驱动：`ysc_8k_driver_rs/crates/ysc_driver/`，仅回归用。
+- 旧管道 `\\.\pipe\ysc_8k_driver` 的逐行 JSON 协议仍可用于回归，
+  但 Tauri 正式版不再使用该管道、也不启动 `ysc_8k_driver.exe`。

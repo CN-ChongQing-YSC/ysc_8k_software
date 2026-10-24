@@ -420,7 +420,7 @@ export default {
     how1: 'The physical mouse is always passthrough; the guard never modifies physical movement.',
     how2: 'Only software move commands are filtered (cmd 30/31, Makcu move, kmboxnet, SDK).',
     how3: 'When a command direction is opposite to the physical direction and the time since the last physical reversal is below the window, that axis is zeroed.',
-    how4: 'Same-direction commands, commands after >50ms of physical idle, and reverse commands after the window all pass.',
+    how4: 'Same-direction commands and reversals after the window pass; physical idle no longer releases the guard, and software-generated reversals obey the same window.',
     how5: 'Pending injection on the blocked axis is canceled (physical priority; injected displacement is no longer conserved).',
     how6: 'Buttons, wheel, keyboard, macros, jitter macro, and mouse curve are out of scope.',
     how7: 'Calibration needs HID upload on, the mouse line, and physical X/Y unmasked. Do not press buttons or run macros while calibrating.',

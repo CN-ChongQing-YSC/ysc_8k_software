@@ -8,8 +8,8 @@
  *  - 入站字节流由适配器内部用 FrameParser 还原为帧，再按内容分发为语义 DeviceEvent。
  */
 
-/** v2 towmcu 侧别（Left/Right/IAP），网页版经 cmd132 版本探测得出。 */
-export type TowmcuSide = '' | 'Left' | 'Right' | 'IAP';
+/** v2 towmcu 侧别（Left/Right/IAP）+ V3 YSC-V3，网页版经 cmd132 版本探测得出。 */
+export type TowmcuSide = '' | 'Left' | 'Right' | 'IAP' | 'V3';
 
 /** 一个可连接的端口描述。 */
 export interface PortInfo {

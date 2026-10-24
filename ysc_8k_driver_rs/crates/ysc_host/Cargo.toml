@@ -1,0 +1,19 @@
+[package]
+name = "ysc_host"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "YSC 8K 宿主核心：设备/命令/IAP/iap2/kmbox/guard/monitor（不含管道与托盘）"
+
+[lib]
+name = "ysc_host"
+path = "src/lib.rs"
+
+[dependencies]
+ysc_core = { path = "../ysc_core" }
+windows.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+base64.workspace = true
+once_cell.workspace = true

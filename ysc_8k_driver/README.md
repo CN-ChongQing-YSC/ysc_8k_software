@@ -1,5 +1,10 @@
 # ysc_8k_driver
 
+> **当前默认后端已换成 Rust 移植版**：`../ysc_8k_driver_rs/`。
+> 它保持完全相同的管道协议、可执行文件名与投放路径
+> (`work/Release/ysc_8k_driver.exe`)；本目录的 C++ 源码作为差分参照保留。
+> 构建/验证说明见 [`../ysc_8k_driver_rs/README.md`](../ysc_8k_driver_rs/README.md)。
+
 Win32 tray application (C++17 / VS 2019 v142 / x64) that owns **all** serial
 I/O for the YSC 8K host software. The Electron app (`../ysc_8k_electron/`)
 talks to it over a named pipe — it never opens a COM port directly.

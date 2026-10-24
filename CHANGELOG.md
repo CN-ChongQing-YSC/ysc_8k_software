@@ -1,11 +1,70 @@
 # 更新说明 (CHANGELOG)
 
-YSC 8K 上位机软件发布记录。版本号同时存在于 `ysc_8k_electron/package.json`
-与 `ysc_8k_driver/main.cpp`（驱动自报版本），发版时两处同步。
+YSC 8K 上位机软件发布记录。旧栈版本号存在于 `VERSION`、各 `package.json` 与
+`ysc_8k_electron/package.json`（冻结在 `1.17.0`）；Tauri 桌面端版本见
+`ysc_8k_tauri/package.json` / `tauri.conf.json`（`2.0.0`）。
+Rust 驱动在编译期读取 `VERSION` 自动上报；C++ 参照版仍需同步
+`ysc_8k_driver/main.cpp` 的 `get_version`。
 
 ---
 
 ## 未发布（Unreleased）
+
+- 无。
+
+## v2.0.0 — 2026-10-22
+
+### 桌面端迁移：Electron + C++ → 纯 Rust + Tauri v2 单 exe
+
+- 新增 `ysc_8k_tauri/`：Tauri v2 宿主 + WebView2，单进程/单 exe；
+  不再启动 Electron、Node、`ysc_8k_driver.exe` 子进程，不再使用命名管道。
+- 新增 `packages/ysc-ui/`：现有 YSC 桌面 UI 从 `ysc_8k_electron/src/renderer` 迁入；
+  `window.driverApi` 兼容层把旧管道命令/事件映射到 Tauri IPC，面板无需重写。
+- 新增 `ysc_8k_driver_rs/crates/ysc_host/`：`device` / `commands` / `iap` / `iap2` /
+  `kmbox` / `guard` / `monitor` 与宿主解耦，`HostSink`/`HostNotifier` 由 Tauri 实现；
+  旧 `ysc_driver` 管道二进制保留为回归薄壳。
+- 无边框窗口、托盘、单实例、文件对话框、窗口控制、桌面拖拽已接入；
+  Vite + Vue 3 + Pinia + `@ysc/core` store 正常驱动串口/监控面板。
+- 新增 V3 固件页 `firmware-v3` / `V3FirmwarePanel`：只列 `YSCV3-CDC`，
+  查询 `YSC-V3-IAP`/`YSC-V3-APP`，手动加密镜像升级，END 后等回 `YSC-V3-APP`；
+  真机已验证 `YSC-V3-IAP` 直刷和 APP→IAP→APP 两条升级路径，
+  最终回到 `YSC-V3-APP Oct 21 2026`。
+- 修复 V3「进入下载模式」等待过短：双片 3 阶段握手实测可达 10–20s，
+  宿主扫描窗口从 10s 放宽到 30s；失败时 UI 不再误报“已自动选中新串口”。
+- 新增 V3 启动自动烧录：exe 同目录 `v3_firmware.bin` 或
+  `--auto-flash-v3=<path>` 启用；启动后自动切到 V3 页，等待端口、先 probe 版本再
+  复用 `iap2::start_file` 完成 APP→IAP→烧录→回 APP；`--no-auto-flash` 可关闭。
+- 发布：`ysc_8k_tauri/tools/build.ps1` 产出 NSIS
+  `YSC_8K_Setup_2.0.0.exe`（5,615,816 B，sha256
+  `1ECC861D95174E054C651237EA09CBAFC0752F43EF0F93A4D6876770A1E22E82`）。
+- 旧 Electron/C++ 栈冻结在 `1.17.0`，只读回归；新功能只进 Tauri 栈。
+- 测试：`cargo test --workspace` 通过（ysc_core 17、ysc_host 10）；
+  `npm --prefix ysc_8k_tauri/web run typecheck` 通过；V3 真机升级两次成功；
+  发布版只运行 `ysc_8k_desktop.exe` 一个进程，无管道。
+
+### 后端 Rust 移植
+
+- 新增 `ysc_8k_driver_rs/`：把 C++ 驱动完整移植到 Rust（`windows` crate），
+  保持命名管道 `\\.\pipe\ysc_8k_driver`、逐行 JSON 事件与全部命令完全不变，
+  Electron / 网页版 / 示例无需改动。
+  - 覆盖：重叠串口 I/O、波特率探测/切换、双设备槽位与角色识别、监控聚合、
+    物理护栏、kmboxnet UDP 服务、v1/v2 固件升级、托盘/单实例/调试窗口/热插拔。
+  - `ysc_sdk.dll` 同步移植（x64 + x86，36 个 `Ysc_*` 导出），行为与错误文案对齐。
+  - 驱动版本改为编译期读取根 `VERSION`，不再需要手工改 `main.cpp`。
+  - 差分验证：管道 24 条命令、槽位、串口错误路径、kmnet 16 种 UDP 命令、
+    IAP 错误/擦除超时路径均与 C++ 参照驱动逐事件一致；Python SDK 测试 8 项全过；
+    Electron 实机启动并由 Rust 驱动填充端口列表。
+  - 构建：`ysc_8k_driver_rs/build.ps1`（投放到原 `work/Release` 与 `bin/...` 路径）。
+  - 详见 `ysc_8k_driver_rs/README.md`（含有意差异与真机验证边界）。
+
+### 构建修复
+
+- 修复 `ysc_8k_electron/src/renderer/i18n/docs/en.js` 中 Physical Guard 说明里的
+  未转义单引号（`software's`）导致 `vite build` / electron-builder 打包失败的问题。
+
+---
+
+## v1.17.0 — 2026-10-19
 
 ### 新增功能
 

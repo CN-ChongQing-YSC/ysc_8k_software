@@ -1,0 +1,19 @@
+{
+  "name": "@ysc/ui",
+  "version": "1.17.0",
+  "private": true,
+  "type": "module",
+  "description": "YSC 8K 桌面 UI（Tauri/Electron 共用；从 ysc_8k_electron/src/renderer 迁入）",
+  "exports": {
+    ".": "./src/index.ts",
+    "./App.vue": "./src/App.vue",
+    "./desktop-nav": "./src/desktop-nav.ts",
+    "./styles": "./src/styles/global.css"
+  },
+  "dependencies": {
+    "@ysc/core": "*",
+    "gsap": "^3.15.0",
+    "pinia": "^2.2.0",
+    "vue": "^3.4.0"
+  }
+}

@@ -1,0 +1,20 @@
+[package]
+name = "ysc_driver"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "YSC 8K 驱动（Rust 移植版）：托盘 + 命名管道 + 串口 + kmboxnet + 固件升级"
+
+[[bin]]
+name = "ysc_8k_driver"
+path = "src/main.rs"
+
+[dependencies]
+ysc_core = { path = "../ysc_core" }
+ysc_host = { path = "../ysc_host" }
+windows.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+base64.workspace = true
+once_cell.workspace = true
