@@ -166,7 +166,7 @@ python tools\iap_probe.py
 
 ### 3.6 YSC V3 接入
 
-Rust 驱动在不改前端契约的前提下接入 YSC V3（双 CH32V317，`YSC-V3-*` 身份串）：
+Rust 驱动在不改前端契约的前提下接入 YSC V3（双 MCU，`YSC-V3-*` 身份串）：
 
 - `ysc_core::family` 识别 `YSC-V3-APP <date>` / `YSC-V3-IAP` / 旧 `XFBOX-*`；
   `YSC-IAP` / `ysc-towmcu-*` 仍走 V2。

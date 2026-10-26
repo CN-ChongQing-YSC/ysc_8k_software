@@ -46,7 +46,7 @@ export const DESKTOP_NAV: NavGroup[] = [
     items: [
       { key: 'firmware', label: '固件更新 (v1)', icon: 'chip', desc: '单 MCU 串口固件升级' },
       { key: 'towmcu-firmware', label: '固件更新 (v2 双 MCU)', icon: 'dualchip', desc: '双 MCU USB-CDC 固件升级' },
-      { key: 'firmware-v3', label: '固件更新 (YSC V3)', icon: 'dualchip', desc: 'YSC V3 双 MCU 加密镜像升级' },
+      { key: 'firmware-v3', label: '固件更新 (YSC V3)', icon: 'dualchip', desc: 'YSC V3 加密镜像升级' },
     ],
   },
   {

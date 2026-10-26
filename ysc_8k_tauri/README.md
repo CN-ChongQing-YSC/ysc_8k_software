@@ -48,20 +48,31 @@ npm run build:tauri      # -> ysc_8k_tauri/release/YSC_8K_Setup_<ver>.exe
 
 侧栏「固件 → 固件更新 (YSC V3)」只显示 `side="V3"`（`YSCV3-CDC`）端口：
 
+> V1/V2/V3 在线固件共用同一台 `firmware_server`：V1 `ysc_v2_8k_mouse`、
+> V2 `ysc_towmcu_left/right`、V3 `ysc_v3_8k`。V1/V2 下载后会走既有的
+> `iap_start_mem` / `towmcu_start_mem` 烧录路径。
+
 - 查询版本：`YSC-V3-IAP` / `YSC-V3-APP <date>`，显示 IAP/APP 模式。
 - 「进入下载模式」：APP 下发送 cmd50；双片 3 阶段握手真机可能耗时 10–20s，
   宿主最多等待 30s，期间不要拔线。失败时 UI 会明确报错，不再误报已选中新串口。
-- 手动选择加密镜像后升级；V3 END 后等待 `YSC-V3-APP`，否则 `APP_NOT_BOOTED`。
-- 在线目录未发布时明确提示使用手动镜像，不静默失败。
+- 服务器在线目录：`https://ysc-order-2026.top/fwapi`，`deviceType=ysc_v3_8k`；
+  默认最新 `1.2.1`（69,800 B，SHA-256 `090D...A2F7`）。
+  `YSC_FW_BASE_URL` 可覆盖服务器地址（本地调试用）。
+- 「检查更新」拉取最新版本；「下载最新固件」下载到
+  `%APPDATA%\com.ysc.8k-driver\firmware-cache\`，校验 SHA-256 后写入文件路径。
+  有 V3 端口时按钮变为「下载并升级」，下载完成后自动开始升级。
+- 手动选择加密镜像仍保留，作为离线兜底；V3 END 后等待 `YSC-V3-APP`，否则 `APP_NOT_BOOTED`。
+- 下载/升级日志与进度共用现有 V3 日志区；服务器不可用时明确提示并回退手动文件。
 
 ### 启动自动烧录
 
 1. 把 V3 加密镜像命名为 `v3_firmware.bin`，放在 `ysc_8k_desktop.exe` 同目录；
    或启动参数 `--auto-flash-v3=<path>` 显式指定。
-2. 启动后自动切到 V3 页，等待 `YSCV3-CDC` 出现；端口就绪（能应答 cmd132）后
-   自动执行 APP→IAP→烧录→回 APP，日志/进度与手动升级一致。
+2. 启动后自动切到 V3 页，等待 `YSCV3-CDC` 出现；自动模式只烧**已经处于 IAP**
+   的设备，烧完回 APP 后继续等下一台。
 3. 端口刚枚举但设备未就绪时会等待重试，不会立刻报“无法与设备通信”。
 4. 自动模式会一直等待设备插入；不需要自动烧录时删掉文件或加 `--no-auto-flash`。
+5. 在线下载成功后同样写入 `filePath`，可直接开启自动烧录开关。
 
 真机验收记录：`YSC-V3-IAP` → 写入 `ysc_v3_8k_passthrough_app_encrypted.bin` →
 `YSC-V3-APP Oct 21 2026`；当前 APP 模式页面见 `docs/v3-release.png`。

@@ -1,8 +1,8 @@
 //! CDC 固件族识别。
 //!
 //! YSC 8K 现有两类 USB-CDC 固件：
-//!   * `Towmcu`  — 双 CH32V305 / towmcu 板，APP=`ysc-towmcu-L|R v1.0`，IAP=`YSC-IAP`
-//!   * `YscV3`   — YSC V3 双 CH32V317 板，APP=`YSC-V3-APP <date>`，IAP=`YSC-V3-IAP`
+//!   * `Towmcu`  — 双 MCU / towmcu 板，APP=`ysc-towmcu-L|R v1.0`，IAP=`YSC-IAP`
+//!   * `YscV3`   — YSC V3 双 MCU 板，APP=`YSC-V3-APP <date>`，IAP=`YSC-V3-IAP`
 //!
 //! 旧 XF Box 批次（`XFBOX-APP/XFBOX-IAP`）与 YSC V3 的升级流程完全相同，
 //! 这里作为 `YscV3` 的兼容别名，保证已烧旧身份串的板子也能被识别。
@@ -16,7 +16,7 @@
 pub enum CdcFamily {
     /// towmcu 双 MCU（V2）。
     Towmcu,
-    /// YSC V3 / 旧 XF Box 双 CH32V317。
+    /// YSC V3 / 旧 XF Box 双 MCU。
     YscV3,
 }
 

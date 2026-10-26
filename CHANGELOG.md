@@ -29,17 +29,29 @@ Rust 驱动在编译期读取 `VERSION` 自动上报；C++ 参照版仍需同步
   查询 `YSC-V3-IAP`/`YSC-V3-APP`，手动加密镜像升级，END 后等回 `YSC-V3-APP`；
   真机已验证 `YSC-V3-IAP` 直刷和 APP→IAP→APP 两条升级路径，
   最终回到 `YSC-V3-APP Oct 21 2026`。
+- 新增 V3 服务器在线固件：
+  - `firmware_server` 新增 `ysc_v3_8k` 设备类型，公开页 `/download/ysc_v3_8k`；
+  - 上传 `1.2.1` / `ysc_v3_8k_v1.2.1.bin`（69,800 B，SHA-256
+    `090DFA5A599B827720C00629245FF1C92C55CC9502C272F8D693B712E275A2F7`）；
+  - Tauri 驱动新增 Rust HTTP 固件服务（查询/下载/缓存/SHA-256）。
+- V1/V2 在线固件恢复：同一 `firmware_server` 上 `ysc_v2_8k_mouse`（v4.0）、
+  `ysc_towmcu_left`（v2.3）、`ysc_towmcu_right`（v1.7）均可检测、下载；
+  下载后经 `firmware-cache` 读取，走既有 `iap_start_mem` / `towmcu_start_mem` 烧录。
 - 修复 V3「进入下载模式」等待过短：双片 3 阶段握手实测可达 10–20s，
   宿主扫描窗口从 10s 放宽到 30s；失败时 UI 不再误报“已自动选中新串口”。
 - 新增 V3 启动自动烧录：exe 同目录 `v3_firmware.bin` 或
   `--auto-flash-v3=<path>` 启用；启动后自动切到 V3 页，等待端口、先 probe 版本再
   复用 `iap2::start_file` 完成 APP→IAP→烧录→回 APP；`--no-auto-flash` 可关闭。
 - 发布：`ysc_8k_tauri/tools/build.ps1` 产出 NSIS
-  `YSC_8K_Setup_2.0.0.exe`（5,615,816 B，sha256
-  `1ECC861D95174E054C651237EA09CBAFC0752F43EF0F93A4D6876770A1E22E82`）。
+  `YSC_8K_Setup_2.0.0.exe`（6,250,610 B，sha256
+  `0405C08D2DA016049417AD86DF5328D78BFB832A64FB9375C866216725F78C5D`）。
+- 清理 V3 固件说明/驱动文案中的芯片型号字样；服务器 V3 releaseNotes 已更新，
+  V3 导航描述改为「YSC V3 加密镜像升级」。
 - 旧 Electron/C++ 栈冻结在 `1.17.0`，只读回归；新功能只进 Tauri 栈。
 - 测试：`cargo test --workspace` 通过（ysc_core 17、ysc_host 10）；
+  `cargo test`（Tauri firmware 3 项）通过；
   `npm --prefix ysc_8k_tauri/web run typecheck` 通过；V3 真机升级两次成功；
+  服务器 V3 `latest`/下载/页面校验通过；V1/V2 latest 未变。
   发布版只运行 `ysc_8k_desktop.exe` 一个进程，无管道。
 
 ### 后端 Rust 移植

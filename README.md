@@ -53,11 +53,12 @@ cargo test --workspace
 
 - 查询 `YSC-V3-IAP` / `YSC-V3-APP <date>`，显示 IAP/APP 模式。
 - APP 下可「进入下载模式」，双片握手最长等待 30s。
-- 手动选择 V3 加密镜像（AES 密钥 `YSC_V3_8K_2026`）升级；
+- 服务器在线目录：`https://ysc-order-2026.top/fwapi`，`deviceType=ysc_v3_8k`，
+  当前最新 `1.2.1`（69,800 B）；Tauri 页可检查、下载、SHA-256 校验后升级。
+- 手动选择 V3 加密镜像（AES 密钥 `YSC_V3_8K_2026`）仍保留；
   END 后必须等回 `YSC-V3-APP`，否则报 `APP_NOT_BOOTED`。
-- 在线目录暂未发布，页面明确提示使用手动镜像。
 - 启动自动烧录：exe 同目录放 `v3_firmware.bin`，或传
-  `--auto-flash-v3=<path>`；端口就绪后自动完成升级，详见
+  `--auto-flash-v3=<path>`；自动模式只烧处于 IAP 的设备，详见
   [`ysc_8k_tauri/README.md`](ysc_8k_tauri/README.md)。
 
 真机验收：`YSC-V3-IAP` → 写入 `ysc_v3_8k_passthrough_app_encrypted.bin` →

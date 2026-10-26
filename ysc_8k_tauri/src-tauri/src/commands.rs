@@ -1,5 +1,6 @@
 use serde::Serialize;
 use serde_json::Value;
+use std::sync::atomic::Ordering;
 use tauri::{AppHandle, State, WebviewWindow};
 
 use crate::state::TauriState;
@@ -52,9 +53,19 @@ pub fn ysc_auto_flash_info(state: State<'_, TauriState>) -> Option<String> {
 }
 
 /// 前端已切到 V3 页并装好事件监听后调用；后台等待 V3 端口并自动烧录。
+/// `path` 省略时用启动时解析到的默认镜像（exe 同目录 v3_firmware.bin）。
 #[tauri::command]
-pub fn ysc_auto_flash_start(state: State<'_, TauriState>) -> bool {
-    let Some(path) = state.auto_flash.clone() else {
+pub fn ysc_auto_flash_start(state: State<'_, TauriState>, path: Option<String>) -> bool {
+    // 优先级：UI 传进来的路径 > 启动时解析的路径 > exe 同目录 v3_firmware.bin。
+    // 最后一条让"用 --no-auto-flash 启动后，再从开关打开"也能工作。
+    let path = path.or_else(|| state.auto_flash.clone()).or_else(|| {
+        std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|d| d.join("v3_firmware.bin")))
+            .filter(|p| p.is_file())
+            .map(|p| p.to_string_lossy().into_owned())
+    });
+    let Some(path) = path else {
         return false;
     };
 
@@ -75,8 +86,27 @@ pub fn ysc_auto_flash_start(state: State<'_, TauriState>) -> bool {
         )),
     );
 
-    crate::auto_flash::spawn(std::sync::Arc::clone(&state.app), path);
+    state.auto_cancel.store(false, Ordering::Release);
+    crate::auto_flash::spawn(
+        std::sync::Arc::clone(&state.app),
+        path,
+        std::sync::Arc::clone(&state.auto_cancel),
+        std::sync::Arc::clone(&state.auto_running),
+    );
     true
+}
+
+/// 关掉"自动烧录"开关：让后台循环在下一轮退出。
+#[tauri::command]
+pub fn ysc_auto_flash_stop(state: State<'_, TauriState>) -> bool {
+    state.auto_cancel.store(true, Ordering::Release);
+    true
+}
+
+/// 自动烧录线程是否还在等设备（UI 用来显示"等待插入/已停止"）。
+#[tauri::command]
+pub fn ysc_auto_flash_status(state: State<'_, TauriState>) -> bool {
+    state.auto_running.load(Ordering::Acquire)
 }
 
 #[tauri::command]

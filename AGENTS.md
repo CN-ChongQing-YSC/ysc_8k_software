@@ -50,16 +50,19 @@ Rust Tauri 宿主 (ysc_8k_tauri/src-tauri)
 
 ## 2. YSC V3 硬件 / 固件（已落地）
 
-- 硬件工程：`D:\project\ysc_project\ysc_v3_8k_passthrough`（双 CH32V317，IAP+APP）。
-- IAP AES 密钥：`YSC_V3_8K_2026`；旧密钥 `XF_V317_2026`。
+- 硬件工程：`D:\project\ysc_project\ysc_v3_8k_passthrough`（双 MCU，IAP+APP）。
+- IAP AES 密钥：`YSC_V3_8K_2026`（V3 专用）。
 - 对外身份：APP `YSC-V3-APP <date>`、IAP `YSC-V3-IAP`、CDC 序列号 `YSCV3-CDC`。
 - Rust 驱动已接入 V3：`ysc_core::family` 识别版本串，`enumerate` 标 `side="V3"`，
   `iap2` 按 V2/V3 自动分派；V3 END 后必须等回 `YSC-V3-APP`，否则 `APP_NOT_BOOTED`。
 - V3 灯效：IAP 紫罗兰脉冲（`violet_pulse_table`，25ms/步，1.6s 周期），
   已在 `releases/ysc_v3_8k_passthrough_iap.hex` 验证。
+- **V3 OTA 目录（2026-10-24 已上线）**：`https://ysc-order-2026.top/fwapi`，
+  `deviceType=ysc_v3_8k`，最新 `1.2.1`（`ysc_v3_8k_v1.2.1.bin`，69,800 B，
+  sha256 `090DFA5A599B827720C00629245FF1C92C55CC9502C272F8D693B712E275A2F7`）。
 - **Tauri 固件更新页必须包含 V3 板块**：`firmware-v3` / `V3FirmwarePanel`，
-  只显示 `side="V3"` 端口，查询 `YSC-V3-IAP/APP`，手动加密镜像升级，
-  等待 `YSC-V3-APP`；在线目录暂未发布时显示“暂无/使用手动文件”。
+  只显示 `side="V3"` 端口，查询 `YSC-V3-IAP/APP`；支持服务器检查/下载并校验后升级，
+  也保留手动加密镜像；等待 `YSC-V3-APP`。`YSC_FW_BASE_URL` 可覆盖服务器地址。
 - **进入下载模式是双片 3 阶段握手，真机可能耗时 10–20s**：宿主扫描窗口已放宽到
   30s，失败时 UI 不再误报“已自动选中新串口”。测试时请耐心等待，不要 10s 内拔线。
 - **启动自动烧录（2026-10-24）**：exe 同目录放 `v3_firmware.bin`，或启动参数
@@ -85,6 +88,10 @@ npm run build:app:dir     # 只出目录
 npm run build:app         # NSIS 安装包
 ```
 
+固件服务器（`D:\project\ysc_project\firmware_server`）：
+`.\gradlew.bat bootJar` → `python deploy\deploy_to_server.py`；
+发布固件用 `deploy\publish_firmware.py`，V3 设备类型 `ysc_v3_8k`。
+
 发布规则仍见 `CLAUDE.md`：安装包只走 GitHub Releases，附件名
 `YSC_8K_Setup_<version>.exe`，不提交进 git。
 
@@ -96,16 +103,17 @@ npm run build:app         # NSIS 安装包
 - [x] M3 in-process 宿主 + UI 接线（串口/监控/面板）
 - [x] M4 V3 固件页 + 真机升级（IAP 直刷、APP→IAP→APP 两条路径均已验证）
 - [x] M4.1 启动自动烧录（自动端口/版本探测，复用 IAP；`--auto-flash-v3` 或同名固件）
-- [ ] M5 功能补齐（CH343 提权安装 / 在线固件 / PDF 静默导出 / V1-V2 回归）
-- [x] M6 首个 Tauri 发布包：`ysc_8k_tauri/release/YSC_8K_Setup_2.0.0.exe`
-  （5,615,816 B，sha256 `1ECC861D95174E054C651237EA09CBAFC0752F43EF0F93A4D6876770A1E22E82`；
-  单 exe，无子进程/管道）
+- [ ] M5 功能补齐（CH343 提权安装 / PDF 静默导出 / V1-V2 硬件回归；V1/V2/V3 在线固件已完成）
+- [x] M6 最新 Tauri 发布包：`ysc_8k_tauri/release/YSC_8K_Setup_2.0.0.exe`
+  （6,250,610 B，sha256 `0405C08D2DA016049417AD86DF5328D78BFB832A64FB9375C866216725F78C5D`；
+  单 exe，无子进程/管道；V1/V2/V3 在线固件、已移除固件型号字样）
 
 ## 5. 已知边界
 
-- V3 在线版本目录尚未发布：先手动加密镜像，不阻塞烧录；V3 页已显示提示。
+- V1/V2/V3 在线固件都走同一台 `firmware_server`（`ysc_v2_8k_mouse` /
+  `ysc_towmcu_left/right` / `ysc_v3_8k`）；离线仍可手动选择加密镜像。
 - PDF 导出在 Tauri 首版仍返回“暂未接入”；后续用 WebView2 PrintToPdf 或系统打印。
-- CH343 提权安装 / 在线固件下载尚未迁入 Tauri（UI 有明确定位，后续补）。
+- CH343 提权安装尚未迁入 Tauri；V1/V2/V3 在线下载已完成。
 - Tauri 依赖 WebView2；NSIS 使用 `downloadBootstrapper`，离线环境需预装。
 - Windows-only；不迁移 Linux/macOS。
 - 旧 Electron 在当前终端环境可能受 `ELECTRON_RUN_AS_NODE=1` 影响；仅回归时清掉该变量，

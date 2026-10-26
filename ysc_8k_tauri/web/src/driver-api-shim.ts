@@ -10,6 +10,7 @@ interface PickedFile {
 }
 
 const handlers = new Map<string, Set<Handler>>();
+const downloadedFirmwarePaths = new Map<string, string>();
 let tauriUnlisten: (() => void) | null = null;
 let listenerStarting = false;
 
@@ -98,12 +99,34 @@ function send(type: string, params?: Record<string, unknown>): void {
     return;
   }
 
-  // 在线固件下载缓存尚未接入；先给出明确日志，避免静默失败。
+  // V1/V2/V3 的在线下载都把文件缓存在本地；这里把缓存转成宿主
+  // iap_start_mem / towmcu_start_mem 需要的 base64，再走既有 IAP 状态机。
   if (type === 'iap_start_mem' || type === 'towmcu_start_mem') {
-    emitLocal(type === 'iap_start_mem' ? 'iap_log' : 'iap2_log', {
-      message: '在线固件缓存尚未接入 Tauri 版，请使用“手动选择文件”升级',
-      cls: 'err',
-    });
+    const p = params || {};
+    const deviceType = String(p.deviceType || '');
+    const path = downloadedFirmwarePaths.get(deviceType);
+    const logEvent = type === 'iap_start_mem' ? 'iap_log' : 'iap2_log';
+    if (!path) {
+      emitLocal(logEvent, {
+        message: '未找到在线固件缓存，请先点击“检查更新/下载”后再升级',
+        cls: 'err',
+      });
+      return;
+    }
+    void invoke<string>('ysc_firmware_read_base64', { path })
+      .then((data) => {
+        if (type === 'iap_start_mem') {
+          fire('iap_start_mem', { data, baud: p.baud });
+        } else {
+          fire('towmcu_start_mem', { port: p.port, data });
+        }
+      })
+      .catch((e) => {
+        emitLocal(logEvent, {
+          message: '读取在线固件缓存失败: ' + String(e),
+          cls: 'err',
+        });
+      });
     return;
   }
 
@@ -141,6 +164,26 @@ async function openV3File(): Promise<PickedFile | null> {
   return pickFile('选择 YSC V3 加密固件 (.bin)');
 }
 
+async function setAutoFlash(on: boolean, path?: string): Promise<boolean> {
+  try {
+    if (on) {
+      return await invoke<boolean>('ysc_auto_flash_start', { path: path ?? null });
+    }
+    return await invoke<boolean>('ysc_auto_flash_stop');
+  } catch (e) {
+    console.error('[driver-api-shim] setAutoFlash failed', e);
+    return false;
+  }
+}
+
+async function getAutoFlashStatus(): Promise<boolean> {
+  try {
+    return await invoke<boolean>('ysc_auto_flash_status');
+  } catch {
+    return false;
+  }
+}
+
 async function getAppVersion(): Promise<string> {
   try {
     return await invoke<string>('ysc_get_version');
@@ -165,22 +208,66 @@ async function setLang(lang: 'zh' | 'en'): Promise<void> {
   }
 }
 
-// 在线固件服务：先占位，后续移植 firmware-service.ts。
-async function checkFirmwareLatest(_deviceType: string): Promise<any> {
-  return null;
+// 在线固件服务：同一台 firmware_server，按 deviceType 区分 V1/V2/V3。
+async function checkFirmwareLatest(deviceType: string): Promise<any> {
+  try {
+    return await invoke<any>('ysc_firmware_latest', { deviceType });
+  } catch (e) {
+    console.error('[driver-api-shim] firmware latest failed', e);
+    return null;
+  }
 }
-async function listFirmwareVersions(_deviceType: string): Promise<any[]> {
-  return [];
+
+async function listFirmwareVersions(deviceType: string): Promise<any[]> {
+  try {
+    return await invoke<any[]>('ysc_firmware_list', { deviceType });
+  } catch (e) {
+    console.error('[driver-api-shim] firmware list failed', e);
+    return [];
+  }
 }
+
 async function downloadFirmware(info: any): Promise<void> {
-  emitLocal('firmware:download_done', {
-    deviceType: info?.deviceType,
-    success: false,
-    error: '在线固件下载尚未接入 Tauri 版，请使用手动文件',
-  });
+  if (!info || !info.deviceType || !info.filename) {
+    emitLocal('firmware:download_done', {
+      deviceType: info?.deviceType,
+      success: false,
+      error: '固件信息不完整，无法下载',
+    });
+    return;
+  }
+  try {
+    const result = await invoke<any>('ysc_firmware_download', { info });
+    if (!result || !result.path) {
+      throw new Error('下载未返回缓存路径');
+    }
+    downloadedFirmwarePaths.set(info.deviceType, result.path);
+    emitLocal('firmware:download_done', {
+      deviceType: info.deviceType,
+      success: true,
+      info: result.info,
+      path: result.path,
+      version: result.version,
+      filename: result.filename,
+      size: result.size,
+      sha256: result.sha256,
+    });
+  } catch (e) {
+    console.error('[driver-api-shim] firmware download failed', e);
+    emitLocal('firmware:download_done', {
+      deviceType: info.deviceType,
+      success: false,
+      error: String(e),
+      version: info.version,
+      filename: info.filename,
+    });
+  }
 }
-function recordFirmwareInstalled(_deviceType: string, _version: string): void {
-  /* no-op until firmware service lands */
+
+function recordFirmwareInstalled(deviceType: string, version: string): void {
+  void invoke('ysc_firmware_record_installed', { deviceType, version }).catch((e) => {
+    console.error('[driver-api-shim] record installed failed', e);
+  });
 }
 
 async function exportPdf(_html: string, _filename?: string): Promise<{
@@ -205,6 +292,10 @@ export interface DriverApi {
   openIAPFile(): Promise<PickedFile | null>;
   openTowmcuFile(side: 'left' | 'right'): Promise<PickedFile | null>;
   openV3File(): Promise<PickedFile | null>;
+  /** 自动烧录开关（V3 页）：on=true 开始等设备插入，=false 停止。 */
+  setAutoFlash(on: boolean, path?: string): Promise<boolean>;
+  /** 自动烧录线程是否还在等设备。 */
+  getAutoFlashStatus(): Promise<boolean>;
   checkFirmwareLatest(deviceType: string): Promise<any>;
   listFirmwareVersions(deviceType: string): Promise<any[]>;
   downloadFirmware(info: any): Promise<void>;
@@ -234,6 +325,8 @@ export function installTauriDriverApi(): void {
     openIAPFile,
     openTowmcuFile,
     openV3File,
+    setAutoFlash,
+    getAutoFlashStatus,
     checkFirmwareLatest,
     listFirmwareVersions,
     downloadFirmware,

@@ -291,7 +291,20 @@ fn prepare_iap_port(
 // ---------------------------------------------------------------------------
 
 fn query_version_on_port(port: &str) -> String {
-    query_version_on_port_timeout(port, VERSION_TIMEOUT_MS)
+    // 单发一枪容易被"设备刚复位 / CDC 刚枚举 / 驱动还没就绪"吃掉。
+    // 2026-10-24 真机教训：固件应答帧正好是 64B 整数倍时主机读请求永不完成，
+    // 表现为"查版本必然失败"，而上层据此连 cmd50 都不发 —— 一次丢帧被放大
+    // 成"永远进不了下载模式"。这里给第二次机会，仍失败才返回空串。
+    for attempt in 0..2 {
+        let v = query_version_on_port_timeout(port, VERSION_TIMEOUT_MS);
+        if !v.is_empty() {
+            return v;
+        }
+        if attempt == 0 {
+            thread::sleep(Duration::from_millis(200));
+        }
+    }
+    String::new()
 }
 
 /// 自动烧录/诊断用：查询一次端口版本，空串表示端口未就绪或无响应。
@@ -945,10 +958,18 @@ fn run_iap_sequence(app: &App, iap_port: &str, firmware: &[u8], notify_success: 
         );
     }
 
-    // END（无应答）
+    // END（无应答）——**必须重发**：IAP 收到 END 才做双片联合判决跳 APP，
+    // 丢一帧就永远停在 IAP。2026-10-24 真机：同一状态/同一镜像，python 脚本
+    // 发一次就跳（0.7s），驱动只发一次却不跳 → 设备留在 IAP，自动烧录于是
+    // 反复重烧。这里连发 3 次、间隔 300ms；设备跳走后后续写会失败，无所谓。
     send_log(app, "发送结束命令 ...", "");
     let end = build_iap_frame(CMD_END, &[]);
-    let _ = sync_write(h, &end, 2000);
+    for attempt in 0..3 {
+        let _ = sync_write(h, &end, 2000);
+        if attempt < 2 {
+            thread::sleep(Duration::from_millis(300));
+        }
+    }
 
     reader.stop();
     close_sync(h);
@@ -1006,12 +1027,23 @@ pub fn enter_iap(app: Arc<App>, port: String) {
         .spawn(move || {
             let ver = query_version_on_port(&port);
             if ver.is_empty() {
-                send_log(&app, "查询版本失败 — 设备无响应", "err");
-                app.send_event("iap_entered", Some("\"port\":\"\""));
-                return;
+                // 版本查不到 ≠ 设备不在。可能只是这一枪丢了（固件应答是 64B
+                // 整数倍、CDC 刚枚举、驱动缓冲没就绪）。继续发 cmd50：它是幂等
+                // 的 —— 设备已在 IAP 时 cmd50 无人应答，后面按端口扫描仍能找到。
+                send_log(
+                    &app,
+                    "查询版本无响应 — 仍尝试发送 cmd50（查不到版本不等于进不去）",
+                    "warn",
+                );
             }
-            let family = family_of_version(&ver);
-            if is_iap_version(&ver) {
+            // 端口来自 V3 面板（side=="V3"）；拿不到版本时按 YSC V3 处理，
+            // 否则 family=None 会让 prepare_iap_port 直接判"无法识别的固件族"。
+            let family = if ver.is_empty() {
+                Some(CdcFamily::YscV3)
+            } else {
+                family_of_version(&ver)
+            };
+            if !ver.is_empty() && is_iap_version(&ver) {
                 send_log(
                     &app,
                     &format!("设备已在 IAP: {} ({})", ver, family_name(family)),

@@ -33,6 +33,35 @@
       </div>
 
       <div class="firmware-section">
+        <div class="firmware-label">{{ t('firmwareV3.onlineTitle') }}</div>
+        <div class="firmware-file-row">
+          <button class="btn" @click="checkOnline" :disabled="onlineChecking || busy || downloading">
+            {{ onlineChecking ? t('firmwareUpdate.checking') : t('firmwareUpdate.checkBtn') }}
+          </button>
+          <span class="v3-note" v-if="onlineLatest">
+            v{{ onlineLatest.version }} · {{ formatSize(onlineLatest.size) }}
+            <template v-if="onlineLatest.releaseDate"> · {{ onlineLatest.releaseDate }}</template>
+          </span>
+        </div>
+        <div class="firmware-file-info" v-if="onlineLatest">
+          <b>{{ onlineLatest.filename }}</b>
+          <span class="v3-mode-pill" :class="{ 'is-app': !onlineLatest.isNewer }">
+            {{ onlineLatest.isNewer ? t('firmwareV3.onlineNew') : t('firmwareUpdate.alreadyInstalled') }}
+          </span>
+        </div>
+        <div class="v3-note" v-if="onlineLatest && onlineLatest.releaseNotes">{{ onlineLatest.releaseNotes }}</div>
+        <div class="firmware-actions" v-if="onlineLatest">
+          <button class="btn btn-accent" @click="downloadAndUpgrade(onlineLatest)" :disabled="!canOnline">
+            {{ downloading ? t('firmwareUpdate.downloading') : (selectedPort ? t('firmwareUpdate.cta') : t('firmwareV3.downloadLatest')) }}
+          </button>
+        </div>
+        <div class="firmware-progress-bar" v-if="downloading">
+          <div class="firmware-progress-fill" :style="{ width: downloadPct + '%' }"></div>
+        </div>
+        <div class="v3-note" v-if="onlineError">{{ onlineError }}</div>
+      </div>
+
+      <div class="firmware-section">
         <div class="firmware-label">{{ t('firmwareV3.file') }}</div>
         <div class="firmware-file-row">
           <input class="input-text firmware-file-input" :value="filePath" :placeholder="t('firmware.filePlaceholder')" readonly />
@@ -47,6 +76,20 @@
           {{ busy ? t('firmwareV3.startPending') : t('firmwareV3.start') }}
         </button>
         <button class="btn" v-if="busy" @click="cancel">{{ t('towmcu.cancel') }}</button>
+      </div>
+
+      <!-- 自动烧录开关：之前只有"exe 同目录放 v3_firmware.bin 就静默开启"，UI 无处可关 -->
+      <div class="firmware-actions v3-auto-row">
+        <button
+          class="btn v3-auto-btn"
+          :class="{ 'btn-accent': autoOn }"
+          :disabled="autoBusy || !autoSupported"
+          @click="toggleAuto"
+        >
+          <span class="v3-auto-dot" :class="{ on: autoOn }"></span>
+          {{ autoOn ? t('firmwareV3.autoOn') : t('firmwareV3.autoOff') }}
+        </button>
+        <span class="v3-note">{{ autoOn ? t('firmwareV3.autoHintOn') : t('firmwareV3.autoHintOff') }}</span>
       </div>
 
       <div class="firmware-section" v-if="showProgress">
@@ -97,13 +140,29 @@ const progressPct = ref(0);
 const progressStatus = ref('');
 const logs = ref([]);
 const appNotBooted = ref(false);
+const autoOn = ref(false);
+const autoBusy = ref(false);
+const autoSupported = computed(() => !!(api && typeof api.setAutoFlash === 'function'));
 const logContainer = ref(null);
+
+const V3_DEVICE_TYPE = 'ysc_v3_8k';
+const onlineChecking = ref(false);
+const onlineChecked = ref(false);
+const onlineLatest = ref(null);
+const onlineVersions = ref([]);
+const onlineError = ref('');
+const downloading = ref(false);
+const downloadPct = ref(0);
+const downloadInfo = ref('');
+const pendingVersion = ref('');
+let autoUpgradeAfterDownload = false;
 
 let portTimer = null;
 const cleanups = [];
 
 const canSelectPort = computed(() => !!selectedPort.value && !busy.value);
 const canStart = computed(() => !!selectedPort.value && !!filePath.value && !busy.value);
+const canOnline = computed(() => !busy.value && !downloading.value);
 const showProgress = computed(() => busy.value || progressPct.value > 0);
 const modeLabel = computed(() => {
   if (mode.value === 'IAP') return t('firmwareV3.modeIap');
@@ -139,6 +198,60 @@ function normalizeVersion(raw) {
     /* not JSON */
   }
   return s;
+}
+
+function formatSize(bytes) {
+  const n = Number(bytes || 0);
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+  return (n / 1024 / 1024).toFixed(2) + ' MB';
+}
+
+async function checkOnline() {
+  if (!api || onlineChecking.value || busy.value || downloading.value) return;
+  onlineChecking.value = true;
+  onlineError.value = '';
+  try {
+    const [latest, versions] = await Promise.all([
+      api.checkFirmwareLatest(V3_DEVICE_TYPE).catch(() => null),
+      api.listFirmwareVersions(V3_DEVICE_TYPE).catch(() => []),
+    ]);
+    onlineLatest.value = latest || null;
+    onlineVersions.value = versions || [];
+    onlineChecked.value = true;
+    if (latest) {
+      addLog(
+        t('firmwareV3.onlineFound', {
+          version: latest.version,
+          size: formatSize(latest.size),
+        }),
+        'info',
+      );
+    } else {
+      onlineError.value = t('firmwareV3.onlineUnavailable');
+      addLog(onlineError.value, 'warn');
+    }
+  } catch (e) {
+    onlineError.value = t('firmwareV3.onlineUnavailable');
+    addLog(String(e && e.message ? e.message : e), 'err');
+  } finally {
+    onlineChecking.value = false;
+  }
+}
+
+function downloadAndUpgrade(ver) {
+  if (!api || !ver || downloading.value || busy.value) return;
+  const willUpgrade = !!selectedPort.value;
+  pendingVersion.value = ver.version;
+  autoUpgradeAfterDownload = willUpgrade;
+  downloading.value = true;
+  downloadPct.value = 0;
+  downloadInfo.value = '';
+  addLog(
+    t('firmwareUpdate.downloading') + ' v' + ver.version + ' — ' + ver.filename,
+    'info',
+  );
+  api.downloadFirmware(ver);
 }
 
 function refreshPorts() {
@@ -191,10 +304,37 @@ function cancel() {
   api.send('towmcu_cancel');
 }
 
+/** 同步后端的自动烧录状态（启动时可能是"exe 同目录有 bin"静默开启的）。 */
+async function syncAutoStatus() {
+  if (!autoSupported.value) return;
+  try {
+    autoOn.value = await api.getAutoFlashStatus();
+  } catch {
+    /* ignore */
+  }
+}
+
+async function toggleAuto() {
+  if (!autoSupported.value || autoBusy.value) return;
+  autoBusy.value = true;
+  try {
+    const next = !autoOn.value;
+    const ok = await api.setAutoFlash(next, filePath.value || undefined);
+    if (ok) {
+      autoOn.value = next;
+      addLog(next ? t('firmwareV3.autoHintOn') : t('firmwareV3.autoHintOff'), next ? 'info' : 'warn');
+    }
+  } finally {
+    autoBusy.value = false;
+  }
+}
+
 onMounted(() => {
   addLog(t('firmwareV3.logReady'), 'info');
   refreshPorts();
   portTimer = setInterval(refreshPorts, 1000);
+  void syncAutoStatus();
+  void checkOnline();
 
   listen('towmcu_ports', (data) => {
     const list = (data.ports || []).filter(
@@ -211,7 +351,36 @@ onMounted(() => {
     if (!data.path) return;
     filePath.value = data.path;
     fileInfo.value = data.info || '';
+    autoOn.value = true;              // 后端真的开了自动烧录，开关跟着亮
     addLog(t('firmwareV3.logSelected', { info: data.info || data.path }), 'info');
+  });
+
+  listen('firmware:download_progress', (data) => {
+    downloadPct.value = Number(data.percent || 0);
+    downloadInfo.value =
+      formatSize(data.received || 0) + ' / ' + formatSize(data.total || 0);
+  });
+
+  listen('firmware:download_done', (data) => {
+    downloading.value = false;
+    if (data && data.success && data.path) {
+      filePath.value = data.path;
+      fileInfo.value = data.info || downloadInfo.value;
+      downloadPct.value = 100;
+      addLog(t('firmwareUpdate.downloadDone'), 'ok');
+      if (autoUpgradeAfterDownload) {
+        autoUpgradeAfterDownload = false;
+        start();
+      } else {
+        addLog(t('firmwareV3.downloadedNeedPort'), 'info');
+      }
+    } else {
+      autoUpgradeAfterDownload = false;
+      addLog(
+        t('firmwareUpdate.downloadFailed', { error: (data && data.error) || 'unknown' }),
+        'err',
+      );
+    }
   });
 
   listen('towmcu_version', (data) => {
@@ -249,6 +418,10 @@ onMounted(() => {
       progressPct.value = 100;
       progressStatus.value = t('firmwareV3.logDone');
       addLog(t('firmwareV3.logDone'), 'ok');
+      if (pendingVersion.value) {
+        api.recordFirmwareInstalled(V3_DEVICE_TYPE, pendingVersion.value);
+        pendingVersion.value = '';
+      }
       setTimeout(queryVersion, 800);
     } else {
       const err = data.error || data.code || 'unknown';
@@ -258,6 +431,7 @@ onMounted(() => {
       }
     }
     portTimer = setInterval(refreshPorts, 1000);
+    void syncAutoStatus();          // 自动烧录交棒后线程已退出，开关回到关
   });
 });
 
@@ -292,6 +466,27 @@ onUnmounted(() => {
   color: var(--text-dim);
   font-size: 11px;
   line-height: 1.6;
+}
+.v3-auto-row {
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+.v3-auto-row .v3-note {
+  margin-top: 0;
+  flex: 1;
+}
+.v3-auto-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 6px;
+  background: var(--text-dim);
+}
+.v3-auto-dot.on {
+  background: #4ade80;
+  box-shadow: 0 0 6px rgba(74, 222, 128, 0.8);
 }
 .v3-warn {
   border: 1px solid rgba(255, 200, 87, 0.35);

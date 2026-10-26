@@ -2,6 +2,7 @@
 
 mod auto_flash;
 mod commands;
+mod firmware;
 mod host_loop;
 mod notifier;
 mod sink;
@@ -93,6 +94,8 @@ pub fn run() {
             app.manage(TauriState {
                 app: Arc::clone(&host),
                 auto_flash,
+                auto_cancel: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+                auto_running: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             });
 
             host_loop::spawn(handle.clone(), host, rx);
@@ -141,6 +144,14 @@ pub fn run() {
             commands::ysc_driver_send,
             commands::ysc_auto_flash_info,
             commands::ysc_auto_flash_start,
+            commands::ysc_auto_flash_stop,
+            commands::ysc_auto_flash_status,
+            firmware::ysc_firmware_latest,
+            firmware::ysc_firmware_list,
+            firmware::ysc_firmware_download,
+            firmware::ysc_firmware_read_base64,
+            firmware::ysc_firmware_record_installed,
+            firmware::ysc_firmware_installed,
             commands::ysc_set_lang,
             commands::ysc_window_minimize,
             commands::ysc_window_toggle_maximize,
