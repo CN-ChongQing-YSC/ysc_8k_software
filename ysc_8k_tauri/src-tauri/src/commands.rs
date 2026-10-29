@@ -1,7 +1,10 @@
 use serde::Serialize;
 use serde_json::Value;
 use std::sync::atomic::Ordering;
-use tauri::{AppHandle, State, WebviewWindow};
+use tauri::{
+    AppHandle, Manager, PhysicalPosition, PhysicalSize, State, WebviewUrl, WebviewWindow,
+    WebviewWindowBuilder,
+};
 
 use crate::state::TauriState;
 
@@ -9,6 +12,90 @@ use crate::state::TauriState;
 pub struct PickedFile {
     pub path: String,
     pub info: String,
+}
+
+/// 手柄测试器独立窗口的几何：优先放在主窗口右侧；空间不够时贴到当前显示器右缘。
+fn gamepad_tester_geom(app: &AppHandle) -> (f64, f64, f64, f64) {
+    const TW: f64 = 560.0;
+    let Some(main) = app.get_webview_window("main") else {
+        return (120.0, 120.0, TW, 800.0);
+    };
+    let scale = main.scale_factor().unwrap_or(1.0);
+    let pos = main
+        .outer_position()
+        .unwrap_or(PhysicalPosition::new(120, 120));
+    let size = main
+        .outer_size()
+        .unwrap_or(PhysicalSize::new(1280, 820));
+    let mut x = (pos.x as f64 + size.width as f64) / scale + 8.0;
+    let mut y = pos.y as f64 / scale;
+    let mut h = size.height as f64 / scale;
+
+    if let Ok(Some(mon)) = main.current_monitor() {
+        let ms = mon.scale_factor();
+        let mp = mon.position();
+        let msz = mon.size();
+        let left = mp.x as f64 / ms + 8.0;
+        let top = mp.y as f64 / ms + 8.0;
+        let right = (mp.x as f64 + msz.width as f64) / ms - 8.0;
+        let bottom = (mp.y as f64 + msz.height as f64) / ms - 8.0;
+        if x + TW > right {
+            x = (right - TW).max(left);
+        }
+        if x < left {
+            x = left;
+        }
+        if y < top {
+            y = top;
+        }
+        if y + h > bottom {
+            h = (bottom - y).max(560.0);
+        }
+    }
+    (x, y, TW, h.max(560.0))
+}
+
+/// 打开/聚焦右侧的手柄测试器独立窗口。
+///
+/// 必须是 async 命令：同步命令跑在主线程上，而建窗/查询窗口几何都要回调主线程，
+/// 会互相等待死锁（表现为 invoke 永不返回、窗口也出不来）。
+#[tauri::command]
+pub async fn ysc_gamepad_tester_open(app: AppHandle) -> Result<(), String> {
+    if let Some(w) = app.get_webview_window("gamepad-tester") {
+        let _ = w.show();
+        let _ = w.unminimize();
+        let _ = w.set_focus();
+        return Ok(());
+    }
+
+    let (x, y, w, h) = gamepad_tester_geom(&app);
+    let win = WebviewWindowBuilder::new(
+        &app,
+        "gamepad-tester",
+        WebviewUrl::App("tester.html".into()),
+    )
+    .title("手柄测试器")
+    .inner_size(w, h)
+    .position(x, y)
+    .resizable(true)
+    .decorations(false)
+    .always_on_top(true)
+    .skip_taskbar(true)
+    .build()
+    .map_err(|e| e.to_string())?;
+    let _ = win.show();
+    Ok(())
+}
+
+/// 关闭手柄测试器窗口；同时停掉 XInput 推送。async 原因同上。
+#[tauri::command]
+pub async fn ysc_gamepad_tester_close(app: AppHandle) {
+    if let Some(state) = app.try_state::<TauriState>() {
+        state.app.gamepad_watch.store(false, Ordering::Release);
+    }
+    if let Some(w) = app.get_webview_window("gamepad-tester") {
+        let _ = w.close();
+    }
 }
 
 #[tauri::command]

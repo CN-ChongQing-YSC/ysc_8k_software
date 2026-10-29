@@ -13,6 +13,7 @@ use std::time::Duration;
 use windows::Win32::Foundation::HANDLE;
 
 use ysc_core::consts::{is_supported_baud, SUPPORTED_BAUDS};
+use ysc_core::enumerate::is_ysc_v3_port;
 use ysc_core::enumerate::{enum_all_com_ports, enum_towmcu_ports};
 use ysc_core::frame::{build_json_frame, build_version_frame, has_ok_response};
 use ysc_core::serial::{
@@ -200,11 +201,15 @@ pub unsafe extern "system" fn Ysc_Connect(
         }
     }
 
-    let handle = match open_com(port, baud, 20) {
+    // YSC V3 CDC 没有真实波特率：主机句柄固定用安全速率打开，逻辑 baud 仍
+    // 按调用方传入值保存/回读。普通串口保持原样。
+    let v3 = is_ysc_v3_port(&port);
+    let open_baud = if v3 { 115_200 } else { baud };
+    let handle = match open_com(port, open_baud, 20) {
         Ok(h) => h,
         Err(code) => {
-            let msg = format!("open {} @ {} failed (err={})", port, baud, code);
-            set_err(format!("open {} @ {} failed, err={}", port, baud, code));
+            let msg = format!("open {} @ {} failed (err={})", port, open_baud, code);
+            set_err(format!("open {} @ {} failed, err={}", port, open_baud, code));
             safe_copy(err_buf, err_size, &msg);
             return std::ptr::null_mut();
         }
@@ -287,11 +292,23 @@ pub unsafe extern "system" fn Ysc_SwitchBaudrate(dev: *mut YscDevice, new_baud: 
         set_err("not connected");
         return 0;
     }
-    if !is_supported_baud(new_baud) {
+    let port = inner.port.clone();
+    let v3 = is_ysc_v3_port(&port);
+    if !v3 && !is_supported_baud(new_baud) {
         set_err(format!("unsupported baud {}", new_baud));
         return 0;
     }
-    let port = inner.port.clone();
+    if v3 {
+        // V3 USB CDC：只更新逻辑 baud，不关端口/不重开。
+        let json = format!("{{\"cmd\":133,\"baud\":{}}}", new_baud);
+        if let Some(frame) = build_json_frame(&json) {
+            let old = h(inner.handle);
+            purge_rx_tx(old);
+            let _ = sync_write(old, &frame, 200);
+        }
+        inner.baud = new_baud;
+        return 1;
+    }
     let old = h(inner.handle);
 
     // 1) 通知固件切换

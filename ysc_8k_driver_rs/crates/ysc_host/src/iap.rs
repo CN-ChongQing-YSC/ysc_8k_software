@@ -479,13 +479,14 @@ fn worker(app: Arc<App>, firmware: Vec<u8>, target_baud: u32) {
                 let mut f = app.flags.lock().unwrap();
                 f.serial_connected = true;
                 f.serial_baud = reconn_baud;
+                f.serial_v3_cdc = false;
                 f.serial_port = port.clone();
             }
             let _ = app.legacy.start_read_thread();
             app.send_event(
                 "serial_connected",
                 Some(&format!(
-                    "\"port\":\"{}\",\"baud\":{}",
+                    "\"port\":\"{}\",\"baud\":{},\"v3\":false,\"baudFree\":false",
                     json_escape(&port),
                     reconn_baud
                 )),

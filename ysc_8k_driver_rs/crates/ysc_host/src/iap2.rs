@@ -218,6 +218,7 @@ fn worker(app: Arc<App>, port: String, firmware: Vec<u8>) {
                 let mut f = app.flags.lock().unwrap();
                 f.serial_connected = true;
                 f.serial_baud = CDC_BAUD;
+                f.serial_v3_cdc = is_v3;
                 f.serial_port = final_port.clone();
             }
             let _ = app.legacy.start_read_thread();

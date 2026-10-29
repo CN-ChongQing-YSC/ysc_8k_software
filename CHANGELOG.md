@@ -10,7 +10,17 @@ Rust 驱动在编译期读取 `VERSION` 自动上报；C++ 参照版仍需同步
 
 ## 未发布（Unreleased）
 
-- 无。
+- YSC V3 USB CDC 波特率改为“逻辑值”：驱动识别 `YSCV3-CDC` 后允许任意正波特率，
+  切换只更新显示值并让固件回 ACK，不再关端口/重开；串口面板与双设备面板均提示
+  “波特率仅作显示，实际按 USB 全速通信”。普通串口仍保持白名单与重开回退。
+- 新增手柄测试器：手柄映射页点击“监控手柄”，在**主窗口右侧弹出独立窗口**
+  （`tester.html`，560 宽、与主窗口同高、置顶、不遮挡主界面），实时显示 PC
+  手柄的按键 B0-B16、摇杆 AXIS 0-3、圆度轨迹、手柄状态图和震动测试。
+  WebView2 不提供 Gamepad API，测试器改由 Rust XInput 60Hz 轮询
+  （`gamepad_state` 事件 + `gamepad_vibrate` 命令）。独立窗口由
+  `ysc_gamepad_tester_open/close`（async 命令）创建/关闭，关闭它只停 XInput
+  推送、不退出主程序；切换主界面页面不受影响。网页版无 Tauri 窗口能力时
+  回退为应用内右侧抽屉。
 
 ## v2.0.0 — 2026-10-22
 
@@ -42,9 +52,11 @@ Rust 驱动在编译期读取 `VERSION` 自动上报；C++ 参照版仍需同步
 - 新增 V3 启动自动烧录：exe 同目录 `v3_firmware.bin` 或
   `--auto-flash-v3=<path>` 启用；启动后自动切到 V3 页，等待端口、先 probe 版本再
   复用 `iap2::start_file` 完成 APP→IAP→烧录→回 APP；`--no-auto-flash` 可关闭。
+- 修复无边框窗口白边：`tauri.conf.json` 关闭 undecorated shadow，窗口客户区与
+  `WindowRect` 完全重合（四边 inset 均为 0），不再露出 8px 白色非客户区。
 - 发布：`ysc_8k_tauri/tools/build.ps1` 产出 NSIS
-  `YSC_8K_Setup_2.0.0.exe`（6,250,610 B，sha256
-  `0405C08D2DA016049417AD86DF5328D78BFB832A64FB9375C866216725F78C5D`）。
+  `YSC_8K_Setup_2.0.0.exe`（6,250,709 B，sha256
+  `DF3C9877CCFC9A5BE9AC5785DD6C809E622BE8875CA6777E701DDBEA6C4DF832`）。
 - 清理 V3 固件说明/驱动文案中的芯片型号字样；服务器 V3 releaseNotes 已更新，
   V3 导航描述改为「YSC V3 加密镜像升级」。
 - 旧 Electron/C++ 栈冻结在 `1.17.0`，只读回归；新功能只进 Tauri 栈。

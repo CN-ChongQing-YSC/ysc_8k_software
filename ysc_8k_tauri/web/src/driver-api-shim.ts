@@ -282,6 +282,24 @@ async function exportPdf(_html: string, _filename?: string): Promise<{
   };
 }
 
+/** 打开主窗口右侧的手柄测试器独立窗口；已打开则聚焦。 */
+async function openGamepadTester(): Promise<void> {
+  try {
+    await invoke('ysc_gamepad_tester_open');
+  } catch (e) {
+    console.error('[driver-api-shim] open gamepad tester failed', e);
+  }
+}
+
+/** 关闭手柄测试器独立窗口（同时停掉 XInput 推送）。 */
+async function closeGamepadTester(): Promise<void> {
+  try {
+    await invoke('ysc_gamepad_tester_close');
+  } catch (e) {
+    console.error('[driver-api-shim] close gamepad tester failed', e);
+  }
+}
+
 export interface DriverApi {
   send(type: string, params?: Record<string, unknown>): void;
   isConnected(): Promise<boolean>;
@@ -301,6 +319,8 @@ export interface DriverApi {
   downloadFirmware(info: any): Promise<void>;
   recordFirmwareInstalled(deviceType: string, version: string): void;
   exportPdf(html: string, filename?: string): Promise<any>;
+  openGamepadTester(): Promise<void>;
+  closeGamepadTester(): Promise<void>;
   checkCh343Driver(): void;
   installCh343Driver(): Promise<{ ok: boolean; error?: string }>;
   debugEnter(): void;
@@ -332,6 +352,8 @@ export function installTauriDriverApi(): void {
     downloadFirmware,
     recordFirmwareInstalled,
     exportPdf,
+    openGamepadTester,
+    closeGamepadTester,
     checkCh343Driver: () => send('check_ch343_driver'),
     installCh343Driver: async () => ({
       ok: false,

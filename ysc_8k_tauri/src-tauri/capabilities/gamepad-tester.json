@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "gamepad-tester",
+  "description": "手柄测试器独立窗口：事件监听 + 驱动 IPC。",
+  "windows": ["gamepad-tester"],
+  "permissions": ["core:default", "core:window:allow-start-dragging"]
+}

@@ -7,6 +7,8 @@ use std::sync::Arc;
 use serde_json::Value;
 
 use ysc_core::consts::Role;
+use ysc_core::enumerate::is_ysc_v3_port;
+use ysc_core::family::{family_of_version, CdcFamily};
 use ysc_core::serial::SerialPort;
 use ysc_core::util::{json_escape, now_ms};
 
@@ -14,6 +16,17 @@ use crate::app::{App, Slot};
 
 pub const DEV_MAX_SLOTS: usize = 2;
 pub const PROBE_DEADLINE_MS: u64 = 5000;
+/// YSC V3 CDC 没有真实波特率；主机句柄固定用这个速率打开，避免 Windows
+/// 拒绝用户输入的任意 baud（实际 USB 吞吐不受影响）。
+const CDC_SAFE_BAUD: u32 = 115_200;
+
+/// 发 cmd132 确认固件族。必须在启动读线程之前调用。
+fn version_is_v3(serial: &SerialPort) -> bool {
+    serial
+        .query_version(400)
+        .map(|v| family_of_version(&v) == Some(CdcFamily::YscV3))
+        .unwrap_or(false)
+}
 
 impl App {
     #[allow(dead_code)]
@@ -24,6 +37,8 @@ impl App {
     /// 挂载一个槽位。返回实际波特率；失败返回 Err。
     ///
     /// 与 C++ `DeviceContext::Attach` 一致：显式波特率先握手，失败退回自动探测。
+    /// YSC V3 USB CDC 例外：波特率只是逻辑标签，主机句柄固定用安全速率打开，
+    /// 任意用户输入都只记录、不影响 USB 通讯。
     pub fn attach_device(self: &Arc<Self>, slot: usize, port: &str, baud: u32) -> Result<u32, ()> {
         if slot >= DEV_MAX_SLOTS || port.is_empty() {
             return Err(());
@@ -39,16 +54,33 @@ impl App {
             }
         }
 
+        let v3_hint = is_ysc_v3_port(port);
+        let mut actual_baud = baud;
+        if actual_baud == 0 {
+            actual_baud = SerialPort::detect_baudrate(port);
+            if actual_baud == 0 {
+                self.log(&format!(
+                    "DEVICE attach slot={} {} 自动探测失败",
+                    slot, port
+                ));
+                return Err(());
+            }
+        }
+        let open_baud = if v3_hint {
+            CDC_SAFE_BAUD
+        } else {
+            actual_baud
+        };
+
         let serial = Arc::new(SerialPort::new());
-        if serial.connect(port, baud).is_err() {
+        if serial.connect(port, open_baud).is_err() {
             return Err(());
         }
 
-        let mut actual_baud = baud;
-        if baud != 0 && !serial.ping_once(400) {
+        if !serial.ping_once(400) {
             self.log(&format!(
                 "DEVICE attach slot={} {} baud={} 无应答，改自动探测",
-                slot, port, baud
+                slot, port, actual_baud
             ));
             serial.disconnect();
             drop(serial);
@@ -63,18 +95,21 @@ impl App {
             }
             actual_baud = detected;
             let serial = Arc::new(SerialPort::new());
-            if serial.connect(port, detected).is_err() {
+            let detected_open = if v3_hint { CDC_SAFE_BAUD } else { detected };
+            if serial.connect(port, detected_open).is_err() {
                 return Err(());
             }
             self.log(&format!(
                 "DEVICE attach slot={} {} 实际速率={}（请求 {}）",
                 slot, port, detected, baud
             ));
-            self.finish_attach(slot, port, actual_baud, serial);
+            let v3 = v3_hint || version_is_v3(&serial);
+            self.finish_attach(slot, port, actual_baud, serial, v3);
             return Ok(actual_baud);
         }
 
-        self.finish_attach(slot, port, actual_baud, serial);
+        let v3 = v3_hint || version_is_v3(&serial);
+        self.finish_attach(slot, port, actual_baud, serial, v3);
         Ok(actual_baud)
     }
 
@@ -84,6 +119,7 @@ impl App {
         port: &str,
         baud: u32,
         serial: Arc<SerialPort>,
+        v3: bool,
     ) {
         let weak = Arc::downgrade(self);
         serial.set_callback(Arc::new(move |data: &[u8]| {
@@ -104,6 +140,7 @@ impl App {
         s.port = port.to_string();
         s.baud = baud;
         s.connected = true;
+        s.v3_cdc = v3;
         s.role = Role::None;
         s.auto_detected = false;
         s.role_manual = false;
@@ -140,6 +177,7 @@ impl App {
             s.connected = false;
             s.port.clear();
             s.baud = 0;
+            s.v3_cdc = false;
             s.probe_state = 0;
             s.iface_mask = 0;
             s.probe_stage = 0;
@@ -228,15 +266,27 @@ impl App {
         if slot >= DEV_MAX_SLOTS {
             return false;
         }
-        let (serial, old_baud, connected) = {
+        let (serial, old_baud, connected, v3) = {
             let s = self.slots[slot].lock().unwrap();
-            (s.serial.clone(), s.baud, s.connected)
+            (s.serial.clone(), s.baud, s.connected, s.v3_cdc)
         };
         let Some(serial) = serial else { return false };
         if !connected || baud == 0 {
             return false;
         }
         if old_baud == baud {
+            return true;
+        }
+
+        // YSC V3 USB CDC：没有真实波特率，切换只是改驱动侧显示值。
+        // 仍发一条 cmd133 让固件保持 ACK 语义，但绝不关端口/重开（重开会让
+        // Windows 拒绝任意 baud，且对 USB 吞吐毫无影响）。
+        if v3 {
+            let _ = serial.send_json_command(&format!("{{\"cmd\":133,\"baud\":{}}}", baud));
+            let mut s = self.slots[slot].lock().unwrap();
+            s.baud = baud;
+            s.connected = true;
+            s.v3_cdc = true;
             return true;
         }
 
@@ -494,7 +544,7 @@ impl App {
             }
             let s = self.slots[i].lock().unwrap();
             body.push_str(&format!(
-                "{{\"dev\":{},\"role\":\"{}\",\"auto\":{},\"connected\":{},\"port\":\"{}\",\"baud\":{},\"vid\":{},\"pid\":{},\"product\":\"{}\",\"ifaceMask\":{},\"probeDone\":{}}}",
+                "{{\"dev\":{},\"role\":\"{}\",\"auto\":{},\"connected\":{},\"port\":\"{}\",\"baud\":{},\"vid\":{},\"pid\":{},\"product\":\"{}\",\"ifaceMask\":{},\"probeDone\":{},\"v3\":{},\"baudFree\":{}}}",
                 i,
                 s.role.as_str(),
                 s.auto_detected,
@@ -505,7 +555,9 @@ impl App {
                 s.pid,
                 json_escape(&s.product),
                 s.iface_mask,
-                if s.probe_done { 1 } else { 0 }
+                if s.probe_done { 1 } else { 0 },
+                s.v3_cdc,
+                s.v3_cdc
             ));
         }
         body.push(']');
@@ -696,7 +748,6 @@ fn decode_hex(s: &str) -> Option<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Arc;
 
     fn cfg_json(hex: &str) -> String {
         let inner = format!(

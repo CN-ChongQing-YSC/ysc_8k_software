@@ -158,9 +158,21 @@ pub fn run() {
             commands::ysc_window_is_maximized,
             commands::ysc_window_close,
             commands::ysc_quit,
+            commands::ysc_gamepad_tester_open,
+            commands::ysc_gamepad_tester_close,
         ])
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { .. } = event {
+                // 测试器是伴生窗口：关它只停 XInput 推送，不退出整个驱动。
+                if window.label() == "gamepad-tester" {
+                    if let Some(state) = window.app_handle().try_state::<TauriState>() {
+                        state
+                            .app
+                            .gamepad_watch
+                            .store(false, std::sync::atomic::Ordering::Release);
+                    }
+                    return;
+                }
                 window.app_handle().exit(0);
             }
         })

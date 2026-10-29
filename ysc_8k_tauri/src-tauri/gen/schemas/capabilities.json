@@ -1,1 +1,1 @@
-{"default":{"identifier":"default","description":"YSC 8K 主窗口权限：核心默认集（事件监听/窗口基础能力）+ 文件对话框。","local":true,"windows":["main"],"permissions":["core:default","dialog:default"]}}
+{"default":{"identifier":"default","description":"YSC 8K 主窗口权限：核心默认集（事件监听/窗口基础能力）+ 文件对话框。","local":true,"windows":["main"],"permissions":["core:default","dialog:default"]},"gamepad-tester":{"identifier":"gamepad-tester","description":"手柄测试器独立窗口：事件监听 + 驱动 IPC。","local":true,"windows":["gamepad-tester"],"permissions":["core:default","core:window:allow-start-dragging"]}}

@@ -34,6 +34,8 @@
               :connected-port="serialPort"
               :ports="ports"
               :baud="serialBaud"
+              :v3="serialV3"
+              :baud-free="serialBaudFree"
               :dev-mode="devMode"
               @connect="onSerialConnect"
               @disconnect="onSerialDisconnect"
@@ -150,7 +152,7 @@
         :connected="mouseDeviceConnected"
         :dev-mode="devMode"
       />
-      <GamepadMapperPanel v-else-if="currentView === 'gamepad'" />
+      <GamepadMapperPanel v-else-if="currentView === 'gamepad'" @monitor="openGamepadTester" />
       <DocsPanel v-else-if="currentView === 'docs'" />
       <FirmwarePanel
         v-else-if="currentView === 'firmware'"
@@ -164,6 +166,9 @@
       <DocsPanel v-else />
     </div>
   </div>
+
+  <!-- PC 手柄测试器：放在视图切换之外，切到其他页面也保持打开 -->
+  <GamepadTester v-if="gamepadTesterOpen" @close="gamepadTesterOpen = false" />
 </template>
 
 <script setup>
@@ -181,6 +186,7 @@ import MouseInterpPanel from './components/MouseInterpPanel.vue';
 import PhysicalGuardPanel from './components/PhysicalGuardPanel.vue';
 import SerialNumberPanel from './components/SerialNumberPanel.vue';
 import GamepadMapperPanel from './components/GamepadMapperPanel.vue';
+import GamepadTester from './components/GamepadTester.vue';
 import DocsPanel from './components/DocsPanel.vue';
 import FirmwarePanel from './components/FirmwarePanel.vue';
 import TowmcuFirmwarePanel from './components/TowmcuFirmwarePanel.vue';
@@ -204,6 +210,20 @@ const currentView = computed(() => ui.activeView);
 const serialConnected = ref(false);
 const serialPort = ref('');
 const serialBaud = ref(0);
+/* PC 手柄测试器：桌面端开主窗口右侧的独立窗口；网页版回退到应用内抽屉。 */
+const gamepadTesterOpen = ref(false);
+
+function openGamepadTester() {
+  const api = window.driverApi;
+  if (api && typeof api.openGamepadTester === 'function') {
+    api.openGamepadTester();
+    return;
+  }
+  gamepadTesterOpen.value = true;
+}
+/* YSC V3 USB CDC：波特率只是驱动侧显示值，可任意切换，实际始终按 USB 全速通信。 */
+const serialV3 = ref(false);
+const serialBaudFree = ref(false);
 const netRunning = ref(false);
 const netPort = ref(5251);
 const netIp = ref('');
@@ -606,6 +626,8 @@ onMounted(function() {
     serialConnected.value = true;
     serialPort.value = data.port;
     serialBaud.value = data.baud;
+    serialV3.value = !!(data && data.v3);
+    serialBaudFree.value = !!(data && (data.baudFree || data.v3));
     if (kmnetSelfCheck.value.active && kmnetSelfCheck.value.step === 'reconnecting') {
       if (data.baud === TARGET_BAUD) {
         selfCheckSuccess(t('kmnet.selfCheck.passed', { baud: data.baud }));
@@ -624,6 +646,8 @@ onMounted(function() {
 
   listen('serial_disconnected', function() {
     serialConnected.value = false;
+    serialV3.value = false;
+    serialBaudFree.value = false;
     devMode.value = null;   // 断开后线路未知，等下次连接再读
     if (kmnetSelfCheck.value.active && kmnetSelfCheck.value.step === 'disconnecting') {
       selfCheckBeginReconnect();
@@ -649,7 +673,14 @@ onMounted(function() {
   });
 
   listen('baudrate_switched', function(data) {
-    serialBaud.value = data.baud;
+    /* dev 存在 = 双设备槽位事件，别拿它覆盖主页单串口的显示值。 */
+    if (data && data.dev == null) {
+      serialBaud.value = data.baud;
+      if (data.v3 || data.baudFree) {
+        serialV3.value = true;
+        serialBaudFree.value = true;
+      }
+    }
     if (kmnetSelfCheck.value.active && kmnetSelfCheck.value.step === 'switching') {
       if (data.baud === TARGET_BAUD) {
         kmnetSelfCheck.value.step = 'disconnecting';
@@ -803,6 +834,8 @@ onMounted(function() {
     serialConnected.value = data.serialConnected;
     serialPort.value = data.serialPort;
     serialBaud.value = data.serialBaud;
+    serialV3.value = !!data.serialV3;
+    serialBaudFree.value = !!(data.serialBaudFree || data.serialV3);
     netRunning.value = data.netRunning;
     netPort.value = data.netPort;
     // NET 服务已在跑但前端刚起来（kmnet_started 事件早过去了）：用状态包里的

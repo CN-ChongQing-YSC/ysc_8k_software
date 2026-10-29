@@ -15,6 +15,7 @@ pub mod command_bridge;
 pub mod commands;
 pub mod debug_log;
 pub mod device;
+pub mod gamepad;
 pub mod guard;
 pub mod host;
 pub mod iap;

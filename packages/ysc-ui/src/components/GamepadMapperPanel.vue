@@ -15,6 +15,7 @@
         <input type="checkbox" :checked="config.enabled" :disabled="!connected" @change="onToggleEnable($event.target.checked)" />
         <span>{{ config.enabled ? t('gamepad.enabled') : t('gamepad.disabled') }}</span>
       </label>
+      <button class="btn-ghost" @click="emit('monitor')">🎮 {{ t('gamepad.monitor') }}</button>
       <button class="btn-ghost" :disabled="!connected || loading" @click="loadFromDevice">{{ t('gamepad.refresh') }}</button>
       <button class="btn-accent" :disabled="!connected || loading" @click="saveAll">{{ t('gamepad.save') }}</button>
       <button class="btn-outline red" :disabled="!connected || loading" @click="onReset">{{ t('gamepad.reset') }}</button>
@@ -108,6 +109,7 @@ import { useI18n } from '../i18n/index.js';
 
 const { t } = useI18n();
 const api = window.driverApi;
+const emit = defineEmits(['monitor']);
 
 const srcKeys = ['A','B','X','Y','UP','DOWN','LEFT','RIGHT','LB','RB','LT','RT','CREATE','OPTIONS','L3','R3','PS'];
 const targetKeys = ['mouse_left','mouse_right','mouse_middle','mouse_side1','mouse_side2'];

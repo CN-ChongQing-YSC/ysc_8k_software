@@ -3,6 +3,7 @@
 //! 命令在管道读线程上串行执行（与 C++ 相同）。所有事件字段、文案、默认值
 //! 都按 C++ 实现逐条对齐。
 
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -13,11 +14,17 @@ use serde_json::Value;
 use ysc_core::consts::{
     driver_version, is_supported_baud, Role, DEFAULT_MAC, KMBOXNET_DEFAULT_PORT,
 };
-use ysc_core::enumerate::{detect_ch343_driver_status, enum_com_ports, enum_towmcu_ports};
+use ysc_core::enumerate::{
+    detect_ch343_driver_status, enum_com_ports, enum_towmcu_ports, is_ysc_v3_port,
+};
+use ysc_core::family::{family_of_version, CdcFamily};
 use ysc_core::serial::SerialPort;
 use ysc_core::util::json_escape;
 
 use crate::app::App;
+
+/// YSC V3 USB CDC 没有真实波特率；主机句柄固定用安全速率打开。
+const CDC_SAFE_BAUD: u32 = 115_200;
 
 // ---------------------------------------------------------------------------
 // 极简 JSON 取值（容忍数字/字符串/布尔三种线上形态）
@@ -62,6 +69,11 @@ fn get_bool(v: &Value, key: &str) -> bool {
 
 fn has(v: &Value, key: &str) -> bool {
     v.get(key).is_some()
+}
+
+/// V3 USB CDC 接受任意正波特率（只作显示）；普通串口仍受固件白名单限制。
+fn baud_allowed(baud: u32, v3: bool) -> bool {
+    baud > 0 && (v3 || is_supported_baud(baud))
 }
 
 fn err_result(app: &App, msg: &str) {
@@ -178,6 +190,24 @@ pub fn dispatch(app: &Arc<App>, line: &str) {
             app.send_event("kbd_result", Some(&format!("\"ok\":{}", ok)));
         }
         "serial_connect" => cmd_serial_connect(app, &v),
+        "gamepad_watch" => {
+            let on = get_bool(&v, "on");
+            app.gamepad_watch.store(on, Ordering::Release);
+            app.send_event(
+                "gamepad_watch",
+                Some(if on { "\"on\":true" } else { "\"on\":false" }),
+            );
+        }
+        "gamepad_vibrate" => {
+            let index = get_i32(&v, "index").clamp(0, 3) as u32;
+            let left = get_i32(&v, "left").clamp(0, 65535) as u16;
+            let right = get_i32(&v, "right").clamp(0, 65535) as u16;
+            let ok = crate::gamepad::vibrate(index, left, right);
+            app.send_event(
+                "gamepad_vibrate_result",
+                Some(&format!("\"ok\":{},\"index\":{}", ok, index)),
+            );
+        }
         "serial_disconnect" => {
             app.guard_abort("device_lost");
             app.legacy.disconnect();
@@ -732,9 +762,10 @@ fn cmd_device_attach(app: &Arc<App>, v: &Value) {
         }
     }
 
+    let v3_hint = is_ysc_v3_port(&port);
     let baud = if baud_req > 0 {
         let b = baud_req as u32;
-        if !is_supported_baud(b) {
+        if !baud_allowed(b, v3_hint) {
             err_result(app, "Invalid baudrate");
             return;
         }
@@ -762,13 +793,16 @@ fn cmd_device_attach(app: &Arc<App>, v: &Value) {
         app.set_role(dev as usize, Role::Kbd);
     }
 
+    let v3 = app.slots[dev as usize].lock().unwrap().v3_cdc;
     app.send_event(
         "device_attached",
         Some(&format!(
-            "\"dev\":{},\"port\":\"{}\",\"baud\":{}",
+            "\"dev\":{},\"port\":\"{}\",\"baud\":{},\"v3\":{},\"baudFree\":{}",
             dev,
             json_escape(&port),
-            actual
+            actual,
+            v3,
+            v3
         )),
     );
     app.log(&format!(
@@ -784,9 +818,9 @@ fn cmd_device_set_baud(app: &App, v: &Value) {
     if !(0..2).contains(&dev) {
         dev = 0;
     }
-    let connected = {
+    let (connected, v3) = {
         let s = app.slots[dev as usize].lock().unwrap();
-        s.serial.is_some() && s.connected
+        (s.serial.is_some() && s.connected, s.v3_cdc)
     };
     if !connected {
         app.send_event(
@@ -795,7 +829,7 @@ fn cmd_device_set_baud(app: &App, v: &Value) {
         );
         return;
     }
-    if !is_supported_baud(baud) {
+    if !baud_allowed(baud, v3) {
         app.send_event("baudrate_failed", Some("\"message\":\"invalid baudrate\""));
         return;
     }
@@ -803,22 +837,31 @@ fn cmd_device_set_baud(app: &App, v: &Value) {
     if baud == cur {
         app.send_event(
             "baudrate_switched",
-            Some(&format!("\"dev\":{},\"baud\":{}", dev, baud)),
+            Some(&format!(
+                "\"dev\":{},\"baud\":{},\"v3\":{},\"baudFree\":{}",
+                dev, baud, v3, v3
+            )),
         );
         return;
     }
     app.log(&format!(
-        "DEVICE slot={} switch baud {} -> {}",
-        dev, cur, baud
+        "DEVICE slot={} switch baud {} -> {} (v3={})",
+        dev, cur, baud, v3
     ));
     if app.switch_device_baud(dev as usize, baud) {
         app.send_event(
             "baudrate_switched",
-            Some(&format!("\"dev\":{},\"baud\":{}", dev, baud)),
+            Some(&format!(
+                "\"dev\":{},\"baud\":{},\"v3\":{},\"baudFree\":{}",
+                dev, baud, v3, v3
+            )),
         );
         app.send_device_list();
     } else {
-        app.send_event("baudrate_failed", Some(&format!("\"dev\":{}", dev)));
+        app.send_event(
+            "baudrate_failed",
+            Some(&format!("\"dev\":{},\"v3\":{}", dev, v3)),
+        );
         app.send_device_list();
     }
 }
@@ -838,9 +881,10 @@ fn cmd_serial_connect(app: &Arc<App>, v: &Value) {
         app.update_tray_tip();
     }
 
+    let v3_hint = is_ysc_v3_port(&port);
     let baud = if baud_req > 0 {
         let b = baud_req as u32;
-        if !is_supported_baud(b) {
+        if !baud_allowed(b, v3_hint) {
             err_result(app, "Invalid baudrate");
             return;
         }
@@ -853,14 +897,31 @@ fn cmd_serial_connect(app: &Arc<App>, v: &Value) {
         return;
     }
 
-    match app.legacy.connect(&port, baud) {
+    // YSC V3 CDC 的 DCB 速率对 USB 吞吐没有影响；用固定安全速率打开，
+    // 这样用户传任意 baud（例如 1234567）也不会被 Windows 拒绝。
+    let open_baud = if v3_hint { CDC_SAFE_BAUD } else { baud };
+    match app.legacy.connect(&port, open_baud) {
         Ok(()) => {
-            app.debug_window_log(&format!("Serial CONNECTED {} @ {}", port, baud));
-            app.log(&format!("SERIAL CONNECTED {} @ {}", port, baud));
+            // 序列号没枚举出来时，再用 cmd132 兜底确认是不是 V3。
+            let v3 = v3_hint
+                || app
+                    .legacy
+                    .query_version(400)
+                    .map(|v| family_of_version(&v) == Some(CdcFamily::YscV3))
+                    .unwrap_or(false);
+            app.debug_window_log(&format!(
+                "Serial CONNECTED {} @ {} (v3={})",
+                port, baud, v3
+            ));
+            app.log(&format!(
+                "SERIAL CONNECTED {} @ {} (v3={})",
+                port, baud, v3
+            ));
             {
                 let mut f = app.flags.lock().unwrap();
                 f.serial_port = port.clone();
                 f.serial_baud = baud;
+                f.serial_v3_cdc = v3;
                 f.serial_connected = true;
             }
             let _ = app.legacy.start_read_thread();
@@ -872,41 +933,101 @@ fn cmd_serial_connect(app: &Arc<App>, v: &Value) {
             app.send_event(
                 "serial_connected",
                 Some(&format!(
-                    "\"port\":\"{}\",\"baud\":{}",
+                    "\"port\":\"{}\",\"baud\":{},\"v3\":{},\"baudFree\":{}",
                     json_escape(&port),
-                    baud
+                    baud,
+                    v3,
+                    v3
                 )),
             );
             app.send_device_list();
         }
-        Err(_) => err_result(app, "无法打开串口"),
+        Err(e) => err_result(app, &format!("无法打开串口: {}", e)),
     }
 }
 
 fn cmd_switch_baudrate(app: &App, v: &Value) {
     let baud_req = get_i32(v, "baud");
-    if baud_req > 0 && app.flags.lock().unwrap().serial_connected {
-        let new_baud = baud_req as u32;
-        let cur = app.flags.lock().unwrap().serial_baud;
-        if new_baud != cur {
-            if app.legacy.switch_baudrate(new_baud) {
-                {
-                    let mut f = app.flags.lock().unwrap();
-                    f.serial_baud = new_baud;
-                    f.serial_connected = true;
-                }
-                let _ = app.legacy.start_read_thread();
-                app.update_tray_tip();
-                app.send_event("baudrate_switched", Some(&format!("\"baud\":{}", new_baud)));
-            } else {
-                app.flags.lock().unwrap().serial_connected = false;
-                app.update_tray_tip();
-                app.send_event(
-                    "baudrate_failed",
-                    Some("\"message\":\"切换失败，设备可能已断开\""),
-                );
-            }
+    let (connected, cur, v3) = {
+        let f = app.flags.lock().unwrap();
+        (f.serial_connected, f.serial_baud, f.serial_v3_cdc)
+    };
+    if baud_req <= 0 {
+        app.send_event("baudrate_failed", Some("\"message\":\"invalid baudrate\""));
+        return;
+    }
+    if !connected {
+        app.send_event(
+            "baudrate_failed",
+            Some("\"message\":\"device not connected\""),
+        );
+        return;
+    }
+    let new_baud = baud_req as u32;
+    if !baud_allowed(new_baud, v3) {
+        app.send_event("baudrate_failed", Some("\"message\":\"invalid baudrate\""));
+        return;
+    }
+    if new_baud == cur {
+        app.send_event(
+            "baudrate_switched",
+            Some(&format!(
+                "\"baud\":{},\"v3\":{},\"baudFree\":{}",
+                new_baud, v3, v3
+            )),
+        );
+        return;
+    }
+
+    // YSC V3 USB CDC：波特率只是显示值，USB 始终全速/高速传输。
+    // 不关端口、不重开（重开会把任意 baud 交给 Windows，很容易被拒绝）。
+    if v3 {
+        let _ = app
+            .legacy
+            .send_json_command(&format!("{{\"cmd\":133,\"baud\":{}}}", new_baud));
+        {
+            let mut f = app.flags.lock().unwrap();
+            f.serial_baud = new_baud;
+            f.serial_v3_cdc = true;
+            f.serial_connected = true;
         }
+        app.update_tray_tip();
+        app.log(&format!(
+            "SERIAL baud {} -> {} (V3 USB CDC, logical only)",
+            cur, new_baud
+        ));
+        app.send_event(
+            "baudrate_switched",
+            Some(&format!(
+                "\"baud\":{},\"v3\":true,\"baudFree\":true",
+                new_baud
+            )),
+        );
+        return;
+    }
+
+    if app.legacy.switch_baudrate(new_baud) {
+        {
+            let mut f = app.flags.lock().unwrap();
+            f.serial_baud = new_baud;
+            f.serial_connected = true;
+        }
+        let _ = app.legacy.start_read_thread();
+        app.update_tray_tip();
+        app.send_event(
+            "baudrate_switched",
+            Some(&format!(
+                "\"baud\":{},\"v3\":false,\"baudFree\":false",
+                new_baud
+            )),
+        );
+    } else {
+        app.flags.lock().unwrap().serial_connected = false;
+        app.update_tray_tip();
+        app.send_event(
+            "baudrate_failed",
+            Some("\"message\":\"切换失败，设备可能已断开\",\"v3\":false"),
+        );
     }
 }
 
@@ -942,7 +1063,7 @@ fn cmd_kmnet_start(app: &App, v: &Value) {
 }
 
 fn cmd_get_state(app: &App) {
-    let (connected, port, baud) = app.serial_snapshot();
+    let (connected, port, baud, v3) = app.serial_snapshot();
     // C++ 只在连接时把端口名写进 state；断开后端口名显示为空。
     let port = if connected { port } else { String::new() };
     let (net_running, net_port) = {
@@ -957,10 +1078,12 @@ fn cmd_get_state(app: &App) {
     let mouse = app.serialize_mouse_json();
     let kbd = app.serialize_kbd_json();
     let body = format!(
-        "\"serialConnected\":{},\"serialPort\":\"{}\",\"serialBaud\":{},\"netRunning\":{},\"netPort\":{},\"netIp\":\"{}\",{},{}",
+        "\"serialConnected\":{},\"serialPort\":\"{}\",\"serialBaud\":{},\"serialV3\":{},\"serialBaudFree\":{},\"netRunning\":{},\"netPort\":{},\"netIp\":\"{}\",{},{}",
         connected,
         json_escape(&port),
         baud,
+        v3,
+        v3,
         net_running,
         net_port,
         json_escape(&net_ip),
@@ -1118,4 +1241,25 @@ fn decode_hex(s: &str) -> Vec<u8> {
         i += 2;
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn v3_accepts_any_positive_baud() {
+        assert!(baud_allowed(1, true));
+        assert!(baud_allowed(1_234_567, true));
+        assert!(baud_allowed(8_000_000, true));
+        assert!(!baud_allowed(0, true));
+    }
+
+    #[test]
+    fn non_v3_keeps_firmware_whitelist() {
+        assert!(baud_allowed(115_200, false));
+        assert!(baud_allowed(4_000_000, false));
+        assert!(!baud_allowed(1_234_567, false));
+        assert!(!baud_allowed(0, false));
+    }
 }

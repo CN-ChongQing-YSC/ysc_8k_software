@@ -35,5 +35,12 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
     chunkSizeWarningLimit: 1200,
+    // 主窗口 + 独立手柄测试器窗口（Tauri WebviewWindow 加载 tester.html）
+    rollupOptions: {
+      input: {
+        main: path.join(here, 'index.html'),
+        tester: path.join(here, 'tester.html'),
+      },
+    },
   },
 });

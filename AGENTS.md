@@ -65,6 +65,24 @@ Rust Tauri 宿主 (ysc_8k_tauri/src-tauri)
   也保留手动加密镜像；等待 `YSC-V3-APP`。`YSC_FW_BASE_URL` 可覆盖服务器地址。
 - **进入下载模式是双片 3 阶段握手，真机可能耗时 10–20s**：宿主扫描窗口已放宽到
   30s，失败时 UI 不再误报“已自动选中新串口”。测试时请耐心等待，不要 10s 内拔线。
+- **V3 CDC 波特率是逻辑值（2026-10-29）**：`ysc_core::enumerate::is_ysc_v3_port`
+  按 `YSCV3-CDC` / `XFBOX-CDC` 序列号识别；`serial_connect` / `device_attach` 对 V3
+  接受任意正 baud，主机句柄固定用 115200 打开；`switch_baudrate` / `device_set_baud`
+  只更新显示值并回 ACK（cmd133），不关端口/不重开。UI 的 SerialPanel 与 DevicePanel
+  都提示“波特率仅作显示，实际按 USB 全速通信”；普通串口仍保持白名单+重开+回退。
+- **PC 手柄测试器走 Rust XInput（2026-10-29）**：WebView2 的
+  `navigator.getGamepads()` 实测全为 null，不能依赖 Web Gamepad API。
+  `ysc_host::gamepad` 用 `XInputGetState` 轮询 4 个槽位，Tauri 宿主
+  `ysc-gamepad-poll` 线程只在 `gamepad_watch` 打开时以 60Hz 发
+  `gamepad_state`；`gamepad_vibrate` 用 `XInputSetState` 控制左右马达。
+  UI 的 `GamepadTester` 在 Tauri 走驱动事件，浏览器环境自动回退 Web API。
+  映射页“监控手柄”调用 `ysc_gamepad_tester_open`，在**主窗口右侧开独立窗口**
+  （`web/tester.html` 入口，560 宽、同高、always-on-top、skip_taskbar），
+  几何由 `gamepad_tester_geom` 用主窗口 outer rect 计算并夹到显示器右缘；
+  该窗口权限在 `capabilities/gamepad-tester.json`。两处易踩：**建窗命令必须
+  是 async**（同步命令跑主线程，建窗/查询几何要回调主线程 → 死锁、invoke
+  永不返回）；关闭窗口只把 `gamepad_watch` 置 false，不能走主窗口的
+  exit(0)。网页版无 Tauri 时回退到应用内右侧抽屉。
 - **启动自动烧录（2026-10-24）**：exe 同目录放 `v3_firmware.bin`，或启动参数
   `--auto-flash-v3=<path>`，应用会切到 V3 页、等待 V3 端口并**先 probe_version**
   （避免端口刚枚举就报通信失败），再由 `ysc_host::iap2::start_file` 完成
@@ -105,8 +123,8 @@ npm run build:app         # NSIS 安装包
 - [x] M4.1 启动自动烧录（自动端口/版本探测，复用 IAP；`--auto-flash-v3` 或同名固件）
 - [ ] M5 功能补齐（CH343 提权安装 / PDF 静默导出 / V1-V2 硬件回归；V1/V2/V3 在线固件已完成）
 - [x] M6 最新 Tauri 发布包：`ysc_8k_tauri/release/YSC_8K_Setup_2.0.0.exe`
-  （6,250,610 B，sha256 `0405C08D2DA016049417AD86DF5328D78BFB832A64FB9375C866216725F78C5D`；
-  单 exe，无子进程/管道；V1/V2/V3 在线固件、已移除固件型号字样）
+  （6,250,709 B，sha256 `DF3C9877CCFC9A5BE9AC5785DD6C809E622BE8875CA6777E701DDBEA6C4DF832`；
+  单 exe，无子进程/管道；V1/V2/V3 在线固件、无边框白边已修复）
 
 ## 5. 已知边界
 

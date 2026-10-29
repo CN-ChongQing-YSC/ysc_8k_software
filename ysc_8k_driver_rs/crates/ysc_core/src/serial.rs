@@ -269,6 +269,44 @@ impl SerialPort {
         }
     }
 
+    /// 查询 cmd132 的完整应答文本（用于识别 V2/V3 固件族）。
+    ///
+    /// 与 `ping_once` 一样必须在启动读线程之前调用；返回的文本包含
+    /// `<START>…<END>` 帧和 `{"code":200,...}`。调用方用
+    /// `family_of_version()` 判断是不是 YSC V3。
+    pub fn query_version(&self, timeout_ms: u32) -> Option<String> {
+        if !self.is_connected() {
+            return None;
+        }
+        let handle = self.inner.handle();
+        unsafe {
+            let _ = PurgeComm(handle, PURGE_RXCLEAR | PURGE_TXCLEAR);
+        }
+        let frame = build_version_frame();
+        if !self.write_direct(&frame) {
+            return None;
+        }
+
+        let start = now_ms();
+        let mut rx: Vec<u8> = Vec::with_capacity(512);
+        while now_ms().saturating_sub(start) < timeout_ms as u64 && rx.len() < 512 {
+            match self.read_direct(512 - rx.len(), 50) {
+                Some(chunk) if !chunk.is_empty() => {
+                    rx.extend_from_slice(&chunk);
+                    if rx.windows(5).any(|w| w == b"<END>") {
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        if rx.is_empty() {
+            None
+        } else {
+            Some(String::from_utf8_lossy(&rx).into_owned())
+        }
+    }
+
     /// 主动断开：先停读写线程、取消挂起 I/O，再关句柄与事件。
     pub fn disconnect(&self) {
         self.stop_read_thread();

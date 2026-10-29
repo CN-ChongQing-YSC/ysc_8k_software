@@ -379,7 +379,7 @@ fn show_tray_menu(app: &App, hwnd: HWND) {
         return;
     };
 
-    let (connected, port, baud) = app.serial_snapshot();
+    let (connected, port, baud, _v3) = app.serial_snapshot();
     if connected {
         menu_append(
             menu,

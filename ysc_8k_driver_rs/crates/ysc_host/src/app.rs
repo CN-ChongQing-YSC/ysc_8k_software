@@ -27,6 +27,8 @@ pub struct Slot {
     pub port: String,
     pub baud: u32,
     pub connected: bool,
+    /// 该槽位是 YSC V3 USB CDC：波特率是逻辑值，可任意设置且不影响 USB 吞吐。
+    pub v3_cdc: bool,
     pub auto_detected: bool,
     pub role_manual: bool,
     pub role: Role,
@@ -52,6 +54,7 @@ impl Default for Slot {
             port: String::new(),
             baud: 0,
             connected: false,
+            v3_cdc: false,
             auto_detected: false,
             role_manual: false,
             role: Role::None,
@@ -83,6 +86,8 @@ pub struct Flags {
     pub serial_connected: bool,
     pub serial_port: String,
     pub serial_baud: u32,
+    /// 单设备路径连的是 YSC V3 USB CDC：波特率仅作显示，可任意设置。
+    pub serial_v3_cdc: bool,
     pub net_running: bool,
     pub net_port: u16,
 }
@@ -93,6 +98,7 @@ impl Default for Flags {
             serial_connected: false,
             serial_port: String::new(),
             serial_baud: 0,
+            serial_v3_cdc: false,
             net_running: false,
             net_port: KMBOXNET_DEFAULT_PORT,
         }
@@ -234,6 +240,8 @@ pub struct App {
     pub iap_cancel: AtomicBool,
     pub iap2_running: AtomicBool,
     pub iap2_cancel: AtomicBool,
+    /// PC 手柄测试器打开时置位；Tauri 宿主的 XInput 轮询线程据此推事件。
+    pub gamepad_watch: AtomicBool,
     pub shutting_down: AtomicBool,
 }
 
@@ -256,6 +264,7 @@ impl App {
             iap_cancel: AtomicBool::new(false),
             iap2_running: AtomicBool::new(false),
             iap2_cancel: AtomicBool::new(false),
+            gamepad_watch: AtomicBool::new(false),
             shutting_down: AtomicBool::new(false),
         })
     }
@@ -362,6 +371,9 @@ impl App {
         let mut tip = String::from("YSC 8K Driver");
         if f.serial_connected {
             tip.push_str(&format!(" - {} @ {}", f.serial_port, f.serial_baud));
+            if f.serial_v3_cdc {
+                tip.push_str(" (USB CDC)");
+            }
         } else {
             tip.push_str(" - 未连接");
         }
@@ -441,8 +453,13 @@ impl App {
     }
 
     /// 供命令层读取单设备状态。
-    pub fn serial_snapshot(&self) -> (bool, String, u32) {
+    pub fn serial_snapshot(&self) -> (bool, String, u32, bool) {
         let f = self.flags.lock().unwrap();
-        (f.serial_connected, f.serial_port.clone(), f.serial_baud)
+        (
+            f.serial_connected,
+            f.serial_port.clone(),
+            f.serial_baud,
+            f.serial_v3_cdc,
+        )
     }
 }

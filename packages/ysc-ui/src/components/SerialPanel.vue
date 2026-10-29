@@ -17,6 +17,7 @@
         <label>{{ t('serial.baud') }}</label>
         <input class="input-text" type="text" :value="connected ? baud : baudInput" :disabled="connected" :placeholder="t('serial.baudHint')" />
       </div>
+      <p v-if="connected && baudFree" class="baud-tip">{{ t('serial.v3BaudHint') }}</p>
       <div class="btn-row">
         <button class="btn btn-accent" :disabled="connected || !selectedPort" @click="$emit('connect', selectedPort, parseInt(baudInput) || 0)">
           {{ t('serial.connect') }}
@@ -30,7 +31,18 @@
       </div>
       <div v-if="connected" class="field">
         <label>{{ t('serial.switch') }}</label>
-        <select class="input-select" @change="onBaudSwitch">
+        <div v-if="baudFree" class="baud-custom">
+          <input
+            class="input-text"
+            type="text"
+            inputmode="numeric"
+            v-model="customBaud"
+            :placeholder="t('serial.baudCustomPlaceholder')"
+            @keyup.enter="applyCustomBaud"
+          />
+          <button class="btn btn-accent" @click="applyCustomBaud">{{ t('serial.baudApply') }}</button>
+        </div>
+        <select v-else class="input-select" @change="onBaudSwitch">
           <option value="">{{ t('serial.switchPlaceholder') }}</option>
           <option v-for="b in baudRates" :key="b" :value="b" :selected="b === baud">{{ b }}</option>
         </select>
@@ -52,7 +64,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import { useI18n } from '../i18n/index.js';
 
 const { t } = useI18n();
@@ -62,6 +74,10 @@ const props = defineProps({
   connectedPort: { type: String, default: '' },
   ports: { type: Array, default: () => [] },
   baud: { type: Number, default: 0 },
+  /** 已连接的是 YSC V3 USB CDC：波特率仅作显示，可任意切换 */
+  v3: Boolean,
+  /** 驱动允许任意波特率（V3）；与 v3 同步，单独命名便于 UI 表达 */
+  baudFree: Boolean,
   /** 设备数据线路（固件 cmd 62 读回）：0=鼠标 1=手柄，null=未知 */
   devMode: { type: Number, default: null },
 });
@@ -70,8 +86,18 @@ const emit = defineEmits(['connect', 'disconnect', 'refresh', 'switchBaud', 'set
 
 const selectedPort = ref('');
 const baudInput = ref('0');
+/** V3 自定义波特率输入：连接后默认填当前显示值，可直接改成任意值 */
+const customBaud = ref('');
 
 const baudRates = [115200, 230400, 460800, 921600, 1000000, 1500000, 2000000, 3000000, 4000000];
+
+watch(
+  () => [props.connected, props.baud, props.baudFree],
+  () => {
+    customBaud.value = props.baud ? String(props.baud) : '';
+  },
+  { immediate: true }
+);
 
 let lastRefreshAt = 0;
 function refreshPorts() {
@@ -90,6 +116,12 @@ function onBaudSwitch(e) {
   }
 }
 
+/** V3：把用户输入的任意波特率交给驱动（驱动只回显，不重开 CDC）。 */
+function applyCustomBaud() {
+  const val = parseInt(customBaud.value, 10);
+  if (val > 0) emit('switchBaud', val);
+}
+
 function onModeChange(e) {
   const m = parseInt(e.target.value);
   if (m === 0 || m === 1) {
@@ -97,3 +129,20 @@ function onModeChange(e) {
   }
 }
 </script>
+
+<style scoped>
+.baud-tip {
+  margin: -2px 0 10px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+.baud-custom {
+  display: flex;
+  gap: 8px;
+}
+.baud-custom .input-text {
+  flex: 1;
+  min-width: 0;
+}
+</style>

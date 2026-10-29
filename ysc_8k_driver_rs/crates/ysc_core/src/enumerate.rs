@@ -46,6 +46,19 @@ pub struct TowmcuPort {
     pub side: String,
 }
 
+/// YSC V3 USB CDC 的 iSerialNumber（IAP/APP 刻意共用同一序列号）。
+/// `XFBOX-CDC` 是旧 XF Box 批次，升级/CDC 行为与 V3 相同，按 V3 兼容处理。
+pub const YSC_V3_CDC_SERIAL: &str = "YSCV3-CDC";
+pub const XFBOX_CDC_SERIAL: &str = "XFBOX-CDC";
+
+/// 序列号是否属于 YSC V3 / 旧 XF Box 控制口。
+///
+/// 这两个 CDC 口没有真实波特率：主机侧设置任何 baud 都只影响 DCB 显示，
+/// USB 数据始终按全速/高速传输。驱动据此放开波特率白名单。
+pub fn is_v3_serial(serial: &str) -> bool {
+    serial == YSC_V3_CDC_SERIAL || serial == XFBOX_CDC_SERIAL
+}
+
 /// USB iSerialNumber → side 标签。
 ///
 /// `YSCV3-CDC` 是 YSC V3 控制口（IAP/APP 刻意共用同一序列号）；
@@ -55,10 +68,18 @@ pub fn towmcu_side_from_serial(serial: &str) -> &'static str {
         "TOWMCULEFT" => "Left",
         "TOWMCURIGHT" => "Right",
         "TOWMCUIAP" => "IAP",
-        "YSCV3-CDC" => "V3",
-        "XFBOX-CDC" => "V3",
+        _ if is_v3_serial(serial) => "V3",
         _ => "",
     }
+}
+
+/// 当前 COM 口是否是 YSC V3 USB CDC（按 SetupAPI 枚举到的 USB 序列号判断）。
+///
+/// 只应在连接/切换等低频路径调用：每次都会走一遍 SetupAPI。
+pub fn is_ysc_v3_port(port: &str) -> bool {
+    enum_towmcu_ports()
+        .iter()
+        .any(|p| p.port.eq_ignore_ascii_case(port) && is_v3_serial(&p.serial))
 }
 
 fn com_number(name: &str) -> u32 {
@@ -490,6 +511,15 @@ mod tests {
         assert_eq!(towmcu_side_from_serial("YSCV3-CDC"), "V3");
         assert_eq!(towmcu_side_from_serial("XFBOX-CDC"), "V3");
         assert_eq!(towmcu_side_from_serial("X"), "");
+    }
+
+    #[test]
+    fn v3_serial_detection() {
+        assert!(is_v3_serial("YSCV3-CDC"));
+        assert!(is_v3_serial("XFBOX-CDC"));
+        assert!(!is_v3_serial("TOWMCULEFT"));
+        assert!(!is_v3_serial("TOWMCURIGHT"));
+        assert!(!is_v3_serial(""));
     }
 
     #[test]

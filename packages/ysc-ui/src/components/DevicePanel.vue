@@ -70,8 +70,20 @@
                  主机侧句柄。用于连上后升到高速率（透传吞吐/低延迟）。 -->
             <div class="d-row">
               <span class="d-k">{{ t('device.switchBaud') }}</span>
+              <div v-if="slot.v3 && !baudBusy[slot.dev]" class="d-baud-edit">
+                <input
+                  class="d-input"
+                  v-model="slotBaudInput[slot.dev]"
+                  inputmode="numeric"
+                  spellcheck="false"
+                  :placeholder="t('device.baudCustomPlaceholder')"
+                  :aria-label="t('device.switchBaud')"
+                  @keyup.enter="applySlotBaud(slot)"
+                />
+                <button class="d-apply" @click="applySlotBaud(slot)">{{ t('device.baudApply') }}</button>
+              </div>
               <AppSelect
-                v-if="!baudBusy[slot.dev]"
+                v-else-if="!baudBusy[slot.dev]"
                 :model-value="String(slot.baud || '')"
                 :options="baudOptions(slot)"
                 :aria-label="t('device.switchBaud')"
@@ -82,6 +94,7 @@
                 <span class="d-tag warn">{{ t('device.switching') }}</span>
               </template>
             </div>
+            <div v-if="slot.v3" class="d-hint d-v3-hint">{{ t('device.v3BaudHint') }}</div>
             <!-- 角色同样放最后 -->
             <div class="d-row">
               <span class="d-k">{{ t('device.roleLabel') }}</span>
@@ -132,7 +145,7 @@
 </template>
 
 <script setup>
-import { computed, reactive } from 'vue';
+import { computed, reactive, watch } from 'vue';
 import { AppSelect } from '@ysc/core/ui';
 import { useI18n } from '../i18n/index.js';
 
@@ -154,6 +167,20 @@ const pick = reactive({
   0: { port: '', baud: '0', role: 'auto' },
   1: { port: '', baud: '0', role: 'auto' },
 });
+
+/* V3 已连接时的自定义波特率输入：随 device_list 的当前值同步。 */
+const slotBaudInput = reactive({ 0: '', 1: '' });
+watch(
+  () => props.slots,
+  (list) => {
+    (list || []).forEach(function (s) {
+      if (s && s.dev != null) {
+        slotBaudInput[s.dev] = s.baud ? String(s.baud) : '';
+      }
+    });
+  },
+  { immediate: true, deep: true }
+);
 
 /* 已连接后可切换的波特率，与驱动 SUPPORTED_BAUDS / 固件白名单对齐。
  * 最高档 4000000 供高速透传用。切到设备跑不起来的速率时驱动会自动回退到原
@@ -229,9 +256,17 @@ function onSwitchBaud(slot, raw) {
   if (!baud || baud === slot.baud) return;
   baudBusy[slot.dev] = true;
   emit('set-baud', slot.dev, baud);
-  // 切换含关端口/重开/重探角色，给足时间；驱动成功或失败都会刷 device_list
+  // 普通串口要关端口/重开/重探角色；V3 CDC 只回显逻辑值，马上就好。
   if (baudBusyTimer) clearTimeout(baudBusyTimer);
-  baudBusyTimer = setTimeout(function () { baudBusy[slot.dev] = false; }, 3000);
+  baudBusyTimer = setTimeout(function () {
+    baudBusy[slot.dev] = false;
+  }, slot.v3 ? 800 : 3000);
+}
+
+/** V3：把行内输入的任意波特率交给驱动。 */
+function applySlotBaud(slot) {
+  const baud = parseInt(slotBaudInput[slot.dev], 10);
+  if (baud > 0) onSwitchBaud(slot, baud);
 }
 </script>
 
@@ -373,6 +408,31 @@ function onSwitchBaud(slot, raw) {
 }
 .d-input::placeholder { color: var(--text-muted); font-weight: 400; font-family: var(--font-ui); }
 .d-input:focus-visible { color: var(--text-heading); }
+
+/* V3 CDC：波特率可任意输入，旁边一个小号「应用」；值本身仍是右对齐等宽。 */
+.d-baud-edit {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+.d-baud-edit .d-input { flex: 1; }
+.d-apply {
+  flex-shrink: 0;
+  height: 22px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-family: var(--font-ui);
+  color: var(--text-primary);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+.d-apply:hover { color: var(--text-heading); border-color: var(--border-hover); }
+.d-v3-hint { margin: -2px 8px 8px; }
 
 .d-v {
   margin-left: auto;
