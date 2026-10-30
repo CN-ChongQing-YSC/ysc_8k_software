@@ -24,6 +24,17 @@
       <input ref="importInput" type="file" accept=".json,application/json" style="display:none" @change="onImportFile" />
     </div>
 
+    <!-- 设备数据线路（cmd 62/63）：只有手柄线路才跑映射，避免和鼠标线路混在一起 -->
+    <div v-if="devMode === 0" class="gm-line-bar warn">
+      <span class="gm-line-dot"></span>
+      <span class="gm-line-text">{{ t('gamepad.lineMouseWarn') }}</span>
+      <button class="btn-accent sm" @click="emit('set-mode', 1)">{{ t('gamepad.switchGamepad') }}</button>
+    </div>
+    <div v-else-if="devMode === 1" class="gm-line-bar">
+      <span class="gm-line-dot on"></span>
+      <span class="gm-line-text">{{ t('gamepad.lineGamepadOn') }}</span>
+    </div>
+
     <div v-if="toast" class="gm-toast" :class="toastType">{{ toast }}</div>
 
     <div class="gm-body">
@@ -109,7 +120,11 @@ import { useI18n } from '../i18n/index.js';
 
 const { t } = useI18n();
 const api = window.driverApi;
-const emit = defineEmits(['monitor']);
+defineProps({
+  /* 0=鼠标线路 1=手柄线路 null=未知（固件未回 cmd 62） */
+  devMode: { type: Number, default: null },
+});
+const emit = defineEmits(['monitor', 'set-mode']);
 
 const srcKeys = ['A','B','X','Y','UP','DOWN','LEFT','RIGHT','LB','RB','LT','RT','CREATE','OPTIONS','L3','R3','PS'];
 const targetKeys = ['mouse_left','mouse_right','mouse_middle','mouse_side1','mouse_side2'];
@@ -559,6 +574,32 @@ onUnmounted(() => {
 .gm-toast { margin: 8px 16px; padding: 8px 14px; border-radius: 6px; font-size: 13px; }
 .gm-toast.ok  { background: rgba(80,200,120,.15); color: #50c878; }
 .gm-toast.err { background: rgba(220,80,80,.15); color: #dc5050; }
+/* 工作线路提示条：鼠标线路下明确告知"映射不生效"，一键切到手柄线路 */
+.gm-line-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 16px 0;
+  padding: 8px 14px;
+  border: 1px solid rgba(80,200,120,.35);
+  border-radius: 6px;
+  background: rgba(80,200,120,.08);
+  font-size: 13px;
+}
+.gm-line-bar.warn {
+  border-color: rgba(217,164,65,.45);
+  background: rgba(217,164,65,.1);
+}
+.gm-line-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #d9a441;
+  flex: 0 0 auto;
+}
+.gm-line-dot.on { background: #50c878; box-shadow: 0 0 6px rgba(80,200,120,.7); }
+.gm-line-text { flex: 1; min-width: 0; }
+.gm-line-bar .btn-accent { padding: 4px 10px; font-size: 12px; white-space: nowrap; }
 .gm-body { flex: 1; overflow-y: auto; padding: 8px 16px 16px; display: flex; flex-direction: column; gap: 14px; }
 .gm-card { background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.08); border-radius: 8px; padding: 14px; }
 .gm-card-title { font-weight: 600; font-size: 14px; margin-bottom: 10px; }

@@ -102,6 +102,7 @@ export default {
       tKbd: '键盘类',
       tDash: '—',
       tUnsupported: '未支持',
+      legend: '↓ 按下 · ↑ 松开 · Δ 与上一条同类命令的间隔',
       hint: '第三方用 kmboxnet API 连到此地址后，这里显示实时调用预览',
     },
   },
@@ -167,6 +168,9 @@ export default {
   gamepad: {
     title: '手柄映射配置',
     hint: '手柄按键/扳机映射为鼠标键，鼠标移动按比例转为摇杆',
+    lineMouseWarn: '当前设备处于鼠标线路，手柄映射不会生效（移动命令只走鼠标）。请先切换到手柄线路。',
+    switchGamepad: '切换到手柄线路',
+    lineGamepadOn: '当前设备处于手柄线路：手柄识别与映射生效，鼠标移动命令转为摇杆偏移。',
     refresh: '读取配置',
     save: '保存',
     reset: '重置默认',

@@ -2,18 +2,20 @@
 //!
 //! 线上协议：16 字节头（mac/rand/indexpts/cmd，全小端）+ 负载。
 //! 每条命令都回 ACK（原样头 + rand=0），未实现命令也 ACK。
-//! 同时维护 UI「NET API 活动预览」统计与最近 10 条记录。
+//! 同时维护 UI「NET API 活动预览」统计与最近 32 条记录（含时间戳/间隔/按键）。
 
+use std::collections::HashMap;
 use std::net::{SocketAddr, UdpSocket};
 use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
 use std::sync::{Arc, Mutex, Weak};
 use std::thread::{self, JoinHandle};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use ysc_core::consts::Role;
-use ysc_core::util::now_ms;
+use ysc_core::util::{json_escape, now_ms};
 
 use crate::app::App;
+use crate::command_bridge::{keyboard_state, KeyboardDiff};
 
 pub const CMD_CONNECT: u32 = 0xaf3c_2828;
 pub const CMD_MOUSE_MOVE: u32 = 0xaede_7345;
@@ -29,7 +31,7 @@ pub const CMD_REBOOT: u32 = 0xaa88_55aa;
 pub const CMD_MASK_MOUSE: u32 = 0x2323_4343;
 pub const CMD_UNMASK_ALL: u32 = 0x2334_4343;
 
-const NET_RING_MAX: usize = 10;
+const NET_RING_MAX: usize = 32;
 const NET_PUSH_MIN_MS: u64 = 200;
 const NET_CLIENT_ACTIVE_MS: u64 = 10_000;
 
@@ -37,10 +39,12 @@ const NET_CLIENT_ACTIVE_MS: u64 = 10_000;
 struct NetCmdRec {
     seq: u32,
     ms: u32,
+    /// 与上一条同名命令的毫秒间隔；-1 = 没有上一条。
+    dt: i32,
     kind: u8,
     ok: u8,
     name: [u8; 12],
-    detail: [u8; 40],
+    detail: [u8; 128],
 }
 
 impl Default for NetCmdRec {
@@ -48,10 +52,11 @@ impl Default for NetCmdRec {
         Self {
             seq: 0,
             ms: 0,
+            dt: -1,
             kind: 0,
             ok: 0,
             name: [0; 12],
-            detail: [0; 40],
+            detail: [0; 128],
         }
     }
 }
@@ -65,7 +70,11 @@ impl NetCmdRec {
     }
     fn set_detail(&mut self, s: &str) {
         let b = s.as_bytes();
-        let n = b.len().min(self.detail.len() - 1);
+        let mut n = b.len().min(self.detail.len() - 1);
+        // 按键名里有 ↓/↑ 这类多字节字符，截断时不要切开 UTF-8。
+        while n > 0 && !s.is_char_boundary(n) {
+            n -= 1;
+        }
         self.detail[..n].copy_from_slice(&b[..n]);
         self.detail[n] = 0;
     }
@@ -102,6 +111,10 @@ struct NetStats {
     client_sessions: u32,
     last_push: u64,
     start_ms: u64,
+    /// 服务启动时的 Unix 毫秒时间戳：`start_epoch_ms + rec.ms` = 墙上时间。
+    start_epoch_ms: u64,
+    /// 每条命令上一次出现的时间（算「同类命令间隔」用）。
+    last_by_name: HashMap<&'static str, u64>,
 }
 
 /// kmboxnet UDP 服务。
@@ -163,6 +176,7 @@ impl KmboxServer {
             let mut st = self.inner.stats.lock().unwrap();
             *st = NetStats {
                 start_ms: now_ms(),
+                start_epoch_ms: unix_ms(),
                 ..Default::default()
             };
         }
@@ -200,6 +214,7 @@ impl KmboxServer {
             let mut st = self.inner.stats.lock().unwrap();
             *st = NetStats {
                 start_ms: now_ms(),
+                start_epoch_ms: unix_ms(),
                 ..Default::default()
             };
         }
@@ -284,7 +299,7 @@ impl Inner {
         }
     }
 
-    fn record(&self, name: &str, kind: u8, ok: bool, detail: &str, need_push: bool) {
+    fn record(&self, name: &'static str, kind: u8, ok: bool, detail: &str, need_push: bool) {
         let (body, allow) = {
             let mut st = self.stats.lock().unwrap();
             st.total += 1;
@@ -293,10 +308,17 @@ impl Inner {
             }
             st.seq += 1;
             let seq = st.seq;
-            let ms = now_ms().saturating_sub(st.start_ms) as u32;
+            let now = now_ms();
+            let ms = now.saturating_sub(st.start_ms) as u32;
+            // 同类命令（如 keyboard vs keyboard）之间的毫秒间隔；没有上一条记 -1。
+            let dt = match st.last_by_name.insert(name, now) {
+                Some(prev) => now.saturating_sub(prev).min(i32::MAX as u64) as i32,
+                None => -1,
+            };
             let mut rec = NetCmdRec {
                 seq,
                 ms,
+                dt,
                 kind,
                 ok: ok as u8,
                 ..Default::default()
@@ -309,7 +331,6 @@ impl Inner {
             if st.ring_count < NET_RING_MAX {
                 st.ring_count += 1;
             }
-            let now = now_ms();
             let allow = need_push || now.saturating_sub(st.last_push) >= NET_PUSH_MIN_MS;
             let body = if allow {
                 build_stat_locked(&st)
@@ -525,18 +546,16 @@ fn handle_packet(inner: &Arc<Inner>, data: &[u8], from: SocketAddr) {
             let ctrl = data[16];
             let mut keys = [0u8; 10];
             keys.copy_from_slice(&data[18..28]);
-            let nkeys = keys.iter().filter(|&&k| k != 0).count();
-            let ok = match inner.app() {
-                Some(app) => app.send_keyboard(ctrl, &keys),
-                None => false,
+            let diff = match inner.app() {
+                Some(app) => app.send_keyboard_diff(ctrl, &keys),
+                None => KeyboardDiff {
+                    ok: false,
+                    pressed: Vec::new(),
+                    released: Vec::new(),
+                    held: keyboard_state(ctrl, &keys),
+                },
             };
-            inner.record(
-                "keyboard",
-                1,
-                ok,
-                &format!("ctrl=0x{:02X} n={}", ctrl, nkeys),
-                false,
-            );
+            inner.record("keyboard", 1, diff.ok, &kbd_detail(&diff), false);
             inner.send_response(from, &hdr);
         }
         CMD_MONITOR => {
@@ -576,6 +595,105 @@ fn handle_packet(inner: &Arc<Inner>, data: &[u8], from: SocketAddr) {
     }
 }
 
+fn unix_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
+
+/// 「↓A W ↑S」这种按键变化描述；没有变化时显示「=」加上当前按住的键。
+fn kbd_detail(d: &KeyboardDiff) -> String {
+    let mut s = String::new();
+    if !d.pressed.is_empty() {
+        s.push('↓');
+        push_key_names(&mut s, &d.pressed);
+    }
+    if !d.released.is_empty() {
+        if !s.is_empty() {
+            s.push(' ');
+        }
+        s.push('↑');
+        push_key_names(&mut s, &d.released);
+    }
+    if s.is_empty() {
+        s.push('=');
+        if !d.held.is_empty() {
+            s.push(' ');
+            push_key_names(&mut s, &d.held);
+        }
+    }
+    s
+}
+
+fn push_key_names(s: &mut String, keys: &[u8]) {
+    for (i, &k) in keys.iter().enumerate() {
+        if i > 0 {
+            s.push(' ');
+        }
+        s.push_str(&key_name(k));
+    }
+}
+
+/// HID 键盘用法码 → 便于识别的名字（kmboxnet 的 KEY_* 就是这套码）。
+fn key_name(k: u8) -> String {
+    match k {
+        0x04..=0x1D => ((b'A' + (k - 0x04)) as char).to_string(),
+        0x1E..=0x26 => ((b'1' + (k - 0x1E)) as char).to_string(),
+        0x27 => "0".to_string(),
+        0x28 => "Enter".to_string(),
+        0x29 => "Esc".to_string(),
+        0x2A => "Backspace".to_string(),
+        0x2B => "Tab".to_string(),
+        0x2C => "Space".to_string(),
+        0x2D => "-".to_string(),
+        0x2E => "=".to_string(),
+        0x2F => "[".to_string(),
+        0x30 => "]".to_string(),
+        0x31 => "\\".to_string(),
+        0x32 => "#".to_string(),
+        0x33 => ";".to_string(),
+        0x34 => "'".to_string(),
+        0x35 => "`".to_string(),
+        0x36 => ",".to_string(),
+        0x37 => ".".to_string(),
+        0x38 => "/".to_string(),
+        0x39 => "CapsLock".to_string(),
+        0x3A..=0x45 => format!("F{}", k - 0x39),
+        0x46 => "PrtSc".to_string(),
+        0x47 => "ScrLk".to_string(),
+        0x48 => "Pause".to_string(),
+        0x49 => "Ins".to_string(),
+        0x4A => "Home".to_string(),
+        0x4B => "PgUp".to_string(),
+        0x4C => "Del".to_string(),
+        0x4D => "End".to_string(),
+        0x4E => "PgDn".to_string(),
+        0x4F => "Right".to_string(),
+        0x50 => "Left".to_string(),
+        0x51 => "Down".to_string(),
+        0x52 => "Up".to_string(),
+        0x53 => "NumLock".to_string(),
+        0x54 => "KP/".to_string(),
+        0x55 => "KP*".to_string(),
+        0x56 => "KP-".to_string(),
+        0x57 => "KP+".to_string(),
+        0x58 => "KPEnter".to_string(),
+        0x59..=0x61 => format!("KP{}", k - 0x58),
+        0x62 => "KP0".to_string(),
+        0x63 => "KP.".to_string(),
+        0xE0 => "LCtrl".to_string(),
+        0xE1 => "LShift".to_string(),
+        0xE2 => "LAlt".to_string(),
+        0xE3 => "LGui".to_string(),
+        0xE4 => "RCtrl".to_string(),
+        0xE5 => "RShift".to_string(),
+        0xE6 => "RAlt".to_string(),
+        0xE7 => "RGui".to_string(),
+        _ => format!("0x{:02X}", k),
+    }
+}
+
 fn build_stat_locked(st: &NetStats) -> String {
     let now = now_ms();
     let seen = if st.client_last != 0 {
@@ -585,7 +703,8 @@ fn build_stat_locked(st: &NetStats) -> String {
     };
     let active = st.client_last != 0 && now.saturating_sub(st.client_last) < NET_CLIENT_ACTIVE_MS;
     let mut s = format!(
-        "\"total\":{},\"c\":{{\"mouse\":{},\"kbd\":{},\"ctrl\":{},\"other\":{}}},\"client\":{{\"ip\":\"{}\",\"port\":{},\"sessions\":{},\"seenMs\":{},\"active\":{}}},\"ring\":[",
+        "\"t0\":{},\"total\":{},\"c\":{{\"mouse\":{},\"kbd\":{},\"ctrl\":{},\"other\":{}}},\"client\":{{\"ip\":\"{}\",\"port\":{},\"sessions\":{},\"seenMs\":{},\"active\":{}}},\"ring\":[",
+        st.start_epoch_ms,
         st.total,
         st.kind_cnt[0],
         st.kind_cnt[1],
@@ -604,13 +723,14 @@ fn build_stat_locked(st: &NetStats) -> String {
             s.push(',');
         }
         s.push_str(&format!(
-            "{{\"i\":{},\"ms\":{},\"k\":{},\"ok\":{},\"n\":\"{}\",\"d\":\"{}\"}}",
+            "{{\"i\":{},\"ms\":{},\"dt\":{},\"k\":{},\"ok\":{},\"n\":\"{}\",\"d\":\"{}\"}}",
             r.seq,
             r.ms,
+            r.dt,
             r.kind,
             r.ok,
-            r.name_str(),
-            r.detail_str()
+            json_escape(&r.name_str()),
+            json_escape(&r.detail_str())
         ));
     }
     s.push(']');
@@ -623,4 +743,53 @@ pub fn get_local_ip() -> String {
         return ip;
     }
     "127.0.0.1".to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn diff(pressed: &[u8], released: &[u8], held: &[u8]) -> KeyboardDiff {
+        KeyboardDiff {
+            ok: true,
+            pressed: pressed.to_vec(),
+            released: released.to_vec(),
+            held: held.to_vec(),
+        }
+    }
+
+    #[test]
+    fn key_names_cover_common_keys() {
+        assert_eq!(key_name(0x04), "A");
+        assert_eq!(key_name(0x11), "N");
+        assert_eq!(key_name(0x1D), "Z");
+        assert_eq!(key_name(0x1E), "1");
+        assert_eq!(key_name(0x27), "0");
+        assert_eq!(key_name(0x2C), "Space");
+        assert_eq!(key_name(0x3A), "F1");
+        assert_eq!(key_name(0x45), "F12");
+        assert_eq!(key_name(0x50), "Left");
+        assert_eq!(key_name(0xE1), "LShift");
+        assert_eq!(key_name(0x31), "\\");
+    }
+
+    #[test]
+    fn kbd_detail_shows_press_and_release() {
+        assert_eq!(kbd_detail(&diff(&[0x04, 0x1A], &[], &[0x04, 0x1A])), "↓A W");
+        assert_eq!(kbd_detail(&diff(&[], &[0x04], &[0x1A])), "↑A");
+        assert_eq!(kbd_detail(&diff(&[0x05], &[0x04], &[0x05])), "↓B ↑A");
+        assert_eq!(kbd_detail(&diff(&[], &[], &[0x05])), "= B");
+        assert_eq!(kbd_detail(&diff(&[], &[], &[])), "=");
+    }
+
+    #[test]
+    fn keyboard_state_expands_modifiers() {
+        let mut keys = [0u8; 10];
+        keys[0] = 0x04;
+        keys[1] = 0x11;
+        assert_eq!(
+            keyboard_state(0b0000_0011, &keys),
+            vec![0xE0, 0xE1, 0x04, 0x11]
+        );
+    }
 }

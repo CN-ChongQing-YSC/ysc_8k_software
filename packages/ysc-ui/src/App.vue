@@ -152,7 +152,12 @@
         :connected="mouseDeviceConnected"
         :dev-mode="devMode"
       />
-      <GamepadMapperPanel v-else-if="currentView === 'gamepad'" @monitor="openGamepadTester" />
+      <GamepadMapperPanel
+        v-else-if="currentView === 'gamepad'"
+        :dev-mode="devMode"
+        @monitor="openGamepadTester"
+        @set-mode="onDeviceSetMode"
+      />
       <DocsPanel v-else-if="currentView === 'docs'" />
       <FirmwarePanel
         v-else-if="currentView === 'firmware'"
@@ -735,8 +740,9 @@ onMounted(function() {
   });
 
   /* NET API 活动预览：驱动在客户端连接/调用命令时限速推送，前端只负责显示。
-   * 载荷 = {total, c:{mouse,kbd,ctrl,other}, client:{ip,port,sessions,seenMs,active},
-   *         ring:[{i,ms,k,ok,n,d}, ...]}（ring 新的在前）。 */
+   * 载荷 = {t0, total, c:{mouse,kbd,ctrl,other}, client:{ip,port,sessions,seenMs,active},
+   *         ring:[{i,ms,dt,k,ok,n,d}, ...]}（ring 新的在前；t0+ms=墙上时间，
+   *         dt=与上一条同名命令的毫秒间隔，键盘的 d 形如「↓A W ↑S」）。 */
   listen('kmnet_stat', function(data) {
     if (!data || typeof data !== 'object') return;
     if (!Array.isArray(data.ring)) data.ring = [];

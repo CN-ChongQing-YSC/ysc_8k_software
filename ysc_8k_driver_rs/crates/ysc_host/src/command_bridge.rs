@@ -15,6 +15,34 @@ use crate::app::App;
 
 static KB_PREV: Lazy<Mutex<Vec<u8>>> = Lazy::new(|| Mutex::new(Vec::new()));
 
+/// 一包 kmboxnet 键盘全状态相对上一包的变化，供 NET 活动预览显示具体按键。
+pub struct KeyboardDiff {
+    /// 所有 cmd 45 都成功入队（无设备/写失败时为 false）。
+    pub ok: bool,
+    /// 本条状态里新增（按下）的 HID 键码。
+    pub pressed: Vec<u8>,
+    /// 本条状态里消失（松开）的 HID 键码。
+    pub released: Vec<u8>,
+    /// 本条状态下所有按住的键（修饰键已展开成 0xE0-0xE7）。
+    pub held: Vec<u8>,
+}
+
+/// 把 kmboxnet 的 (ctrl, keys) 摊平成 HID 键码集合：修饰键 0xE0-0xE7 在前。
+pub fn keyboard_state(ctrl: u8, keys: &[u8; 10]) -> Vec<u8> {
+    let mut cur: Vec<u8> = Vec::with_capacity(18);
+    for bit in 0..8 {
+        if ctrl & (1 << bit) != 0 {
+            cur.push(0xE0 + bit as u8);
+        }
+    }
+    for &k in keys {
+        if k != 0 {
+            cur.push(k);
+        }
+    }
+    cur
+}
+
 impl App {
     /// 按角色解析目标串口。
     ///
@@ -143,31 +171,40 @@ impl App {
 
     /// kmboxnet 的整份键盘状态 → 固件 cmd 45 的单键按下/释放（状态差分）。
     pub fn send_keyboard(&self, ctrl: u8, keys: &[u8; 10]) -> bool {
-        let mut cur: Vec<u8> = Vec::with_capacity(18);
-        for bit in 0..8 {
-            if ctrl & (1 << bit) != 0 {
-                cur.push(0xE0 + bit as u8);
-            }
-        }
-        for &k in keys {
-            if k != 0 {
-                cur.push(k);
-            }
-        }
+        self.send_keyboard_diff(ctrl, keys).ok
+    }
+
+    /// 同 [`Self::send_keyboard`]，额外返回本包相对上一包的按下/松开键，
+    /// 让 NET 活动预览能显示「具体是哪个键」。
+    pub fn send_keyboard_diff(&self, ctrl: u8, keys: &[u8; 10]) -> KeyboardDiff {
+        let cur = keyboard_state(ctrl, keys);
         let prev = KB_PREV.lock().unwrap().clone();
-        let mut any_ok = true;
+        let mut pressed = Vec::new();
+        let mut released = Vec::new();
+        let mut ok = true;
         for &p in &prev {
-            if !cur.contains(&p) && !self.send_keyboard_key(p, false, Role::Kbd) {
-                any_ok = false;
+            if !cur.contains(&p) {
+                released.push(p);
+                if !self.send_keyboard_key(p, false, Role::Kbd) {
+                    ok = false;
+                }
             }
         }
         for &c in &cur {
-            if !prev.contains(&c) && !self.send_keyboard_key(c, true, Role::Kbd) {
-                any_ok = false;
+            if !prev.contains(&c) {
+                pressed.push(c);
+                if !self.send_keyboard_key(c, true, Role::Kbd) {
+                    ok = false;
+                }
             }
         }
-        *KB_PREV.lock().unwrap() = cur;
-        any_ok
+        *KB_PREV.lock().unwrap() = cur.clone();
+        KeyboardDiff {
+            ok,
+            pressed,
+            released,
+            held: cur,
+        }
     }
 
     pub fn send_keyboard_key(&self, kc: u8, down: bool, role: Role) -> bool {

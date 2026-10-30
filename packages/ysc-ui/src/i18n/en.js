@@ -102,6 +102,7 @@ export default {
       tKbd: 'kbd',
       tDash: '—',
       tUnsupported: 'Unsupported',
+      legend: '↓ key down · ↑ key up · Δ interval since the previous same command',
       hint: 'Point a third-party kmboxnet client here to see live calls',
     },
   },
@@ -167,6 +168,9 @@ export default {
   gamepad: {
     title: 'Gamepad Mapping',
     hint: 'Map gamepad buttons/triggers to mouse buttons; convert mouse move to stick',
+    lineMouseWarn: 'The device is on the mouse line, so gamepad mapping is inactive (move commands go to the mouse). Switch to the gamepad line first.',
+    switchGamepad: 'Switch to gamepad line',
+    lineGamepadOn: 'Device is on the gamepad line: pad detection and mapping are active; mouse move commands become stick offsets.',
     refresh: 'Reload',
     save: 'Save',
     reset: 'Reset Defaults',

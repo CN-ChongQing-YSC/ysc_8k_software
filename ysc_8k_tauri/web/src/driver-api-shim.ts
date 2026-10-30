@@ -188,7 +188,7 @@ async function getAppVersion(): Promise<string> {
   try {
     return await invoke<string>('ysc_get_version');
   } catch {
-    return '2.0.0';
+    return '2.1.0';
   }
 }
 

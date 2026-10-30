@@ -67,13 +67,15 @@
         </div>
         <div class="kmnet-act-list">
           <div v-if="!ring.length" class="kmnet-act-empty">{{ t('kmnet.act.empty') }}</div>
-          <div v-for="r in ring" :key="r.i" class="kmnet-act-row">
-            <span class="kmnet-act-t">{{ atLabel(r.ms) }}</span>
+          <div v-for="r in ring" :key="r.i" class="kmnet-act-row" :title="rowTitle(r)">
+            <span class="kmnet-act-t">{{ timeLabel(r) }}</span>
+            <span class="kmnet-act-dt">{{ dtLabel(r) }}</span>
             <span class="kmnet-act-n" :class="'k' + r.k">{{ r.n }}</span>
             <span class="kmnet-act-d">{{ r.d }}</span>
             <span class="kmnet-act-ok" :class="{ bad: !r.ok, dash: r.k === 2 }">{{ targetLabel(r) }}</span>
           </div>
         </div>
+        <div v-if="running" class="kmnet-act-legend">{{ t('kmnet.act.legend') }}</div>
         <div v-if="running" class="kmnet-hint">{{ t('kmnet.act.hint') }}</div>
       </div>
     </div>
@@ -150,10 +152,31 @@ const clientLabel = computed(function() {
   return s;
 });
 
-/** 距 NET 服务启动的时间，秒（一位小数）——比绝对时间更适合"最近调用"预览 */
+/** 距 NET 服务启动的时间，秒（一位小数）——旧驱动没有 t0 时的兜底。 */
 function atLabel(ms) {
   if (ms == null) return '';
   return (ms / 1000).toFixed(1) + 's';
+}
+
+/** 墙上时间 HH:MM:SS.mmm：驱动给服务启动时间 t0，加上记录偏移 ms。 */
+function timeLabel(r) {
+  const t0 = (props.stat && props.stat.t0) || 0;
+  if (!t0 || r.ms == null) return atLabel(r.ms);
+  const d = new Date(t0 + r.ms);
+  const p = function(n, w) { return String(n).padStart(w, '0'); };
+  return p(d.getHours(), 2) + ':' + p(d.getMinutes(), 2) + ':' + p(d.getSeconds(), 2) + '.' + p(d.getMilliseconds(), 3);
+}
+
+/** 与上一条同类命令的毫秒间隔（驱动算好；dt < 0 表示没有上一条）。 */
+function dtLabel(r) {
+  if (r.dt == null || r.dt < 0) return '';
+  return '+' + r.dt + 'ms';
+}
+
+function rowTitle(r) {
+  let s = timeLabel(r) + '  ' + r.n + '  ' + r.d;
+  if (r.dt != null && r.dt >= 0) s += '  (+' + r.dt + 'ms)';
+  return s;
 }
 
 /** 命令落到哪台盒子；k=2 是控制类（连接/监控/屏蔽/重启），没有目标设备 */
@@ -211,7 +234,7 @@ function targetLabel(r) {
 .pill.c { border-color: #69c; }
 .pill.u { border-color: #c66; color: #e88; }
 .kmnet-act-list {
-  max-height: 148px;
+  max-height: 210px;
   overflow-y: auto;
   border: 1px solid var(--border, #333);
   border-radius: 4px;
@@ -228,8 +251,9 @@ function targetLabel(r) {
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 }
 .kmnet-act-row:last-child { border-bottom: none; }
-.kmnet-act-t { opacity: 0.45; width: 42px; flex: none; text-align: right; }
-.kmnet-act-n { width: 66px; flex: none; }
+.kmnet-act-t { opacity: 0.45; width: 84px; flex: none; text-align: right; }
+.kmnet-act-dt { width: 46px; flex: none; text-align: right; color: #8bd; opacity: 0.8; }
+.kmnet-act-n { width: 62px; flex: none; }
 .kmnet-act-n.k0 { color: #6cb; }
 .kmnet-act-n.k1 { color: #dba; }
 .kmnet-act-n.k2 { color: #9cf; }
@@ -244,4 +268,10 @@ function targetLabel(r) {
 .kmnet-act-ok { flex: none; opacity: 0.7; }
 .kmnet-act-ok.dash { opacity: 0.35; }
 .kmnet-act-ok.bad { color: #e88; opacity: 1; }
+.kmnet-act-legend {
+  margin-top: 5px;
+  font-size: 10px;
+  opacity: 0.5;
+  letter-spacing: 0.2px;
+}
 </style>

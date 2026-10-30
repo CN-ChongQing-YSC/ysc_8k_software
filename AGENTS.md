@@ -9,7 +9,7 @@
 **桌面端已从 Electron + C++ 迁移到纯 Rust + Tauri v2 单 exe；首个可运行版本和 V3 真机升级已跑通。**
 
 - **活动代码 / 唯一维护方向**
-  - `ysc_8k_tauri/`：Tauri v2 桌面应用（Rust 宿主 + WebView2 + NSIS），当前版本 `2.0.0`
+  - `ysc_8k_tauri/`：Tauri v2 桌面应用（Rust 宿主 + WebView2 + NSIS），当前版本 `2.1.0`
   - `packages/ysc-ui/`：当前 YSC 桌面 UI（已从 `ysc_8k_electron/src/renderer` 迁入）
   - `packages/ysc-core/`：协议、传输、设备 store、共享 UI（继续维护）
   - `ysc_8k_driver_rs/crates/ysc_host/`：设备/命令/IAP 核心（已从旧 `ysc_driver` 抽出）

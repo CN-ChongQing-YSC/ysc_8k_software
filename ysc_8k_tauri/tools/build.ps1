@@ -2,7 +2,12 @@
 <#
 .SYNOPSIS
     构建 YSC 8K Tauri 单 exe 发布包（NSIS），并归档为 YSC_8K_Setup_<ver>.exe。
+.PARAMETER OutDir
+    归档目录，默认 ysc_8k_tauri/release。可传下载目录等任意路径。
 #>
+param(
+    [string]$OutDir = ''
+)
 $ErrorActionPreference = 'Stop'
 
 $app = Split-Path $PSScriptRoot -Parent
@@ -25,7 +30,7 @@ try {
         Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if (-not $nsis) { throw '未找到 NSIS 安装包' }
 
-    $outDir = Join-Path $app 'release'
+    $outDir = if ($OutDir) { $OutDir } else { Join-Path $app 'release' }
     New-Item -ItemType Directory -Force -Path $outDir | Out-Null
     $dst = Join-Path $outDir "YSC_8K_Setup_$ver.exe"
     Copy-Item -LiteralPath $nsis.FullName -Destination $dst -Force
