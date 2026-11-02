@@ -43,7 +43,6 @@ const IAP_RESCAN_TIMEOUT_MS: u64 = 30_000;
 const V3_APP_WAIT_MS: u64 = 15_000;
 const IAP_RESCAN_POLL_MS: u64 = 400;
 const IAP_ENTER_WAIT_MS: u64 = 2500;
-const VERIFY_CHUNK_DELAY_MS: u64 = 5;
 
 fn send_log(app: &App, msg: &str, cls: &str) {
     app.send_event(
@@ -938,7 +937,6 @@ fn run_iap_sequence(app: &App, iap_port: &str, firmware: &[u8], notify_success: 
                     &format!("校验 {}/{}", i + 1, total_chunks),
                 );
             }
-            thread::sleep(Duration::from_millis(VERIFY_CHUNK_DELAY_MS));
         }
         let ver_ms = now_ms().saturating_sub(t2);
         send_log(
